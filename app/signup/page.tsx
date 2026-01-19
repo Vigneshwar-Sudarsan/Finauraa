@@ -8,6 +8,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Sparkle, SpinnerGap, CheckCircle } from "@phosphor-icons/react";
 
+export const dynamic = "force-dynamic";
+
 export default function SignupPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
