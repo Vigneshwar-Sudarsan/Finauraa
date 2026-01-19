@@ -4,6 +4,8 @@ import { SidebarProvider, SidebarInset } from "@/components/ui/sidebar";
 import { SpendingContent } from "@/components/dashboard/spending-content";
 import { DashboardBottomNav } from "@/components/dashboard/dashboard-bottom-nav";
 
+export const dynamic = "force-dynamic";
+
 function SpendingLoading() {
   return (
     <div className="h-dvh w-full flex items-center justify-center">

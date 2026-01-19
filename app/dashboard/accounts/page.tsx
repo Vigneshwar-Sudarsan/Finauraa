@@ -4,6 +4,8 @@ import { SidebarProvider, SidebarInset } from "@/components/ui/sidebar";
 import { AccountsContent } from "@/components/dashboard/accounts-content";
 import { DashboardBottomNav } from "@/components/dashboard/dashboard-bottom-nav";
 
+export const dynamic = "force-dynamic";
+
 function AccountsLoading() {
   return (
     <div className="h-dvh w-full flex items-center justify-center">

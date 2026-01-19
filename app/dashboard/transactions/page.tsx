@@ -4,6 +4,8 @@ import { SidebarProvider, SidebarInset } from "@/components/ui/sidebar";
 import { TransactionsContent } from "@/components/dashboard/transactions-content";
 import { DashboardBottomNav } from "@/components/dashboard/dashboard-bottom-nav";
 
+export const dynamic = "force-dynamic";
+
 function TransactionsLoading() {
   return (
     <div className="h-dvh w-full flex items-center justify-center">
