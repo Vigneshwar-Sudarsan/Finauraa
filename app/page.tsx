@@ -6,6 +6,9 @@ import {
   SidebarInset,
 } from "@/components/ui/sidebar";
 
+// Force dynamic rendering - this page uses Supabase which requires env vars
+export const dynamic = "force-dynamic";
+
 function ChatLoading() {
   return (
     <div className="h-dvh w-full flex items-center justify-center">
