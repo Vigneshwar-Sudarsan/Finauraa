@@ -10,6 +10,17 @@ import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { EmptyState } from "@/components/ui/empty-state";
 import {
+  Item,
+  ItemMedia,
+  ItemContent,
+  ItemTitle,
+  ItemDescription,
+  ItemActions,
+  ItemGroup,
+  ItemSeparator,
+} from "@/components/ui/item";
+import { cn } from "@/lib/utils";
+import {
   ArrowLeft,
   Bank,
   CreditCard,
@@ -22,6 +33,17 @@ import {
   Copy,
   Check,
   Warning,
+  ShoppingCart,
+  Car,
+  Hamburger,
+  Lightning,
+  House,
+  Heartbeat,
+  GameController,
+  Airplane,
+  DotsThree,
+  Money,
+  Briefcase,
 } from "@phosphor-icons/react";
 
 interface Transaction {
@@ -81,6 +103,43 @@ function getAccountIcon(accountType: string) {
     return Wallet;
   }
   return Bank;
+}
+
+// Category icons mapping (consistent with transactions-content.tsx)
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const categoryIcons: Record<string, React.ComponentType<any>> = {
+  shopping: ShoppingCart,
+  groceries: ShoppingCart,
+  transport: Car,
+  transportation: Car,
+  food: Hamburger,
+  dining: Hamburger,
+  restaurants: Hamburger,
+  utilities: Lightning,
+  bills: Lightning,
+  subscriptions: CreditCard,
+  payments: CreditCard,
+  housing: House,
+  rent: House,
+  mortgages: House,
+  health: Heartbeat,
+  healthcare: Heartbeat,
+  entertainment: GameController,
+  travel: Airplane,
+  other: DotsThree,
+  "other expenses": DotsThree,
+  "other loans": CreditCard,
+  "salary & wages": Briefcase,
+  "retirement & pensions": Bank,
+  "other income": Money,
+  income: Money,
+  transfer: Bank,
+};
+
+function getCategoryIcon(categoryName: string | null) {
+  if (!categoryName) return DotsThree;
+  const key = categoryName.toLowerCase();
+  return categoryIcons[key] || DotsThree;
 }
 
 export function AccountDetailContent({ accountId }: { accountId: string }) {
@@ -434,7 +493,7 @@ export function AccountDetailContent({ accountId }: { accountId: string }) {
 
           {/* Recent Transactions */}
           <Card>
-            <CardHeader className="pb-0">
+            <CardHeader className="pb-2">
               <CardTitle className="text-base">
                 Recent Transactions ({summary.transactionCount})
               </CardTitle>
@@ -448,34 +507,56 @@ export function AccountDetailContent({ accountId }: { accountId: string }) {
                   </p>
                 </div>
               ) : (
-                transactions.slice(0, 20).map((txn, index) => (
-                  <div key={txn.id}>
-                    {index > 0 && <Separator />}
-                    <div className="flex items-center justify-between p-4">
-                      <div className="flex-1 min-w-0">
-                        <p className="font-medium text-sm truncate">
-                          {txn.merchant_name || txn.description || "Transaction"}
-                        </p>
-                        <p className="text-xs text-muted-foreground">
-                          {new Date(txn.transaction_date).toLocaleDateString("en-US", {
-                            month: "short",
-                            day: "numeric",
-                            year: "numeric",
-                          })}
-                          {txn.category && ` · ${txn.category}`}
-                        </p>
+                <ItemGroup>
+                  {transactions.slice(0, 20).map((txn, index) => {
+                    const Icon = getCategoryIcon(txn.category);
+                    const isCredit = txn.transaction_type === "credit";
+
+                    return (
+                      <div key={txn.id}>
+                        {index > 0 && <ItemSeparator />}
+                        <Item variant="default" size="sm">
+                          <ItemMedia variant="icon">
+                            <div
+                              className={cn(
+                                "size-10 rounded-xl flex items-center justify-center",
+                                isCredit ? "bg-emerald-500/10" : "bg-muted"
+                              )}
+                            >
+                              <Icon
+                                size={20}
+                                className={isCredit ? "text-emerald-600" : "text-muted-foreground"}
+                              />
+                            </div>
+                          </ItemMedia>
+                          <ItemContent>
+                            <ItemTitle className="truncate">
+                              {txn.merchant_name || txn.description || "Transaction"}
+                            </ItemTitle>
+                            <ItemDescription>
+                              {txn.category && `${txn.category} · `}
+                              {new Date(txn.transaction_date).toLocaleDateString("en-US", {
+                                month: "short",
+                                day: "numeric",
+                              })}
+                            </ItemDescription>
+                          </ItemContent>
+                          <ItemActions>
+                            <p
+                              className={cn(
+                                "font-semibold tabular-nums",
+                                isCredit ? "text-emerald-600" : ""
+                              )}
+                            >
+                              {isCredit ? "+" : "-"}
+                              {formatCurrency(txn.amount, txn.currency)}
+                            </p>
+                          </ItemActions>
+                        </Item>
                       </div>
-                      <p
-                        className={`font-medium text-sm ${
-                          txn.transaction_type === "credit" ? "text-green-600" : "text-red-600"
-                        }`}
-                      >
-                        {txn.transaction_type === "credit" ? "+" : "-"}
-                        {formatCurrency(txn.amount, txn.currency)}
-                      </p>
-                    </div>
-                  </div>
-                ))
+                    );
+                  })}
+                </ItemGroup>
               )}
             </CardContent>
           </Card>

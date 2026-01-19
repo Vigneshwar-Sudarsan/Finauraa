@@ -1,22 +1,30 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import { ArrowUp, Plus, Waveform } from "@phosphor-icons/react";
+import { ArrowUp, Plus, Waveform, Bank } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/button";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
 
 interface ChatInputProps {
   onSend: (message: string) => void;
+  onConnectBank?: () => void;
   disabled?: boolean;
   placeholder?: string;
 }
 
 export function ChatInput({
   onSend,
+  onConnectBank,
   disabled = false,
   placeholder = "Ask anything",
 }: ChatInputProps) {
   const [message, setMessage] = useState("");
+  const [popoverOpen, setPopoverOpen] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   // Auto-resize textarea
@@ -40,6 +48,11 @@ export function ChatInput({
       e.preventDefault();
       handleSend();
     }
+  };
+
+  const handleConnectBank = () => {
+    setPopoverOpen(false);
+    onConnectBank?.();
   };
 
   return (
@@ -70,16 +83,33 @@ export function ChatInput({
 
           {/* Bottom toolbar */}
           <div className="flex items-center justify-between px-2 pb-2">
-            {/* Left side - Plus button */}
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon-sm"
-              className="text-muted-foreground hover:text-foreground"
-              disabled={disabled}
-            >
-              <Plus size={20} />
-            </Button>
+            {/* Left side - Plus button with menu */}
+            <Popover open={popoverOpen} onOpenChange={setPopoverOpen}>
+              <PopoverTrigger asChild>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon-sm"
+                  className="text-muted-foreground hover:text-foreground"
+                  disabled={disabled}
+                >
+                  <Plus size={20} />
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent
+                align="start"
+                side="top"
+                className="w-56 p-1.5"
+              >
+                <button
+                  onClick={handleConnectBank}
+                  className="flex w-full items-center gap-3 rounded-md px-3 py-2.5 text-sm text-foreground hover:bg-muted transition-colors"
+                >
+                  <Bank size={18} className="text-muted-foreground" />
+                  <span>Connect to bank</span>
+                </button>
+              </PopoverContent>
+            </Popover>
 
             {/* Right side - Voice & Send */}
             <div className="flex items-center gap-1">

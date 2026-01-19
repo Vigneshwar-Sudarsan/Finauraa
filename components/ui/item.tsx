@@ -11,7 +11,7 @@ function ItemGroup({ className, ...props }: React.ComponentProps<"div">) {
       role="list"
       data-slot="item-group"
       className={cn(
-        "gap-4 has-[[data-size=sm]]:gap-2.5 has-[[data-size=xs]]:gap-2 group/item-group flex w-full flex-col",
+        "group/item-group flex w-full flex-col",
         className
       )}
       {...props}
@@ -27,14 +27,14 @@ function ItemSeparator({
     <Separator
       data-slot="item-separator"
       orientation="horizontal"
-      className={cn("my-2", className)}
+      className={cn("", className)}
       {...props}
     />
   )
 }
 
 const itemVariants = cva(
-  "[a]:hover:bg-muted rounded-md border text-sm w-full group/item focus-visible:border-ring focus-visible:ring-ring/50 flex items-center flex-wrap outline-none transition-colors duration-100 focus-visible:ring-[3px] [a]:transition-colors",
+  "border text-sm w-full group/item focus-visible:border-ring focus-visible:ring-ring/50 flex items-center flex-wrap outline-none transition-colors duration-100 focus-visible:ring-[3px]",
   {
     variants: {
       variant: {
@@ -44,7 +44,7 @@ const itemVariants = cva(
       },
       size: {
         default: "gap-3.5 px-4 py-3.5",
-        sm: "gap-2.5 px-3 py-2.5",
+        sm: "gap-2.5 px-4 py-3",
         xs: "gap-2 px-2.5 py-2 [[data-slot=dropdown-menu-content]_&]:p-0",
       },
     },

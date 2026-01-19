@@ -148,12 +148,44 @@ export function DashboardContent() {
       {(isLoading || banks.length > 0) && (
       <div className="flex-1 overflow-auto">
         <div className="p-4 md:p-6 space-y-6 max-w-4xl mx-auto">
-          {/* Loading skeleton for total balance */}
+          {/* Loading skeleton */}
           {isLoading && (
-            <div className="space-y-1">
-              <div className="h-4 w-24 bg-muted rounded animate-pulse" />
-              <div className="h-10 w-40 bg-muted rounded animate-pulse" />
-            </div>
+            <>
+              {/* Total Balance skeleton */}
+              <div className="space-y-1">
+                <div className="h-4 w-24 bg-muted rounded animate-pulse" />
+                <div className="h-10 w-40 bg-muted rounded animate-pulse" />
+              </div>
+
+              {/* Account Tabs skeleton */}
+              <Separator />
+              <section>
+                <div className="h-4 w-32 bg-muted rounded animate-pulse mb-3" />
+                <div className="flex gap-2">
+                  {[1, 2, 3].map((i) => (
+                    <div key={i} className="h-10 w-28 bg-muted rounded-lg animate-pulse" />
+                  ))}
+                </div>
+              </section>
+
+              {/* Spending Summary skeleton */}
+              <Separator />
+              <section>
+                <div className="h-4 w-36 bg-muted rounded animate-pulse mb-3" />
+                <div className="grid grid-cols-3 gap-3">
+                  {[1, 2, 3].map((i) => (
+                    <div key={i} className="p-3 rounded-lg border space-y-2">
+                      <div className="h-3 w-12 bg-muted rounded animate-pulse" />
+                      <div className="h-5 w-16 bg-muted rounded animate-pulse" />
+                    </div>
+                  ))}
+                </div>
+              </section>
+
+              {/* Recent Transactions skeleton */}
+              <Separator />
+              <TransactionsList accountId={null} />
+            </>
           )}
 
           {/* Dashboard content - Only show when banks are connected */}
@@ -208,27 +240,10 @@ export function DashboardContent() {
               <Separator />
 
               {/* Recent Transactions */}
-              <section>
-                <h2 className="text-sm font-medium text-muted-foreground mb-3">
-                  {selectedAccount ? "Account Transactions" : "Recent Transactions"}
-                </h2>
-                <TransactionsList accountId={selectedAccount?.id ?? null} />
-              </section>
+              <TransactionsList accountId={selectedAccount?.id ?? null} />
             </>
           )}
 
-          {/* Loading skeleton for bank selector */}
-          {isLoading && (
-            <section>
-              <div className="h-4 w-12 bg-muted rounded animate-pulse mb-3" />
-              <BankSelector
-                banks={[]}
-                selectedBankId={null}
-                onBankSelect={() => {}}
-                isLoading={true}
-              />
-            </section>
-          )}
         </div>
       </div>
       )}

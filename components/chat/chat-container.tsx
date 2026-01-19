@@ -5,6 +5,7 @@ import { useSearchParams } from "next/navigation";
 import { ChatHeader } from "./chat-header";
 import { ChatMessage } from "./chat-message";
 import { ChatInput } from "./chat-input";
+import { ConversationHistoryDrawer } from "./conversation-history-drawer";
 import { Message, MessageContent } from "@/lib/types";
 import { generateId } from "@/lib/utils";
 import { Sparkle } from "@phosphor-icons/react";
@@ -81,6 +82,10 @@ export function ChatContainer() {
   const [isCheckingBank, setIsCheckingBank] = useState(true);
   const [isConnectingBank, setIsConnectingBank] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
+
+  // Conversation state
+  const [conversationId, setConversationId] = useState<string | null>(null);
+  const [historyOpen, setHistoryOpen] = useState(false);
 
   // Check for bank connection status on mount
   useEffect(() => {
@@ -184,6 +189,114 @@ export function ChatContainer() {
     return newMessage;
   };
 
+  // Save message to database
+  const saveMessageToDb = useCallback(async (
+    convId: string,
+    role: "user" | "assistant",
+    content: string,
+    richContent?: MessageContent[]
+  ) => {
+    try {
+      await fetch(`/api/conversations/${convId}/messages`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          role,
+          content,
+          rich_content: richContent || null,
+        }),
+      });
+    } catch (error) {
+      console.error("Failed to save message:", error);
+    }
+  }, []);
+
+  // Add message and save to database (for action-triggered messages)
+  const addAndSaveMessage = useCallback(async (
+    message: Omit<Message, "id" | "timestamp">,
+    currentConvId: string | null
+  ) => {
+    const newMessage: Message = {
+      ...message,
+      id: generateId(),
+      timestamp: new Date(),
+    };
+    setMessages((prev) => [...prev, newMessage]);
+
+    // Save to database if we have a conversation
+    if (currentConvId) {
+      saveMessageToDb(currentConvId, message.role, message.content, message.richContent);
+    }
+
+    return newMessage;
+  }, [saveMessageToDb]);
+
+  // Create a new conversation
+  const createNewConversation = useCallback(async () => {
+    try {
+      const response = await fetch("/api/conversations", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({}),
+      });
+
+      if (response.ok) {
+        const { conversation } = await response.json();
+        return conversation.id;
+      }
+    } catch (error) {
+      console.error("Failed to create conversation:", error);
+    }
+    return null;
+  }, []);
+
+  // Handle creating a new conversation
+  const handleNewConversation = useCallback(() => {
+    setConversationId(null);
+    // Reset to welcome message based on bank status
+    if (hasBankConnected) {
+      setMessages([WELCOME_MESSAGE_WITH_BANK]);
+    } else {
+      setMessages([WELCOME_MESSAGE_NO_BANK]);
+    }
+  }, [hasBankConnected]);
+
+  // Load an existing conversation
+  const handleSelectConversation = useCallback(async (convId: string) => {
+    try {
+      const response = await fetch(`/api/conversations/${convId}`);
+      if (response.ok) {
+        const { conversation } = await response.json();
+        setConversationId(convId);
+
+        // Convert database messages to our Message format
+        const loadedMessages: Message[] = conversation.messages.map(
+          (msg: { id: string; role: "user" | "assistant"; content: string; rich_content?: MessageContent[]; created_at: string }) => ({
+            id: msg.id,
+            role: msg.role,
+            content: msg.content,
+            richContent: msg.rich_content || undefined,
+            timestamp: new Date(msg.created_at),
+            actionsDisabled: true, // Disable actions on loaded messages
+          })
+        );
+
+        // If no messages, show welcome message
+        if (loadedMessages.length === 0) {
+          if (hasBankConnected) {
+            setMessages([WELCOME_MESSAGE_WITH_BANK]);
+          } else {
+            setMessages([WELCOME_MESSAGE_NO_BANK]);
+          }
+        } else {
+          setMessages(loadedMessages);
+        }
+      }
+    } catch (error) {
+      console.error("Failed to load conversation:", error);
+    }
+  }, [hasBankConnected]);
+
   // Disable actions on the last message with rich content
   const disableLastMessageActions = () => {
     setMessages((prev) => {
@@ -210,8 +323,22 @@ export function ChatContainer() {
   }, [messages]);
 
   const handleSendMessage = async (content: string) => {
+    // Create conversation if this is the first real message
+    let currentConvId = conversationId;
+    if (!currentConvId) {
+      currentConvId = await createNewConversation();
+      if (currentConvId) {
+        setConversationId(currentConvId);
+      }
+    }
+
     // Add user message
     addMessage({ role: "user", content });
+
+    // Save user message to database
+    if (currentConvId) {
+      saveMessageToDb(currentConvId, "user", content);
+    }
 
     setIsLoading(true);
 
@@ -248,16 +375,28 @@ export function ChatContainer() {
         content: data.message,
         richContent: data.richContent as MessageContent[],
       });
+
+      // Save assistant response to database
+      if (currentConvId) {
+        saveMessageToDb(currentConvId, "assistant", data.message, data.richContent);
+      }
     } catch (error) {
       console.error("Chat error:", error);
       // Fallback response on error
       const errorMessage = error instanceof Error ? error.message : "I'm having trouble connecting right now.";
+      const fallbackContent = errorMessage.includes("limit")
+        ? errorMessage
+        : "I'm having trouble connecting right now. Please try again.";
+
       addMessage({
         role: "assistant",
-        content: errorMessage.includes("limit")
-          ? errorMessage
-          : "I'm having trouble connecting right now. Please try again.",
+        content: fallbackContent,
       });
+
+      // Save error response to database
+      if (currentConvId) {
+        saveMessageToDb(currentConvId, "assistant", fallbackContent);
+      }
     } finally {
       setIsLoading(false);
     }
@@ -266,6 +405,15 @@ export function ChatContainer() {
   const handleAction = async (action: string, data?: Record<string, unknown>) => {
     // Disable the actions on the message that triggered this action
     disableLastMessageActions();
+
+    // Ensure we have a conversation for saving messages
+    let currentConvId = conversationId;
+    if (!currentConvId && action !== "connect-bank") {
+      currentConvId = await createNewConversation();
+      if (currentConvId) {
+        setConversationId(currentConvId);
+      }
+    }
 
     switch (action) {
       case "connect-bank":
@@ -293,7 +441,7 @@ export function ChatContainer() {
 
         } catch (err) {
           setIsConnectingBank(false);
-          addMessage({
+          addAndSaveMessage({
             role: "assistant",
             content: `Connection failed: ${err instanceof Error ? err.message : "Please try again"}`,
             richContent: [
@@ -304,16 +452,16 @@ export function ChatContainer() {
                 },
               },
             ],
-          });
+          }, currentConvId);
         }
         break;
 
       case "analyze-spending":
-        addMessage({
+        await addAndSaveMessage({
           role: "user",
           content: "Yes, analyze my spending",
-        });
-        addMessage({
+        }, currentConvId);
+        await addAndSaveMessage({
           role: "assistant",
           content: "Here's your spending overview:",
           richContent: [
@@ -322,15 +470,15 @@ export function ChatContainer() {
               // No data passed - component will fetch real data from API
             },
           ],
-        });
+        }, currentConvId);
         break;
 
       case "add-another-bank":
         // Redirect to Tarabut Connect to add another bank
-        addMessage({
+        await addAndSaveMessage({
           role: "assistant",
           content: "Let's connect another bank account.",
-        });
+        }, currentConvId);
         // Trigger the connect-bank flow
         handleAction("connect-bank");
         break;
@@ -342,10 +490,10 @@ export function ChatContainer() {
           const submittedCategory = data?.category as string;
           const submittedAmount = data?.amount as number;
           const submittedCurrency = data?.currency as string;
-          addMessage({
+          await addAndSaveMessage({
             role: "user",
             content: `Set ${submittedCategory} budget to ${submittedCurrency} ${submittedAmount}`,
-          });
+          }, currentConvId);
 
           try {
             const response = await fetch("/api/finance/budgets", {
@@ -366,7 +514,7 @@ export function ChatContainer() {
             const budget = result.budget;
             const currentMonth = new Date().toLocaleDateString("en-US", { month: "long" });
 
-            addMessage({
+            await addAndSaveMessage({
               role: "assistant",
               content: `Done! I've set your ${submittedCategory} budget to ${submittedCurrency} ${submittedAmount}/month. I'll let you know if you're getting close to the limit.`,
               richContent: [
@@ -381,10 +529,10 @@ export function ChatContainer() {
                   },
                 },
               ],
-            });
+            }, currentConvId);
           } catch (err) {
             console.error("Failed to save budget:", err);
-            addMessage({
+            await addAndSaveMessage({
               role: "assistant",
               content: "Sorry, I couldn't save the budget. Please try again.",
               richContent: [
@@ -395,12 +543,12 @@ export function ChatContainer() {
                   },
                 },
               ],
-            });
+            }, currentConvId);
           }
         } else {
           // Show interactive budget setup card
           const category = data?.category as string;
-          addMessage({
+          await addAndSaveMessage({
             role: "assistant",
             content: `Let's set up a budget for ${category}. How much would you like to spend per month?`,
             richContent: [
@@ -414,19 +562,19 @@ export function ChatContainer() {
                 },
               },
             ],
-          });
+          }, currentConvId);
         }
         break;
 
       case "cancel-budget":
-        addMessage({
+        await addAndSaveMessage({
           role: "assistant",
           content: "No problem! Let me know if you want to set up a budget later.",
-        });
+        }, currentConvId);
         break;
 
       case "show-transactions":
-        addMessage({
+        await addAndSaveMessage({
           role: "assistant",
           content: "Here are your recent transactions:",
           richContent: [
@@ -438,12 +586,12 @@ export function ChatContainer() {
               },
             },
           ],
-        });
+        }, currentConvId);
         break;
 
       case "show-accounts":
         if (hasBankConnected) {
-          addMessage({
+          await addAndSaveMessage({
             role: "assistant",
             content: "Here's your account overview:",
             richContent: [
@@ -452,7 +600,7 @@ export function ChatContainer() {
                 // No data passed - component will fetch real data from API
               },
             ],
-          });
+          }, currentConvId);
         }
         break;
 
@@ -467,7 +615,10 @@ export function ChatContainer() {
 
   return (
     <div className="flex flex-col h-full bg-background">
-      <ChatHeader />
+      <ChatHeader
+        onNewConversation={handleNewConversation}
+        onOpenHistory={() => setHistoryOpen(true)}
+      />
 
       {/* Messages area */}
       <div className="flex-1 overflow-y-auto" ref={scrollRef}>
@@ -528,7 +679,19 @@ export function ChatContainer() {
       </div>
 
       {/* Input area */}
-      <ChatInput onSend={handleSendMessage} disabled={isLoading || isCheckingBank} />
+      <ChatInput
+        onSend={handleSendMessage}
+        onConnectBank={() => handleAction("connect-bank")}
+        disabled={isLoading || isCheckingBank}
+      />
+
+      {/* Conversation History Drawer */}
+      <ConversationHistoryDrawer
+        open={historyOpen}
+        onOpenChange={setHistoryOpen}
+        onSelectConversation={handleSelectConversation}
+        currentConversationId={conversationId}
+      />
     </div>
   );
 }

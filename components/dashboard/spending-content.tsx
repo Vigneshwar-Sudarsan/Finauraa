@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import { Separator } from "@/components/ui/separator";
 import { MobileNavButton } from "@/components/mobile-nav";
-import { Card, CardContent } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Button } from "@/components/ui/button";
 import {
@@ -15,6 +15,7 @@ import {
   ItemDescription,
   ItemActions,
   ItemGroup,
+  ItemSeparator,
 } from "@/components/ui/item";
 import { EmptyState } from "@/components/ui/empty-state";
 import { cn } from "@/lib/utils";
@@ -279,17 +280,7 @@ export function SpendingContent() {
           <Separator orientation="vertical" className="!self-center h-4" />
           <h1 className="font-semibold">Spending</h1>
         </div>
-        <div className="flex items-center gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setAddTransactionOpen(true)}
-          >
-            <Plus size={16} />
-            <span className="hidden sm:inline">Add</span>
-          </Button>
-          <MobileNavButton />
-        </div>
+        <MobileNavButton />
       </header>
 
       {/* Error State */}
@@ -326,7 +317,7 @@ export function SpendingContent() {
 
       {/* Main Content */}
       {(isLoading || (data && !error && (data.totalSpending > 0 || data.totalIncome > 0))) && (
-      <div className="flex-1 overflow-auto">
+      <div className="flex-1 overflow-auto pb-24 sm:pb-0">
         <div className="p-4 md:p-6 space-y-6 max-w-6xl mx-auto">
 
           {/* Loading State */}
@@ -358,26 +349,74 @@ export function SpendingContent() {
                 </CardContent>
               </Card>
 
-              {/* Categories Skeleton */}
-              <div className="space-y-4">
-                <div className="h-5 w-32 bg-muted rounded animate-pulse" />
-                <div className="grid gap-3">
-                  {[1, 2, 3, 4].map((i) => (
-                    <Card key={i}>
-                      <CardContent className="p-4">
-                        <div className="flex items-center gap-4">
-                          <div className="size-12 rounded-2xl bg-muted animate-pulse" />
-                          <div className="flex-1 space-y-2">
-                            <div className="flex items-center justify-between">
-                              <div className="h-4 w-24 bg-muted rounded animate-pulse" />
-                              <div className="h-4 w-20 bg-muted rounded animate-pulse" />
-                            </div>
-                            <div className="h-2 bg-muted rounded-full animate-pulse" />
+              {/* Two Column Layout Skeleton */}
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                {/* Left Column */}
+                <div className="lg:col-span-2 space-y-6">
+                  {/* Categories Section Skeleton */}
+                  <Card>
+                    <CardHeader className="pb-2">
+                      <div className="flex items-center justify-between">
+                        <div className="h-5 w-44 bg-muted rounded animate-pulse" />
+                        <div className="h-4 w-24 bg-muted rounded animate-pulse" />
+                      </div>
+                    </CardHeader>
+                    <CardContent className="p-0">
+                      <ItemGroup>
+                        {[1, 2, 3, 4].map((i) => (
+                          <div key={i}>
+                            {i > 1 && <ItemSeparator />}
+                            <Item variant="default" size="sm">
+                              <ItemMedia variant="icon">
+                                <div className="size-10 rounded-xl bg-muted animate-pulse" />
+                              </ItemMedia>
+                              <ItemContent>
+                                <div className="h-4 w-24 bg-muted rounded animate-pulse" />
+                                <div className="h-3 w-32 bg-muted rounded animate-pulse mt-1" />
+                              </ItemContent>
+                              <ItemActions>
+                                <div className="text-right space-y-1">
+                                  <div className="h-4 w-20 bg-muted rounded animate-pulse" />
+                                  <div className="h-3 w-16 bg-muted rounded animate-pulse ml-auto" />
+                                </div>
+                              </ItemActions>
+                            </Item>
                           </div>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  ))}
+                        ))}
+                      </ItemGroup>
+                    </CardContent>
+                  </Card>
+                </div>
+
+                {/* Right Column */}
+                <div className="space-y-6">
+                  {/* Income Sources Skeleton */}
+                  <Card>
+                    <CardHeader className="pb-2">
+                      <div className="h-5 w-28 bg-muted rounded animate-pulse" />
+                    </CardHeader>
+                    <CardContent className="p-0">
+                      <ItemGroup>
+                        {[1, 2].map((i) => (
+                          <div key={i}>
+                            {i > 1 && <ItemSeparator />}
+                            <Item variant="default" size="sm">
+                              <ItemMedia variant="icon">
+                                <div className="size-10 rounded-xl bg-muted animate-pulse" />
+                              </ItemMedia>
+                              <ItemContent>
+                                <div className="h-4 w-20 bg-muted rounded animate-pulse" />
+                                <div className="h-3 w-16 bg-muted rounded animate-pulse mt-1" />
+                              </ItemContent>
+                              <ItemActions>
+                                <div className="h-4 w-16 bg-muted rounded animate-pulse" />
+                              </ItemActions>
+                            </Item>
+                          </div>
+                        ))}
+                      </ItemGroup>
+                    </CardContent>
+                  </Card>
                 </div>
               </div>
             </>
@@ -388,11 +427,23 @@ export function SpendingContent() {
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
               {/* Left Column - Main Content (2/3 on desktop) */}
               <div className="lg:col-span-2 space-y-6">
+                {/* Desktop Add Button */}
+                <div className="flex justify-end">
+                  <Button
+                    size="sm"
+                    onClick={() => setAddTransactionOpen(true)}
+                    className="hidden sm:flex"
+                  >
+                    <Plus size={16} />
+                    Add Transaction
+                  </Button>
+                </div>
+
                 {/* Hero Card - Financial Overview */}
                 <Card className="overflow-hidden">
                   <CardContent className="p-0">
                     {/* Gradient Header */}
-                    <div className="bg-gradient-to-br from-muted/80 via-muted to-muted/80 p-6">
+                    <div className="bg-gradient-to-br from-primary/5 via-primary/10 to-primary/5 p-6">
                       <div className="flex items-center justify-between">
                         {/* Left Side - Main Balance Info */}
                         <div className="space-y-1">
@@ -502,18 +553,19 @@ export function SpendingContent() {
                 {/* Spending Categories */}
                 {data.categories.length > 0 && (
                   <section className="space-y-4">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <Gauge size={20} className="text-muted-foreground" />
-                        <h2 className="text-lg font-semibold">Where your money goes</h2>
-                      </div>
-                      <span className="text-sm text-muted-foreground">
-                        {data.categories.reduce((sum, c) => sum + c.count, 0)} transactions
-                      </span>
-                    </div>
-
                     <Card>
-                      <CardContent className="p-2">
+                      <CardHeader className="pb-2">
+                        <div className="flex items-center justify-between">
+                          <CardTitle className="text-base flex items-center gap-2">
+                            <Gauge size={18} className="text-muted-foreground" />
+                            Where your money goes
+                          </CardTitle>
+                          <span className="text-sm text-muted-foreground font-normal">
+                            {data.categories.reduce((sum, c) => sum + c.count, 0)} transactions
+                          </span>
+                        </div>
+                      </CardHeader>
+                      <CardContent className="p-0">
                         <ItemGroup>
                           {data.categories.map((category, index) => {
                             const Icon = getCategoryIcon(category.name);
@@ -527,90 +579,93 @@ export function SpendingContent() {
                             const isNearBudget = budgetPercentage > 70 && budgetPercentage <= 100;
 
                             return (
-                              <Item
-                                key={category.id}
-                                variant="default"
-                                className={cn(
-                                  "cursor-pointer hover:bg-muted/50 transition-colors rounded-lg",
-                                  isOverBudget && "bg-red-500/5",
-                                  isNearBudget && "bg-amber-500/5"
-                                )}
-                                onClick={() => handleCategoryClick(category)}
-                              >
-                                <ItemMedia variant="icon">
-                                  <div className={cn(
-                                    "size-10 rounded-xl flex items-center justify-center",
-                                    isOverBudget ? "bg-red-500/10" :
-                                    isNearBudget ? "bg-amber-500/10" :
-                                    isTop ? "bg-primary/10" : "bg-muted"
-                                  )}>
-                                    <Icon
-                                      size={20}
-                                      className={cn(
-                                        isOverBudget ? "text-red-500" :
-                                        isNearBudget ? "text-amber-500" :
-                                        isTop ? "text-primary" : "text-muted-foreground"
-                                      )}
-                                      weight={isTop || isOverBudget ? "fill" : "regular"}
-                                    />
-                                  </div>
-                                </ItemMedia>
-                                <ItemContent>
-                                  <ItemTitle>
-                                    {formatCategoryName(category.name)}
-                                    {isTop && (
-                                      <span className="text-[10px] font-semibold uppercase tracking-wider text-primary bg-primary/10 px-1.5 py-0.5 rounded ml-2">
-                                        Top
-                                      </span>
-                                    )}
-                                  </ItemTitle>
-                                  <ItemDescription>
-                                    {category.count} transaction{category.count !== 1 ? "s" : ""}
-                                    {hasBudget && (
-                                      <span className={cn(
-                                        "ml-2",
-                                        isOverBudget ? "text-red-500" : ""
-                                      )}>
-                                        · {isOverBudget
-                                          ? `${formatCompactCurrency(category.amount - budget.amount, data.currency)} over budget`
-                                          : `${formatCompactCurrency(budget.amount - category.amount, data.currency)} left`}
-                                      </span>
-                                    )}
-                                  </ItemDescription>
-                                </ItemContent>
-                                <ItemActions>
-                                  <div className="text-right">
-                                    <p className="font-semibold tabular-nums">
-                                      {formatCurrency(category.amount, data.currency)}
-                                    </p>
-                                    {hasBudget ? (
-                                      <div className="flex items-center gap-2 mt-1">
-                                        <Progress
-                                          value={Math.min(budgetPercentage, 100)}
-                                          className={cn(
-                                            "h-1.5 w-16",
-                                            isOverBudget ? "[&>div]:bg-red-500" :
-                                            isNearBudget ? "[&>div]:bg-amber-500" :
-                                            "[&>div]:bg-emerald-500"
-                                          )}
-                                        />
-                                        <span className={cn(
-                                          "text-xs font-medium tabular-nums",
+                              <div key={category.id}>
+                                {index > 0 && <ItemSeparator />}
+                                <Item
+                                  variant="default"
+                                  size="sm"
+                                  className={cn(
+                                    "cursor-pointer hover:bg-muted/50 transition-colors",
+                                    isOverBudget && "bg-red-500/5",
+                                    isNearBudget && "bg-amber-500/5"
+                                  )}
+                                  onClick={() => handleCategoryClick(category)}
+                                >
+                                  <ItemMedia variant="icon">
+                                    <div className={cn(
+                                      "size-10 rounded-xl flex items-center justify-center",
+                                      isOverBudget ? "bg-red-500/10" :
+                                      isNearBudget ? "bg-amber-500/10" :
+                                      isTop ? "bg-primary/10" : "bg-muted"
+                                    )}>
+                                      <Icon
+                                        size={20}
+                                        className={cn(
                                           isOverBudget ? "text-red-500" :
                                           isNearBudget ? "text-amber-500" :
-                                          "text-emerald-500"
-                                        )}>
-                                          {budgetPercentage}%
+                                          isTop ? "text-primary" : "text-muted-foreground"
+                                        )}
+                                        weight={isTop || isOverBudget ? "fill" : "regular"}
+                                      />
+                                    </div>
+                                  </ItemMedia>
+                                  <ItemContent>
+                                    <ItemTitle>
+                                      {formatCategoryName(category.name)}
+                                      {isTop && (
+                                        <span className="text-[10px] font-semibold uppercase tracking-wider text-primary bg-primary/10 px-1.5 py-0.5 rounded ml-2">
+                                          Top
                                         </span>
-                                      </div>
-                                    ) : (
-                                      <p className="text-xs text-muted-foreground tabular-nums mt-1">
-                                        {category.percentage}% of total
+                                      )}
+                                    </ItemTitle>
+                                    <ItemDescription>
+                                      {category.count} transaction{category.count !== 1 ? "s" : ""}
+                                      {hasBudget && (
+                                        <span className={cn(
+                                          "ml-2",
+                                          isOverBudget ? "text-red-500" : ""
+                                        )}>
+                                          · {isOverBudget
+                                            ? `${formatCompactCurrency(category.amount - budget.amount, data.currency)} over budget`
+                                            : `${formatCompactCurrency(budget.amount - category.amount, data.currency)} left`}
+                                        </span>
+                                      )}
+                                    </ItemDescription>
+                                  </ItemContent>
+                                  <ItemActions>
+                                    <div className="text-right">
+                                      <p className="font-semibold tabular-nums">
+                                        {formatCurrency(category.amount, data.currency)}
                                       </p>
-                                    )}
-                                  </div>
-                                </ItemActions>
-                              </Item>
+                                      {hasBudget ? (
+                                        <div className="flex items-center gap-2 mt-1">
+                                          <Progress
+                                            value={Math.min(budgetPercentage, 100)}
+                                            className={cn(
+                                              "h-1.5 w-16",
+                                              isOverBudget ? "[&>div]:bg-red-500" :
+                                              isNearBudget ? "[&>div]:bg-amber-500" :
+                                              "[&>div]:bg-emerald-500"
+                                            )}
+                                          />
+                                          <span className={cn(
+                                            "text-xs font-medium tabular-nums",
+                                            isOverBudget ? "text-red-500" :
+                                            isNearBudget ? "text-amber-500" :
+                                            "text-emerald-500"
+                                          )}>
+                                            {budgetPercentage}%
+                                          </span>
+                                        </div>
+                                      ) : (
+                                        <p className="text-xs text-muted-foreground tabular-nums mt-1">
+                                          {category.percentage}% of total
+                                        </p>
+                                      )}
+                                    </div>
+                                  </ItemActions>
+                                </Item>
+                              </div>
                             );
                           })}
                         </ItemGroup>
@@ -623,72 +678,71 @@ export function SpendingContent() {
                   </section>
                 )}
 
-                {data.fallback && (
-                  <p className="text-xs text-center text-muted-foreground py-4">
-                    Showing local data. Connect to see real-time insights.
-                  </p>
-                )}
               </div>
 
               {/* Right Column - Sidebar Content (1/3 on desktop) */}
               <div className="space-y-6">
                 {/* Income Sources */}
                 {data.totalIncome > 0 && data.incomeSources && data.incomeSources.length > 0 && (
-                  <section className="space-y-3">
-                    <div className="flex items-center gap-2">
-                      <TrendUp size={18} className="text-emerald-500" />
-                      <h2 className="font-semibold">Income Sources</h2>
-                    </div>
+                  <Card>
+                    <CardHeader className="pb-2">
+                      <CardTitle className="text-base flex items-center gap-2">
+                        <TrendUp size={18} className="text-emerald-500" />
+                        Income Sources
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent className="p-0">
+                      <ItemGroup>
+                        {data.incomeSources.map((source, index) => {
+                          const Icon = getCategoryIcon(source.type);
 
-                    <Card>
-                      <CardContent className="p-2">
-                        <ItemGroup>
-                          {data.incomeSources.map((source) => {
-                            const Icon = getCategoryIcon(source.type);
-
-                            return (
-                              <Item key={source.type} variant="default" size="xs">
+                          return (
+                            <div key={source.type}>
+                              {index > 0 && <ItemSeparator />}
+                              <Item variant="default" size="sm">
                                 <ItemMedia variant="icon">
-                                  <div className="size-8 rounded-lg bg-emerald-500/10 flex items-center justify-center">
-                                    <Icon size={16} className="text-emerald-600" />
+                                  <div className="size-10 rounded-xl bg-emerald-500/10 flex items-center justify-center">
+                                    <Icon size={20} className="text-emerald-600" />
                                   </div>
                                 </ItemMedia>
                                 <ItemContent>
-                                  <ItemTitle className="text-sm">{formatCategoryName(source.type)}</ItemTitle>
-                                  <ItemDescription className="text-xs">
+                                  <ItemTitle>{formatCategoryName(source.type)}</ItemTitle>
+                                  <ItemDescription>
                                     {source.count} deposit{source.count !== 1 ? "s" : ""}
                                   </ItemDescription>
                                 </ItemContent>
                                 <ItemActions>
-                                  <span className="font-semibold text-emerald-600 tabular-nums text-sm">
+                                  <span className="font-semibold text-emerald-600 tabular-nums">
                                     +{formatCompactCurrency(source.amount, data.currency)}
                                   </span>
                                 </ItemActions>
                               </Item>
-                            );
-                          })}
-                        </ItemGroup>
-                      </CardContent>
-                    </Card>
-                  </section>
+                            </div>
+                          );
+                        })}
+                      </ItemGroup>
+                    </CardContent>
+                  </Card>
                 )}
 
                 {/* Top Merchants */}
                 {data.topMerchants && data.topMerchants.length > 0 && (
-                  <section className="space-y-3">
-                    <div className="flex items-center gap-2">
-                      <Storefront size={18} className="text-muted-foreground" />
-                      <h2 className="font-semibold">Top Merchants</h2>
-                    </div>
-
-                    <Card>
-                      <CardContent className="p-2">
-                        <ItemGroup>
-                          {data.topMerchants.slice(0, 5).map((merchant, index) => (
-                            <Item key={merchant.name} variant="default" size="xs">
+                  <Card>
+                    <CardHeader className="pb-2">
+                      <CardTitle className="text-base flex items-center gap-2">
+                        <Storefront size={18} className="text-muted-foreground" />
+                        Top Merchants
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent className="p-0">
+                      <ItemGroup>
+                        {data.topMerchants.slice(0, 5).map((merchant, index) => (
+                          <div key={merchant.name}>
+                            {index > 0 && <ItemSeparator />}
+                            <Item variant="default" size="sm">
                               <ItemMedia variant="icon">
                                 <div className={cn(
-                                  "size-7 rounded-md flex items-center justify-center text-xs font-bold",
+                                  "size-10 rounded-xl flex items-center justify-center text-sm font-bold",
                                   index === 0 ? "bg-amber-500/10 text-amber-600" :
                                   index === 1 ? "bg-zinc-200 text-zinc-600 dark:bg-zinc-700 dark:text-zinc-300" :
                                   index === 2 ? "bg-orange-500/10 text-orange-600" :
@@ -698,22 +752,22 @@ export function SpendingContent() {
                                 </div>
                               </ItemMedia>
                               <ItemContent>
-                                <ItemTitle className="text-sm truncate">{merchant.name}</ItemTitle>
-                                <ItemDescription className="text-xs">
+                                <ItemTitle className="truncate">{merchant.name}</ItemTitle>
+                                <ItemDescription>
                                   {merchant.count} visit{merchant.count !== 1 ? "s" : ""}
                                 </ItemDescription>
                               </ItemContent>
                               <ItemActions>
-                                <span className="font-semibold tabular-nums text-sm">
+                                <span className="font-semibold tabular-nums">
                                   {formatCompactCurrency(merchant.amount, data.currency)}
                                 </span>
                               </ItemActions>
                             </Item>
-                          ))}
-                        </ItemGroup>
-                      </CardContent>
-                    </Card>
-                  </section>
+                          </div>
+                        ))}
+                      </ItemGroup>
+                    </CardContent>
+                  </Card>
                 )}
               </div>
             </div>
@@ -721,6 +775,15 @@ export function SpendingContent() {
         </div>
       </div>
       )}
+
+      {/* Mobile FAB */}
+      <Button
+        size="icon"
+        onClick={() => setAddTransactionOpen(true)}
+        className="fixed bottom-20 right-4 size-14 rounded-full shadow-lg sm:hidden z-50"
+      >
+        <Plus size={24} weight="bold" />
+      </Button>
 
       {/* Sheet Modals */}
       <AddTransactionSheet

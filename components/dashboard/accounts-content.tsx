@@ -7,6 +7,16 @@ import { Separator } from "@/components/ui/separator";
 import { MobileNavButton } from "@/components/mobile-nav";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import {
+  Item,
+  ItemMedia,
+  ItemContent,
+  ItemTitle,
+  ItemDescription,
+  ItemActions,
+  ItemGroup,
+  ItemSeparator,
+} from "@/components/ui/item";
 import { BankSelector } from "./bank-selector";
 import { EmptyState } from "@/components/ui/empty-state";
 import {
@@ -16,7 +26,6 @@ import {
   CaretRight,
   ArrowsClockwise,
   SpinnerGap,
-  Plus,
 } from "@phosphor-icons/react";
 
 interface Account {
@@ -190,30 +199,35 @@ export function AccountsContent() {
           {/* Accounts List Skeleton */}
           {isLoading && (
             <Card>
-              <CardHeader className="pb-0">
-                <div className="h-5 w-20 bg-muted rounded animate-pulse" />
+              <CardHeader className="pb-2">
+                <CardTitle className="text-base">Accounts</CardTitle>
               </CardHeader>
               <CardContent className="p-0">
-                {[1, 2, 3, 4].map((i) => (
-                  <div key={i}>
-                    {i > 1 && <Separator />}
-                    <div className="flex items-center justify-between p-4">
-                      <div className="flex items-center gap-3">
-                        <div className="size-5 bg-muted rounded animate-pulse" />
-                        <div className="space-y-1">
+                <ItemGroup>
+                  {[1, 2, 3, 4].map((i) => (
+                    <div key={i}>
+                      {i > 1 && <ItemSeparator />}
+                      <Item variant="default" size="sm">
+                        <ItemMedia variant="icon">
+                          <div className="size-10 rounded-xl bg-muted animate-pulse" />
+                        </ItemMedia>
+                        <ItemContent>
                           <div className="h-4 w-24 bg-muted rounded animate-pulse" />
-                          <div className="h-3 w-32 bg-muted rounded animate-pulse" />
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <div className="text-right space-y-1">
-                          <div className="h-4 w-24 bg-muted rounded animate-pulse" />
-                        </div>
-                        <div className="size-4 bg-muted rounded animate-pulse" />
-                      </div>
+                          <div className="h-3 w-32 bg-muted rounded animate-pulse mt-1" />
+                        </ItemContent>
+                        <ItemActions>
+                          <div className="flex items-center gap-2">
+                            <div className="text-right space-y-1">
+                              <div className="h-4 w-20 bg-muted rounded animate-pulse" />
+                              <div className="h-3 w-16 bg-muted rounded animate-pulse ml-auto" />
+                            </div>
+                            <div className="size-4 bg-muted rounded animate-pulse" />
+                          </div>
+                        </ItemActions>
+                      </Item>
                     </div>
-                  </div>
-                ))}
+                  ))}
+                </ItemGroup>
               </CardContent>
             </Card>
           )}
@@ -221,52 +235,58 @@ export function AccountsContent() {
           {/* Accounts List */}
           {!isLoading && displayedAccounts.length > 0 && (
             <Card>
-              <CardHeader className="pb-0">
+              <CardHeader className="pb-2">
                 <CardTitle className="text-base">Accounts</CardTitle>
               </CardHeader>
               <CardContent className="p-0">
-                {displayedAccounts.map((account, index) => {
-                  const Icon = getAccountIcon(account.account_type);
+                <ItemGroup>
+                  {displayedAccounts.map((account, index) => {
+                    const Icon = getAccountIcon(account.account_type);
 
-                  return (
-                    <div key={account.id}>
-                      {index > 0 && <Separator />}
-                      <button
-                        className="w-full flex items-center justify-between p-4 hover:bg-muted/50 transition-colors"
-                        onClick={() => handleAccountClick(account.id)}
-                      >
-                        <div className="flex items-center gap-3">
-                          <Icon size={20} className="text-muted-foreground" />
-                          <div className="text-left">
-                            <p className="font-medium text-sm">
-                              {account.account_type}
-                            </p>
-                            <p className="text-xs text-muted-foreground">
-                              {account.bankName} · ****{account.account_number.slice(-4)}
-                            </p>
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <div className="text-right">
-                            <p className="font-medium text-sm">
-                              {formatCurrency(account.balance, account.currency)}
-                            </p>
-                            {account.available_balance !== account.balance && (
-                              <p className="text-xs text-muted-foreground">
-                                Available:{" "}
-                                {formatCurrency(
-                                  account.available_balance,
-                                  account.currency
-                                )}
-                              </p>
-                            )}
-                          </div>
-                          <CaretRight size={16} className="text-muted-foreground" />
-                        </div>
-                      </button>
-                    </div>
-                  );
-                })}
+                    return (
+                      <div key={account.id}>
+                        {index > 0 && <ItemSeparator />}
+                        <Item
+                          variant="default"
+                          size="sm"
+                          asChild
+                          className="cursor-pointer hover:bg-muted/50"
+                        >
+                          <button
+                            onClick={() => handleAccountClick(account.id)}
+                          >
+                            <ItemMedia variant="icon">
+                              <div className="size-10 rounded-xl bg-muted flex items-center justify-center">
+                                <Icon size={20} className="text-muted-foreground" />
+                              </div>
+                            </ItemMedia>
+                            <ItemContent>
+                              <ItemTitle>{account.account_type}</ItemTitle>
+                              <ItemDescription>
+                                {account.bankName} · ****{account.account_number.slice(-4)}
+                              </ItemDescription>
+                            </ItemContent>
+                            <ItemActions>
+                              <div className="flex items-center gap-2">
+                                <div className="text-right">
+                                  <p className="font-semibold tabular-nums">
+                                    {formatCurrency(account.balance, account.currency)}
+                                  </p>
+                                  {account.available_balance !== account.balance && (
+                                    <p className="text-xs text-muted-foreground">
+                                      Avail: {formatCurrency(account.available_balance, account.currency)}
+                                    </p>
+                                  )}
+                                </div>
+                                <CaretRight size={16} className="text-muted-foreground" />
+                              </div>
+                            </ItemActions>
+                          </button>
+                        </Item>
+                      </div>
+                    );
+                  })}
+                </ItemGroup>
               </CardContent>
             </Card>
           )}

@@ -5,12 +5,13 @@ import { usePathname } from "next/navigation";
 import {
   House,
   Wallet,
+  Receipt,
   ChartPie,
   Target,
-  DotsThreeCircle,
 } from "@phosphor-icons/react";
 import { cn } from "@/lib/utils";
 
+// First 5 items from sidebar dashboardItems in same order
 const navItems = [
   {
     title: "Home",
@@ -23,6 +24,11 @@ const navItems = [
     href: "/dashboard/accounts",
   },
   {
+    title: "Transactions",
+    icon: Receipt,
+    href: "/dashboard/transactions",
+  },
+  {
     title: "Spending",
     icon: ChartPie,
     href: "/dashboard/spending",
@@ -31,11 +37,6 @@ const navItems = [
     title: "Goals",
     icon: Target,
     href: "/dashboard/goals",
-  },
-  {
-    title: "More",
-    icon: DotsThreeCircle,
-    href: "/dashboard/settings",
   },
 ];
 

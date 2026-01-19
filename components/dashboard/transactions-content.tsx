@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import { Separator } from "@/components/ui/separator";
 import { MobileNavButton } from "@/components/mobile-nav";
-import { Card, CardContent } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -18,13 +18,6 @@ import {
   ItemGroup,
   ItemSeparator,
 } from "@/components/ui/item";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 import {
   ShoppingCart,
@@ -43,11 +36,9 @@ import {
   Plus,
   Receipt,
   MagnifyingGlass,
-  ArrowDown,
-  ArrowUp,
   Funnel,
 } from "@phosphor-icons/react";
-import { AddTransactionSheet } from "@/components/spending";
+import { AddTransactionSheet, TransactionFiltersSheet, type TransactionFilters } from "@/components/spending";
 import { format, isToday, isYesterday, isThisWeek, isThisMonth, parseISO } from "date-fns";
 
 interface Transaction {
@@ -147,8 +138,15 @@ export function TransactionsContent() {
 
   // Filters
   const [searchQuery, setSearchQuery] = useState("");
-  const [typeFilter, setTypeFilter] = useState<"all" | "credit" | "debit">("all");
-  const [showFilters, setShowFilters] = useState(false);
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  const [filters, setFilters] = useState<TransactionFilters>({
+    type: "all",
+    category: "all",
+    bankId: "all",
+    accountId: "all",
+    minAmount: "",
+    maxAmount: "",
+  });
 
   const fetchTransactions = useCallback(async () => {
     try {
@@ -180,6 +178,15 @@ export function TransactionsContent() {
     fetchBanks();
   }, [fetchTransactions, fetchBanks]);
 
+  // Check if any filters are active
+  const hasActiveFilters =
+    filters.type !== "all" ||
+    filters.category !== "all" ||
+    filters.bankId !== "all" ||
+    filters.accountId !== "all" ||
+    filters.minAmount !== "" ||
+    filters.maxAmount !== "";
+
   // Filter transactions
   const filteredTransactions = transactions.filter((t) => {
     // Search filter
@@ -193,7 +200,31 @@ export function TransactionsContent() {
     }
 
     // Type filter
-    if (typeFilter !== "all" && t.transaction_type !== typeFilter) return false;
+    if (filters.type !== "all" && t.transaction_type !== filters.type) return false;
+
+    // Category filter
+    if (filters.category !== "all" && t.category.toLowerCase() !== filters.category) return false;
+
+    // Bank filter
+    if (filters.bankId !== "all") {
+      const selectedBank = banks.find((b) => b.id === filters.bankId);
+      const bankAccountIds = (selectedBank?.accounts || []).map((a) => a.id);
+      if (!t.account_id || !bankAccountIds.includes(t.account_id)) return false;
+    }
+
+    // Account filter
+    if (filters.accountId !== "all" && t.account_id !== filters.accountId) return false;
+
+    // Amount filters
+    const amount = Math.abs(t.amount);
+    if (filters.minAmount !== "") {
+      const min = parseFloat(filters.minAmount);
+      if (!isNaN(min) && amount < min) return false;
+    }
+    if (filters.maxAmount !== "") {
+      const max = parseFloat(filters.maxAmount);
+      if (!isNaN(max) && amount > max) return false;
+    }
 
     return true;
   });
@@ -232,61 +263,8 @@ export function TransactionsContent() {
           <Separator orientation="vertical" className="!self-center h-4" />
           <h1 className="font-semibold">Transactions</h1>
         </div>
-        <div className="flex items-center gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setAddTransactionOpen(true)}
-          >
-            <Plus size={16} />
-            <span className="hidden sm:inline">Add</span>
-          </Button>
-          <MobileNavButton />
-        </div>
+        <MobileNavButton />
       </header>
-
-      {/* Search & Filters */}
-      <div className="border-b px-4 py-3 space-y-3">
-        <div className="flex items-center gap-2">
-          <div className="relative flex-1">
-            <MagnifyingGlass
-              size={16}
-              className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground"
-            />
-            <Input
-              placeholder="Search transactions..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-9"
-            />
-          </div>
-          <Button
-            variant={showFilters ? "secondary" : "outline"}
-            size="icon"
-            onClick={() => setShowFilters(!showFilters)}
-          >
-            <Funnel size={16} />
-          </Button>
-        </div>
-
-        {showFilters && (
-          <div className="flex items-center gap-2">
-            <Select
-              value={typeFilter}
-              onValueChange={(v) => setTypeFilter(v as typeof typeFilter)}
-            >
-              <SelectTrigger className="w-[140px]">
-                <SelectValue placeholder="Type" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Types</SelectItem>
-                <SelectItem value="debit">Expenses</SelectItem>
-                <SelectItem value="credit">Income</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-        )}
-      </div>
 
       {/* Error State */}
       {error && !isLoading && (
@@ -323,32 +301,109 @@ export function TransactionsContent() {
       {isLoading && (
         <div className="flex-1 overflow-auto p-4 md:p-6">
           <div className="max-w-2xl mx-auto space-y-4">
-            {[1, 2, 3, 4, 5].map((i) => (
-              <div key={i} className="flex items-center gap-4 p-4">
-                <div className="size-10 rounded-xl bg-muted animate-pulse" />
-                <div className="flex-1 space-y-2">
-                  <div className="h-4 w-32 bg-muted rounded animate-pulse" />
-                  <div className="h-3 w-24 bg-muted rounded animate-pulse" />
+            {/* Search skeleton */}
+            <div className="flex items-center gap-2">
+              <div className="flex-1 h-10 bg-muted rounded-md animate-pulse" />
+              <div className="size-10 bg-muted rounded-md animate-pulse" />
+            </div>
+
+            {/* Transactions card skeleton */}
+            <Card>
+              <CardHeader className="pb-2">
+                <div className="h-5 w-24 bg-muted rounded animate-pulse" />
+              </CardHeader>
+              <CardContent className="p-0">
+                {/* Date header skeleton */}
+                <div className="px-4 py-2 bg-muted/50">
+                  <div className="h-4 w-16 bg-muted rounded animate-pulse" />
                 </div>
-                <div className="h-5 w-20 bg-muted rounded animate-pulse" />
-              </div>
-            ))}
+                {/* Transaction items skeleton */}
+                <ItemGroup>
+                  {[1, 2, 3, 4, 5].map((i) => (
+                    <div key={i}>
+                      {i > 1 && <ItemSeparator />}
+                      <Item variant="default" size="sm">
+                        <ItemMedia variant="icon">
+                          <div className="size-10 rounded-xl bg-muted animate-pulse" />
+                        </ItemMedia>
+                        <ItemContent>
+                          <div className="h-4 w-32 bg-muted rounded animate-pulse" />
+                          <div className="h-3 w-20 bg-muted rounded animate-pulse mt-1" />
+                        </ItemContent>
+                        <ItemActions>
+                          <div className="text-right space-y-1">
+                            <div className="h-4 w-20 bg-muted rounded animate-pulse" />
+                            <div className="h-3 w-12 bg-muted rounded animate-pulse ml-auto" />
+                          </div>
+                        </ItemActions>
+                      </Item>
+                    </div>
+                  ))}
+                </ItemGroup>
+              </CardContent>
+            </Card>
           </div>
         </div>
       )}
 
       {/* Transactions List */}
       {!isLoading && !error && filteredTransactions.length > 0 && (
-        <div className="flex-1 overflow-auto p-4 md:p-6">
-          <div className="max-w-2xl mx-auto space-y-6">
-            {sortedGroups.map((group, groupIndex) => (
-              <section key={group} className="space-y-3">
-                <h2 className="text-sm font-medium text-muted-foreground px-1">
-                  {group}
-                </h2>
-                <Card>
-                  <CardContent className="p-2">
-                    <ItemGroup>
+        <div className="flex-1 overflow-auto p-4 md:p-6 pb-24 sm:pb-6">
+          <div className="max-w-2xl mx-auto space-y-4">
+            {/* Search & Filters */}
+            <div className="flex items-center gap-2">
+              <div className="relative w-48 sm:w-64">
+                <MagnifyingGlass
+                  size={16}
+                  className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground"
+                />
+                <Input
+                  placeholder="Search..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="pl-9"
+                />
+              </div>
+              <Button
+                variant={hasActiveFilters ? "secondary" : "outline"}
+                size="icon"
+                onClick={() => setFiltersOpen(true)}
+                className="relative"
+              >
+                <Funnel size={16} />
+                {hasActiveFilters && (
+                  <span className="absolute -top-1 -right-1 size-2 bg-primary rounded-full" />
+                )}
+              </Button>
+              {/* Spacer to push Add button to right */}
+              <div className="flex-1 hidden sm:block" />
+              {/* Desktop Add Button */}
+              <Button
+                size="sm"
+                onClick={() => setAddTransactionOpen(true)}
+                className="hidden sm:flex"
+              >
+                <Plus size={16} />
+                Add
+              </Button>
+            </div>
+
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-base">Transactions</CardTitle>
+              </CardHeader>
+              <CardContent className="p-0">
+                <ItemGroup>
+                  {sortedGroups.map((group, groupIndex) => (
+                    <div key={group}>
+                      {/* Date Header */}
+                      <div className={cn(
+                        "px-4 py-2 bg-muted/50 text-sm font-medium text-muted-foreground",
+                        groupIndex > 0 && "border-t"
+                      )}>
+                        {group}
+                      </div>
+                      {/* Transactions for this date group */}
                       {groupedTransactions[group].map((transaction, index) => {
                         const Icon = getCategoryIcon(transaction.category);
                         const isCredit = transaction.transaction_type === "credit";
@@ -401,11 +456,11 @@ export function TransactionsContent() {
                           </div>
                         );
                       })}
-                    </ItemGroup>
-                  </CardContent>
-                </Card>
-              </section>
-            ))}
+                    </div>
+                  ))}
+                </ItemGroup>
+              </CardContent>
+            </Card>
           </div>
         </div>
       )}
@@ -421,13 +476,29 @@ export function TransactionsContent() {
               label: "Clear Filters",
               onClick: () => {
                 setSearchQuery("");
-                setTypeFilter("all");
+                setFilters({
+                  type: "all",
+                  category: "all",
+                  bankId: "all",
+                  accountId: "all",
+                  minAmount: "",
+                  maxAmount: "",
+                });
               },
               variant: "outline",
             }}
           />
         </div>
       )}
+
+      {/* Mobile FAB */}
+      <Button
+        size="icon"
+        onClick={() => setAddTransactionOpen(true)}
+        className="fixed bottom-20 right-4 size-14 rounded-full shadow-lg sm:hidden z-50"
+      >
+        <Plus size={24} weight="bold" />
+      </Button>
 
       {/* Add Transaction Sheet */}
       <AddTransactionSheet
@@ -436,6 +507,15 @@ export function TransactionsContent() {
         onSuccess={fetchTransactions}
         banks={banks}
         defaultCurrency={defaultCurrency}
+      />
+
+      {/* Filters Sheet */}
+      <TransactionFiltersSheet
+        open={filtersOpen}
+        onOpenChange={setFiltersOpen}
+        filters={filters}
+        onApplyFilters={setFilters}
+        banks={banks}
       />
     </div>
   );

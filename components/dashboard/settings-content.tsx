@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import { useTheme } from "next-themes";
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import { Separator } from "@/components/ui/separator";
 import { MobileNavButton } from "@/components/mobile-nav";
@@ -38,11 +39,20 @@ interface SettingItem {
 export function SettingsContent() {
   const router = useRouter();
   const supabase = createClient();
+  const { theme, setTheme, resolvedTheme } = useTheme();
+  const [mounted, setMounted] = useState(false);
 
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const [isDeletingAccount, setIsDeletingAccount] = useState(false);
   const [notifications, setNotifications] = useState(true);
-  const [darkMode, setDarkMode] = useState(false);
+
+  // Wait for component to mount to avoid hydration mismatch
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  // Use resolvedTheme which handles "system" theme, default to true (dark) before mount
+  const isDarkMode = mounted ? resolvedTheme === "dark" : true;
 
   const handleLogout = async () => {
     setIsLoggingOut(true);
@@ -141,12 +151,12 @@ export function SettingsContent() {
       onClick: () => setNotifications(!notifications),
     },
     {
-      icon: darkMode ? Moon : Sun,
+      icon: isDarkMode ? Moon : Sun,
       title: "Dark Mode",
       description: "Switch between light and dark themes",
       action: "toggle",
-      value: darkMode,
-      onClick: () => setDarkMode(!darkMode),
+      value: isDarkMode,
+      onClick: () => setTheme(isDarkMode ? "light" : "dark"),
     },
     {
       icon: Globe,
