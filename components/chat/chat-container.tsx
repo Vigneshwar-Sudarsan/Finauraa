@@ -7,7 +7,7 @@ import { ChatMessage } from "./chat-message";
 import { ChatInput } from "./chat-input";
 import { Message, MessageContent } from "@/lib/types";
 import { generateId } from "@/lib/utils";
-import { Sparkles } from "lucide-react";
+import { Sparkle } from "@phosphor-icons/react";
 
 // Skeleton loader for initial bank check
 function WelcomeSkeleton() {
@@ -75,11 +75,11 @@ const WELCOME_MESSAGE_WITH_BANK: Message = {
 
 export function ChatContainer() {
   const searchParams = useSearchParams();
-  const [mode, setMode] = useState<"chat" | "dashboard">("chat");
   const [messages, setMessages] = useState<Message[]>([]); // Start empty, set after bank check
   const [isLoading, setIsLoading] = useState(false);
   const [hasBankConnected, setHasBankConnected] = useState(false);
   const [isCheckingBank, setIsCheckingBank] = useState(true);
+  const [isConnectingBank, setIsConnectingBank] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   // Check for bank connection status on mount
@@ -269,11 +269,10 @@ export function ChatContainer() {
 
     switch (action) {
       case "connect-bank":
-        // Directly initiate Tarabut connection - user selects bank in Tarabut Connect UI
-        addMessage({
-          role: "assistant",
-          content: "Connecting to Tarabut Open Banking...\n\nYou'll be redirected to select your bank and authorize access.",
-        });
+        // Initiate Tarabut connection - redirect user to Tarabut Connect
+        // Using standard OAuth flow (same-tab redirect) since Tarabut's flow
+        // doesn't work well in popups due to how banks handle their auth pages
+        setIsConnectingBank(true);
 
         try {
           const response = await fetch("/api/tarabut/connect", {
@@ -288,9 +287,12 @@ export function ChatContainer() {
 
           const { authorizationUrl } = await response.json();
 
-          // Redirect to Tarabut Connect where user selects their bank
+          // Redirect to Tarabut Connect in the same tab
+          // User will be redirected back to our app after completing the flow
           window.location.href = authorizationUrl;
+
         } catch (err) {
+          setIsConnectingBank(false);
           addMessage({
             role: "assistant",
             content: `Connection failed: ${err instanceof Error ? err.message : "Please try again"}`,
@@ -311,31 +313,16 @@ export function ChatContainer() {
           role: "user",
           content: "Yes, analyze my spending",
         });
-        setTimeout(() => {
-          addMessage({
-            role: "assistant",
-            content: "Here's your spending overview for the last 90 days:",
-            richContent: [
-              {
-                type: "spending-analysis",
-                data: {
-                  totalSpent: 1847.3,
-                  currency: "BHD",
-                  period: "Last 90 days",
-                  topCategory: "Groceries",
-                  categories: [
-                    { category: "groceries", amount: 456, percentage: 25 },
-                    { category: "bills", amount: 389, percentage: 21 },
-                    { category: "dining", amount: 312, percentage: 17 },
-                    { category: "transport", amount: 234, percentage: 13 },
-                    { category: "shopping", amount: 198, percentage: 11 },
-                    { category: "other", amount: 258, percentage: 14 },
-                  ],
-                },
-              },
-            ],
-          });
-        }, 1000);
+        addMessage({
+          role: "assistant",
+          content: "Here's your spending overview:",
+          richContent: [
+            {
+              type: "spending-analysis",
+              // No data passed - component will fetch real data from API
+            },
+          ],
+        });
         break;
 
       case "add-another-bank":
@@ -351,7 +338,7 @@ export function ChatContainer() {
       case "set-budget":
         // Check if this is a submission (has amount) or initial setup request
         if (data?.amount) {
-          // User submitted a budget amount
+          // User submitted a budget amount - save it via API
           const submittedCategory = data?.category as string;
           const submittedAmount = data?.amount as number;
           const submittedCurrency = data?.currency as string;
@@ -359,7 +346,26 @@ export function ChatContainer() {
             role: "user",
             content: `Set ${submittedCategory} budget to ${submittedCurrency} ${submittedAmount}`,
           });
-          setTimeout(() => {
+
+          try {
+            const response = await fetch("/api/finance/budgets", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                category: submittedCategory,
+                amount: submittedAmount,
+                currency: submittedCurrency,
+              }),
+            });
+
+            if (!response.ok) {
+              throw new Error("Failed to save budget");
+            }
+
+            const result = await response.json();
+            const budget = result.budget;
+            const currentMonth = new Date().toLocaleDateString("en-US", { month: "long" });
+
             addMessage({
               role: "assistant",
               content: `Done! I've set your ${submittedCategory} budget to ${submittedCurrency} ${submittedAmount}/month. I'll let you know if you're getting close to the limit.`,
@@ -367,16 +373,30 @@ export function ChatContainer() {
                 {
                   type: "budget-card",
                   data: {
-                    category: submittedCategory?.toLowerCase() ?? "groceries",
-                    spent: 156.3,
-                    limit: submittedAmount,
-                    currency: submittedCurrency,
-                    month: "January",
+                    category: budget.category,
+                    spent: budget.spent,
+                    limit: budget.amount,
+                    currency: budget.currency,
+                    month: currentMonth,
                   },
                 },
               ],
             });
-          }, 500);
+          } catch (err) {
+            console.error("Failed to save budget:", err);
+            addMessage({
+              role: "assistant",
+              content: "Sorry, I couldn't save the budget. Please try again.",
+              richContent: [
+                {
+                  type: "action-buttons",
+                  data: {
+                    actions: [{ label: "Try Again", action: "set-budget" }],
+                  },
+                },
+              ],
+            });
+          }
         } else {
           // Show interactive budget setup card
           const category = data?.category as string;
@@ -408,7 +428,16 @@ export function ChatContainer() {
       case "show-transactions":
         addMessage({
           role: "assistant",
-          content: "Here are your recent transactions. You can switch to Dashboard mode for a full list.",
+          content: "Here are your recent transactions:",
+          richContent: [
+            {
+              type: "transactions-list",
+              data: {
+                limit: 10,
+                category: data?.category as string | undefined,
+              },
+            },
+          ],
         });
         break;
 
@@ -416,15 +445,11 @@ export function ChatContainer() {
         if (hasBankConnected) {
           addMessage({
             role: "assistant",
-            content: "Here's your connected account:",
+            content: "Here's your account overview:",
             richContent: [
               {
                 type: "balance-card",
-                data: {
-                  balance: 2450.75,
-                  currency: "BHD",
-                  accountCount: 1,
-                },
+                // No data passed - component will fetch real data from API
               },
             ],
           });
@@ -440,38 +465,9 @@ export function ChatContainer() {
     }
   };
 
-  if (mode === "dashboard") {
-    // Dashboard mode - placeholder for now
-    return (
-      <div className="flex flex-col h-full bg-background">
-        <ChatHeader
-          mode={mode}
-          onModeChange={setMode}
-          isPro={false}
-        />
-        <div className="flex-1 flex items-center justify-center p-8">
-          <div className="text-center text-muted-foreground">
-            <p className="text-lg font-medium mb-2">Dashboard Mode</p>
-            <p className="text-sm">Coming soon...</p>
-            <button
-              onClick={() => setMode("chat")}
-              className="mt-4 text-primary text-sm hover:underline"
-            >
-              Switch to Chat Mode
-            </button>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
   return (
     <div className="flex flex-col h-full bg-background">
-      <ChatHeader
-        mode={mode}
-        onModeChange={setMode}
-        isPro={false}
-      />
+      <ChatHeader />
 
       {/* Messages area */}
       <div className="flex-1 overflow-y-auto" ref={scrollRef}>
@@ -488,13 +484,33 @@ export function ChatContainer() {
             />
           ))}
 
+          {/* Bank connecting indicator */}
+          {isConnectingBank && (
+            <div className="py-6 animate-in fade-in duration-300">
+              <div className="max-w-3xl mx-auto px-4">
+                <div className="flex items-center gap-2 mb-3">
+                  <div className="size-6 rounded-full bg-foreground flex items-center justify-center">
+                    <Sparkle size={12} weight="fill" className="text-background" />
+                  </div>
+                  <span className="text-sm font-medium text-foreground">finauraa</span>
+                </div>
+                <div className="pl-8">
+                  <div className="flex items-center gap-2 text-muted-foreground">
+                    <div className="size-4 border-2 border-muted-foreground border-t-transparent rounded-full animate-spin" />
+                    <span className="text-sm">Waiting for bank connection...</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* Loading indicator - Claude style */}
-          {isLoading && (
+          {isLoading && !isConnectingBank && (
             <div className="py-6">
               <div className="max-w-3xl mx-auto px-4">
                 <div className="flex items-center gap-2 mb-3">
                   <div className="size-6 rounded-full bg-foreground flex items-center justify-center">
-                    <Sparkles className="size-3 text-background" />
+                    <Sparkle size={12} weight="fill" className="text-background" />
                   </div>
                   <span className="text-sm font-medium text-foreground">finauraa</span>
                 </div>

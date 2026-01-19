@@ -14,20 +14,51 @@ export async function GET(request: NextRequest) {
     const searchParams = request.nextUrl.searchParams;
     const error = searchParams.get("error");
     const errorDescription = searchParams.get("error_description");
+    const status = searchParams.get("status");
+    const tgIntentId = searchParams.get("tgIntentId");
 
-    // Handle error from Tarabut
-    if (error) {
-      console.error("Tarabut authorization error:", error, errorDescription);
+    console.log("Tarabut callback received:", { status, tgIntentId, error });
+
+    // Create supabase client early for all operations
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+
+    // Handle error from Tarabut (status can be FAILED, SUCCESSFUL, etc. - case insensitive)
+    const statusLower = status?.toLowerCase();
+    if (error || statusLower === "failed") {
+      console.error("Tarabut authorization error:", error, errorDescription, status);
+
+      // Clean up any pending connection
+      if (user) {
+        await supabase
+          .from("bank_connections")
+          .delete()
+          .eq("user_id", user.id)
+          .eq("status", "pending");
+      }
+
       return NextResponse.redirect(
-        new URL(`/?bank_error=${encodeURIComponent(errorDescription || error)}`, request.url)
+        new URL(`/?bank_error=${encodeURIComponent(errorDescription || error || "Connection failed")}`, request.url)
       );
     }
 
-    // Verify user session
-    const supabase = await createClient();
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
+    // Must have successful status to proceed
+    if (statusLower !== "successful" && statusLower !== "success") {
+      console.error("Unexpected Tarabut status:", status);
+
+      // Clean up any pending connection
+      if (user) {
+        await supabase
+          .from("bank_connections")
+          .delete()
+          .eq("user_id", user.id)
+          .eq("status", "pending");
+      }
+
+      return NextResponse.redirect(
+        new URL(`/?bank_error=${encodeURIComponent("Connection was not completed")}`, request.url)
+      );
+    }
 
     if (!user) {
       return NextResponse.redirect(
@@ -60,7 +91,42 @@ export async function GET(request: NextRequest) {
     const accountsResponse = await client.getAccounts(tokenResponse.accessToken);
     console.log("Fetched accounts:", accountsResponse.accounts?.length || 0);
 
-    if (!accountsResponse.accounts || accountsResponse.accounts.length === 0) {
+    // Log each account's details for debugging
+    accountsResponse.accounts?.forEach((acc, i) => {
+      console.log(`Account ${i + 1}:`, {
+        accountId: acc.accountId,
+        providerId: acc.providerId,
+        providerName: acc.providerName,
+        accountType: acc.accountType,
+        accountSubType: acc.accountSubType,
+        identification: acc.identification,
+        name: acc.name,
+        currency: acc.currency,
+      });
+    });
+
+    // Get user's consents to filter accounts by the provider they just connected
+    let userConsents: { consents: Array<{ providerId: string; status: string }> } = { consents: [] };
+    try {
+      userConsents = await client.getConsents(tokenResponse.accessToken);
+      console.log("User consents:", JSON.stringify(userConsents.consents, null, 2));
+    } catch (e) {
+      console.error("Failed to get consents:", e);
+    }
+
+    // Get the most recent active consent's providerId
+    const activeConsent = userConsents.consents?.find(c => c.status === "ACTIVE");
+    const consentProviderId = activeConsent?.providerId;
+    console.log("Active consent providerId:", consentProviderId);
+
+    // Filter accounts to only those from the consented provider
+    const filteredAccounts = consentProviderId
+      ? accountsResponse.accounts?.filter(acc => acc.providerId === consentProviderId) || []
+      : accountsResponse.accounts || [];
+
+    console.log("Filtered accounts count:", filteredAccounts.length);
+
+    if (!filteredAccounts || filteredAccounts.length === 0) {
       // No accounts returned - user may have cancelled or no accounts available
       await supabase
         .from("bank_connections")
@@ -73,7 +139,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Get bank info from the first account's provider
-    const firstAccount = accountsResponse.accounts[0];
+    const firstAccount = filteredAccounts[0];
     const bankId = firstAccount.providerId || "unknown";
     const bankName = firstAccount.providerName || bankId;
 
@@ -89,8 +155,8 @@ export async function GET(request: NextRequest) {
       })
       .eq("id", pendingConnection.id);
 
-    // Process each account
-    for (const account of accountsResponse.accounts) {
+    // Process each account from the filtered list
+    for (const account of filteredAccounts) {
       // Get balance for this account
       let balance = 0;
       try {
@@ -109,24 +175,30 @@ export async function GET(request: NextRequest) {
         : "••••0000";
 
       // Insert/update account in database
-      const { data: bankAccount } = await supabase
+      const accountData = {
+        user_id: user.id,
+        connection_id: pendingConnection.id,
+        account_id: account.accountId,
+        account_type: account.accountSubType || account.accountType || "Current",
+        account_number: maskedNumber,
+        currency: account.currency || "BHD",
+        balance: balance,
+        available_balance: balance,
+        last_synced_at: new Date().toISOString(),
+      };
+      console.log("Inserting account:", accountData);
+
+      const { data: bankAccount, error: accountError } = await supabase
         .from("bank_accounts")
-        .upsert(
-          {
-            user_id: user.id,
-            connection_id: pendingConnection.id,
-            account_id: account.accountId,
-            account_type: account.accountSubType || account.accountType,
-            account_number: maskedNumber,
-            currency: account.currency,
-            balance: balance,
-            available_balance: balance,
-            last_synced_at: new Date().toISOString(),
-          },
-          { onConflict: "connection_id,account_id" }
-        )
+        .upsert(accountData, { onConflict: "connection_id,account_id" })
         .select()
         .single();
+
+      if (accountError) {
+        console.error("Failed to insert account:", accountError);
+      } else {
+        console.log("Account inserted successfully:", bankAccount?.id);
+      }
 
       // Fetch transactions for this account
       if (bankAccount) {
@@ -170,10 +242,13 @@ export async function GET(request: NextRequest) {
       }
     }
 
+    // Redirect immediately to the app with success flag
     return NextResponse.redirect(new URL("/?bank_connected=true", request.url));
   } catch (error) {
     console.error("Callback error:", error);
     const errorMessage = error instanceof Error ? error.message : "Connection failed";
+
+    // Redirect immediately to the app with error flag
     return NextResponse.redirect(
       new URL(`/?bank_error=${encodeURIComponent(errorMessage)}`, request.url)
     );

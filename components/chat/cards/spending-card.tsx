@@ -1,6 +1,6 @@
 "use client";
 
-import { TrendingDown, TrendingUp } from "lucide-react";
+import { TrendDown, TrendUp } from "@phosphor-icons/react";
 
 interface SpendingCardProps {
   data?: Record<string, unknown>;
@@ -31,9 +31,9 @@ export function SpendingCard({ data }: SpendingCardProps) {
           <p className="text-xl font-semibold">{formatCurrency(amount)}</p>
         </div>
         {isOverAvg ? (
-          <TrendingUp className="size-5 text-muted-foreground" />
+          <TrendUp size={20} className="text-muted-foreground" />
         ) : (
-          <TrendingDown className="size-5 text-muted-foreground" />
+          <TrendDown size={20} className="text-muted-foreground" />
         )}
       </div>
 

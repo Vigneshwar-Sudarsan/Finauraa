@@ -21,7 +21,7 @@ function ChatLoading() {
 export default function Home() {
   return (
     <SidebarProvider defaultOpen={false}>
-      <AppSidebar />
+      <AppSidebar className="hidden md:flex" />
       <SidebarInset>
         <main className="h-dvh w-full flex flex-col">
           <Suspense fallback={<ChatLoading />}>

@@ -2,7 +2,7 @@
 
 import { cn } from "@/lib/utils";
 import { Message } from "@/lib/types";
-import { Sparkles } from "lucide-react";
+import { Sparkle } from "@phosphor-icons/react";
 import { RichContent } from "./rich-content";
 
 interface ChatMessageProps {
@@ -20,7 +20,7 @@ export function ChatMessage({ message, onAction }: ChatMessageProps) {
         {isAssistant && (
           <div className="flex items-center gap-2 mb-3">
             <div className="size-6 rounded-full bg-foreground flex items-center justify-center">
-              <Sparkles className="size-3 text-background" />
+              <Sparkle size={12} weight="fill" className="text-background" />
             </div>
             <span className="text-sm font-medium text-foreground">finauraa</span>
           </div>

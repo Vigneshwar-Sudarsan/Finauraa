@@ -6,6 +6,7 @@ import { SpendingCard } from "./cards/spending-card";
 import { BankConnected } from "./cards/bank-connected";
 import { SpendingAnalysis } from "./cards/spending-analysis";
 import { BudgetCard } from "./cards/budget-card";
+import { TransactionsList } from "./cards/transactions-list";
 import { ActionButtons } from "./cards/action-buttons";
 
 interface RichContentProps {
@@ -42,6 +43,9 @@ export function RichContent({ content, onAction, disabled }: RichContentProps) {
 
     case "budget-card":
       return <BudgetCard data={content.data} onAction={onAction} disabled={disabled} />;
+
+    case "transactions-list":
+      return <TransactionsList data={content.data} onAction={onAction} disabled={disabled} />;
 
     case "action-buttons":
       return (

@@ -1,6 +1,6 @@
 "use client";
 
-import { Check, Building2 } from "lucide-react";
+import { Check, Bank } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/button";
 
 interface BankConnectedProps {
@@ -30,7 +30,7 @@ export function BankConnected({ data, onAction, disabled }: BankConnectedProps) 
       {/* Success header */}
       <div className="flex items-center gap-2 text-foreground">
         <div className="size-4 rounded-full bg-foreground flex items-center justify-center">
-          <Check className="size-2.5 text-background" />
+          <Check size={10} weight="bold" className="text-background" />
         </div>
         <span className="text-sm font-medium">Connected</span>
       </div>
@@ -38,7 +38,7 @@ export function BankConnected({ data, onAction, disabled }: BankConnectedProps) 
       {/* Account details */}
       <div className="flex items-center gap-3 p-2.5 bg-muted/50 rounded-lg">
         <div className="size-9 rounded-md flex items-center justify-center bg-primary/10 text-primary shrink-0">
-          <Building2 className="size-5" />
+          <Bank size={20} />
         </div>
         <div className="flex-1 min-w-0">
           <p className="text-sm font-medium truncate">{bankName}</p>
@@ -60,7 +60,7 @@ export function BankConnected({ data, onAction, disabled }: BankConnectedProps) 
       {/* Action buttons */}
       {disabled ? (
         <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-          <Check className="size-3.5" />
+          <Check size={14} weight="bold" />
           <span>Action completed</span>
         </div>
       ) : (

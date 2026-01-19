@@ -1,7 +1,8 @@
 "use client";
 
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
-import { Check } from "lucide-react";
+import { Check } from "@phosphor-icons/react";
 
 interface SpendingAnalysisProps {
   data?: Record<string, unknown>;
@@ -13,6 +14,14 @@ interface CategorySpending {
   category: string;
   amount: number;
   percentage: number;
+}
+
+interface SpendingData {
+  totalSpent: number;
+  currency: string;
+  period: string;
+  categories: CategorySpending[];
+  topCategory: string | null;
 }
 
 // Minimal neutral category config
@@ -28,11 +37,50 @@ const CATEGORY_LABELS: Record<string, string> = {
 };
 
 export function SpendingAnalysis({ data, onAction, disabled }: SpendingAnalysisProps) {
-  const totalSpent = (data?.totalSpent as number) ?? 0;
-  const currency = (data?.currency as string) ?? "BHD";
-  const period = (data?.period as string) ?? "Last 90 days";
-  const categories = (data?.categories as CategorySpending[]) ?? [];
-  const topCategory = (data?.topCategory as string) ?? "";
+  const [spending, setSpending] = useState<SpendingData | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        const response = await fetch("/api/finance/spending?days=90");
+        if (response.ok) {
+          const result = await response.json();
+          setSpending({
+            totalSpent: result.totalSpent ?? 0,
+            currency: result.currency ?? "BHD",
+            period: result.period ?? "Last 90 days",
+            categories: result.categories ?? [],
+            topCategory: result.topCategory,
+          });
+        }
+      } catch (error) {
+        console.error("Failed to fetch spending:", error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    // Use passed data if available, otherwise fetch
+    if (data?.totalSpent !== undefined) {
+      setSpending({
+        totalSpent: data.totalSpent as number,
+        currency: (data.currency as string) ?? "BHD",
+        period: (data.period as string) ?? "Last 90 days",
+        categories: (data.categories as CategorySpending[]) ?? [],
+        topCategory: (data.topCategory as string) ?? null,
+      });
+      setIsLoading(false);
+    } else {
+      fetchData();
+    }
+  }, [data]);
+
+  const totalSpent = spending?.totalSpent ?? 0;
+  const currency = spending?.currency ?? "BHD";
+  const period = spending?.period ?? "Last 90 days";
+  const categories = spending?.categories ?? [];
+  const topCategory = spending?.topCategory ?? "";
 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat("en-BH", {
@@ -43,7 +91,39 @@ export function SpendingAnalysis({ data, onAction, disabled }: SpendingAnalysisP
     }).format(amount);
   };
 
-  const maxAmount = Math.max(...categories.map((c) => c.amount));
+  const maxAmount = Math.max(...categories.map((c) => c.amount), 1);
+
+  if (isLoading) {
+    return (
+      <div className="w-full max-w-sm rounded-xl border border-border/60 bg-card p-4 space-y-3">
+        <div className="space-y-2">
+          <div className="h-3 w-20 bg-muted rounded animate-pulse" />
+          <div className="h-6 w-28 bg-muted rounded animate-pulse" />
+        </div>
+        <div className="space-y-3">
+          {[1, 2, 3].map((i) => (
+            <div key={i} className="space-y-1.5">
+              <div className="flex justify-between">
+                <div className="h-3 w-16 bg-muted rounded animate-pulse" />
+                <div className="h-3 w-12 bg-muted rounded animate-pulse" />
+              </div>
+              <div className="h-1.5 bg-muted rounded-full" />
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  if (categories.length === 0) {
+    return (
+      <div className="w-full max-w-sm rounded-xl border border-border/60 bg-card p-4">
+        <p className="text-sm text-muted-foreground">
+          No spending data available yet. Transactions will appear here once synced from your bank.
+        </p>
+      </div>
+    );
+  }
 
   return (
     <div className="w-full max-w-sm rounded-xl border border-border/60 bg-card p-4 space-y-3">
@@ -90,7 +170,7 @@ export function SpendingAnalysis({ data, onAction, disabled }: SpendingAnalysisP
       {/* Actions */}
       {disabled ? (
         <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-          <Check className="size-3.5" />
+          <Check size={14} weight="bold" />
           <span>Action completed</span>
         </div>
       ) : (

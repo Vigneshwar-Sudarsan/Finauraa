@@ -6,7 +6,7 @@ import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Sparkles, Loader2, CheckCircle } from "lucide-react";
+import { Sparkle, SpinnerGap, CheckCircle } from "@phosphor-icons/react";
 
 export default function SignupPage() {
   const [email, setEmail] = useState("");
@@ -58,7 +58,7 @@ export default function SignupPage() {
         <div className="w-full max-w-sm space-y-6 text-center">
           <div className="flex flex-col items-center gap-4">
             <div className="size-12 rounded-full bg-green-500/10 flex items-center justify-center">
-              <CheckCircle className="size-6 text-green-500" />
+              <CheckCircle size={24} weight="fill" className="text-green-500" />
             </div>
             <h1 className="text-xl font-semibold">Check your email</h1>
             <p className="text-sm text-muted-foreground">
@@ -80,7 +80,7 @@ export default function SignupPage() {
         {/* Logo */}
         <div className="flex flex-col items-center gap-2">
           <div className="size-12 rounded-xl bg-foreground flex items-center justify-center">
-            <Sparkles className="size-6 text-background" />
+            <Sparkle size={24} weight="fill" className="text-background" />
           </div>
           <h1 className="text-xl font-semibold">finauraa</h1>
           <p className="text-sm text-muted-foreground">Create your account</p>
@@ -126,7 +126,7 @@ export default function SignupPage() {
           <Button type="submit" className="w-full" disabled={loading}>
             {loading ? (
               <>
-                <Loader2 className="size-4 animate-spin" />
+                <SpinnerGap size={16} className="animate-spin" />
                 Creating account...
               </>
             ) : (

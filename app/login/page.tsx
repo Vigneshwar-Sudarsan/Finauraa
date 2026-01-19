@@ -6,7 +6,7 @@ import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Sparkles, Loader2 } from "lucide-react";
+import { Sparkle, SpinnerGap } from "@phosphor-icons/react";
 
 export default function LoginPage() {
   const [email, setEmail] = useState("");
@@ -42,7 +42,7 @@ export default function LoginPage() {
         {/* Logo */}
         <div className="flex flex-col items-center gap-2">
           <div className="size-12 rounded-xl bg-foreground flex items-center justify-center">
-            <Sparkles className="size-6 text-background" />
+            <Sparkle size={24} weight="fill" className="text-background" />
           </div>
           <h1 className="text-xl font-semibold">finauraa</h1>
           <p className="text-sm text-muted-foreground">Welcome back</p>
@@ -78,7 +78,7 @@ export default function LoginPage() {
           <Button type="submit" className="w-full" disabled={loading}>
             {loading ? (
               <>
-                <Loader2 className="size-4 animate-spin" />
+                <SpinnerGap size={16} className="animate-spin" />
                 Signing in...
               </>
             ) : (

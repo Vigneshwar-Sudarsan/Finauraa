@@ -1,0 +1,300 @@
+"use client";
+
+import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
+import { SidebarTrigger } from "@/components/ui/sidebar";
+import { Separator } from "@/components/ui/separator";
+import { MobileNavButton } from "@/components/mobile-nav";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { BankSelector } from "./bank-selector";
+import { EmptyState } from "@/components/ui/empty-state";
+import {
+  Bank,
+  CreditCard,
+  Wallet,
+  CaretRight,
+  ArrowsClockwise,
+  SpinnerGap,
+  Plus,
+} from "@phosphor-icons/react";
+
+interface Account {
+  id: string;
+  account_id: string;
+  account_type: string;
+  account_number: string;
+  currency: string;
+  balance: number;
+  available_balance: number;
+}
+
+interface BankConnection {
+  id: string;
+  bank_id: string;
+  bank_name: string;
+  status: string;
+  accounts: Account[];
+}
+
+function formatCurrency(amount: number, currency: string = "BHD") {
+  return new Intl.NumberFormat("en-BH", {
+    style: "currency",
+    currency: currency,
+    minimumFractionDigits: 2,
+  }).format(amount);
+}
+
+function getAccountIcon(accountType: string) {
+  const type = accountType.toLowerCase();
+  if (type.includes("credit") || type.includes("card")) {
+    return CreditCard;
+  }
+  if (type.includes("savings")) {
+    return Wallet;
+  }
+  return Bank;
+}
+
+export function AccountsContent() {
+  const router = useRouter();
+  const [banks, setBanks] = useState<BankConnection[]>([]);
+  const [selectedBankId, setSelectedBankId] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [isConnecting, setIsConnecting] = useState(false);
+
+  const fetchData = async () => {
+    try {
+      const response = await fetch("/api/finance/banks");
+      if (response.ok) {
+        const data = await response.json();
+        setBanks(data.banks ?? []);
+        // Auto-select first bank if available
+        if (data.banks && data.banks.length > 0 && !selectedBankId) {
+          setSelectedBankId(data.banks[0].id);
+        }
+      }
+    } catch (error) {
+      console.error("Failed to fetch data:", error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchData();
+  }, []);
+
+  const handleRefresh = async () => {
+    setIsRefreshing(true);
+    try {
+      const response = await fetch("/api/finance/refresh", { method: "POST" });
+      if (response.ok) {
+        await fetchData();
+      }
+    } catch (error) {
+      console.error("Refresh failed:", error);
+    } finally {
+      setIsRefreshing(false);
+    }
+  };
+
+  const handleAccountClick = (accountId: string) => {
+    router.push(`/dashboard/accounts/${accountId}`);
+  };
+
+  const handleConnectBank = async () => {
+    setIsConnecting(true);
+    try {
+      const response = await fetch("/api/tarabut/connect", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to connect");
+      }
+
+      const { authorizationUrl } = await response.json();
+      window.location.href = authorizationUrl;
+    } catch (error) {
+      console.error("Failed to initiate connection:", error);
+      setIsConnecting(false);
+    }
+  };
+
+  // Get accounts - filter by selected bank if one is selected
+  const allAccounts = banks.flatMap((bank) =>
+    bank.accounts.map((acc) => ({ ...acc, bankName: bank.bank_name, bankId: bank.id }))
+  );
+
+  const displayedAccounts = selectedBankId
+    ? allAccounts.filter((acc) => acc.bankId === selectedBankId)
+    : allAccounts;
+
+  return (
+    <div className="flex flex-col h-full">
+      {/* Header */}
+      <header className="flex h-14 shrink-0 items-center justify-between border-b px-4">
+        <div className="flex items-center gap-2">
+          <SidebarTrigger className="-ml-1" />
+          <Separator orientation="vertical" className="!self-center h-4" />
+          <h1 className="font-semibold">Accounts</h1>
+        </div>
+        <div className="flex items-center gap-2">
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={handleRefresh}
+            disabled={isRefreshing || isLoading}
+          >
+            {isRefreshing ? (
+              <SpinnerGap size={20} className="animate-spin" />
+            ) : (
+              <ArrowsClockwise size={20} />
+            )}
+          </Button>
+          <MobileNavButton />
+        </div>
+      </header>
+
+      {/* Empty state - No banks connected */}
+      {!isLoading && banks.length === 0 && (
+        <div className="flex-1 flex items-center justify-center">
+          <EmptyState
+            icon={<Bank size={28} className="text-muted-foreground" />}
+            title="No banks connected"
+            description="Connect your bank accounts to view balances, transactions, and get insights on your spending."
+            action={{
+              label: isConnecting ? "Connecting..." : "Connect Bank",
+              onClick: handleConnectBank,
+              loading: isConnecting,
+            }}
+          />
+        </div>
+      )}
+
+      {/* Main content */}
+      {(isLoading || banks.length > 0) && (
+      <div className="flex-1 overflow-auto">
+        <div className="p-4 md:p-6 space-y-6 max-w-4xl mx-auto">
+          {/* Banks */}
+          <BankSelector
+            banks={banks}
+            selectedBankId={selectedBankId}
+            onBankSelect={setSelectedBankId}
+            isLoading={isLoading}
+          />
+
+          {/* Accounts List Skeleton */}
+          {isLoading && (
+            <Card>
+              <CardHeader className="pb-0">
+                <div className="h-5 w-20 bg-muted rounded animate-pulse" />
+              </CardHeader>
+              <CardContent className="p-0">
+                {[1, 2, 3, 4].map((i) => (
+                  <div key={i}>
+                    {i > 1 && <Separator />}
+                    <div className="flex items-center justify-between p-4">
+                      <div className="flex items-center gap-3">
+                        <div className="size-5 bg-muted rounded animate-pulse" />
+                        <div className="space-y-1">
+                          <div className="h-4 w-24 bg-muted rounded animate-pulse" />
+                          <div className="h-3 w-32 bg-muted rounded animate-pulse" />
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <div className="text-right space-y-1">
+                          <div className="h-4 w-24 bg-muted rounded animate-pulse" />
+                        </div>
+                        <div className="size-4 bg-muted rounded animate-pulse" />
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Accounts List */}
+          {!isLoading && displayedAccounts.length > 0 && (
+            <Card>
+              <CardHeader className="pb-0">
+                <CardTitle className="text-base">Accounts</CardTitle>
+              </CardHeader>
+              <CardContent className="p-0">
+                {displayedAccounts.map((account, index) => {
+                  const Icon = getAccountIcon(account.account_type);
+
+                  return (
+                    <div key={account.id}>
+                      {index > 0 && <Separator />}
+                      <button
+                        className="w-full flex items-center justify-between p-4 hover:bg-muted/50 transition-colors"
+                        onClick={() => handleAccountClick(account.id)}
+                      >
+                        <div className="flex items-center gap-3">
+                          <Icon size={20} className="text-muted-foreground" />
+                          <div className="text-left">
+                            <p className="font-medium text-sm">
+                              {account.account_type}
+                            </p>
+                            <p className="text-xs text-muted-foreground">
+                              {account.bankName} · ****{account.account_number.slice(-4)}
+                            </p>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <div className="text-right">
+                            <p className="font-medium text-sm">
+                              {formatCurrency(account.balance, account.currency)}
+                            </p>
+                            {account.available_balance !== account.balance && (
+                              <p className="text-xs text-muted-foreground">
+                                Available:{" "}
+                                {formatCurrency(
+                                  account.available_balance,
+                                  account.currency
+                                )}
+                              </p>
+                            )}
+                          </div>
+                          <CaretRight size={16} className="text-muted-foreground" />
+                        </div>
+                      </button>
+                    </div>
+                  );
+                })}
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Empty state - No accounts for selected bank */}
+          {!isLoading && displayedAccounts.length === 0 && (
+            <EmptyState
+              icon={<Wallet size={28} className="text-muted-foreground" />}
+              title="No accounts found"
+              description="This bank doesn't have any accounts yet. Try refreshing or selecting a different bank."
+              action={{
+                label: isRefreshing ? "Refreshing..." : "Refresh",
+                onClick: handleRefresh,
+                loading: isRefreshing,
+                variant: "outline",
+              }}
+            />
+          )}
+
+          {/* Refresh hint */}
+          {!isLoading && displayedAccounts.length > 0 && (
+            <p className="text-xs text-center text-muted-foreground">
+              Tap the refresh button to sync latest data from your banks
+            </p>
+          )}
+        </div>
+      </div>
+      )}
+    </div>
+  );
+}

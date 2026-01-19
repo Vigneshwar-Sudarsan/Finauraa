@@ -1,24 +1,82 @@
 "use client";
 
-import { Wallet } from "lucide-react";
+import { useState, useEffect } from "react";
+import { Money } from "@phosphor-icons/react";
 
 interface BalanceCardProps {
   data?: Record<string, unknown>;
 }
 
-export function BalanceCard({ data }: BalanceCardProps) {
-  const balance = (data?.balance as number) ?? 0;
-  const currency = (data?.currency as string) ?? "BHD";
-  const accountCount = (data?.accountCount as number) ?? 1;
-  const change = data?.change as number | undefined;
+interface FinanceSummary {
+  totalBalance: number;
+  accountCount: number;
+  currency: string;
+}
 
-  const formatCurrency = (amount: number) => {
+export function BalanceCard({ data }: BalanceCardProps) {
+  const [summary, setSummary] = useState<FinanceSummary | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        const response = await fetch("/api/finance/summary");
+        if (response.ok) {
+          const result = await response.json();
+          setSummary({
+            totalBalance: result.totalBalance ?? 0,
+            accountCount: result.accountCount ?? 0,
+            currency: result.currency ?? "BHD",
+          });
+        }
+      } catch (error) {
+        console.error("Failed to fetch balance:", error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    // Use passed data if available, otherwise fetch
+    if (data?.balance !== undefined) {
+      setSummary({
+        totalBalance: data.balance as number,
+        accountCount: (data.accountCount as number) ?? 1,
+        currency: (data.currency as string) ?? "BHD",
+      });
+      setIsLoading(false);
+    } else {
+      fetchData();
+    }
+  }, [data]);
+
+  const formatCurrency = (amount: number, currency: string) => {
     return new Intl.NumberFormat("en-BH", {
       style: "currency",
       currency: currency,
       minimumFractionDigits: 3,
     }).format(amount);
   };
+
+  if (isLoading) {
+    return (
+      <div className="w-full max-w-sm rounded-xl border border-border/60 bg-card p-4">
+        <div className="flex items-start justify-between">
+          <div className="space-y-2">
+            <div className="h-3 w-20 bg-muted rounded animate-pulse" />
+            <div className="h-7 w-32 bg-muted rounded animate-pulse" />
+            <div className="h-3 w-16 bg-muted rounded animate-pulse" />
+          </div>
+          <div className="rounded-full bg-muted p-2.5">
+            <Money size={20} className="text-muted-foreground" />
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  const balance = summary?.totalBalance ?? 0;
+  const currency = summary?.currency ?? "BHD";
+  const accountCount = summary?.accountCount ?? 0;
 
   return (
     <div className="w-full max-w-sm rounded-xl border border-border/60 bg-card p-4">
@@ -28,22 +86,16 @@ export function BalanceCard({ data }: BalanceCardProps) {
             Total Balance
           </p>
           <p className="text-2xl font-semibold tracking-tight">
-            {formatCurrency(balance)}
+            {formatCurrency(balance, currency)}
           </p>
           <p className="text-xs text-muted-foreground">
             {accountCount} account{accountCount !== 1 ? "s" : ""}
           </p>
         </div>
         <div className="rounded-full bg-muted p-2.5">
-          <Wallet className="size-5 text-muted-foreground" />
+          <Money size={20} className="text-muted-foreground" />
         </div>
       </div>
-      {change !== undefined && (
-        <p className="text-xs mt-3 text-muted-foreground">
-          {change >= 0 ? "+" : ""}
-          {change.toFixed(1)}% from last month
-        </p>
-      )}
     </div>
   );
 }

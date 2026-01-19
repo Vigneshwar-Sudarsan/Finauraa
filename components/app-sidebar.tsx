@@ -1,82 +1,105 @@
 "use client";
 
-import { useRouter } from "next/navigation";
+import { useRouter, usePathname } from "next/navigation";
 import {
-  MessageSquare,
-  LayoutDashboard,
+  Sparkle,
+  House,
   Wallet,
-  PiggyBank,
+  PaperPlaneTilt,
+  ChartPie,
+  Gear,
+  Question,
+  SignOut,
   Receipt,
-  Settings,
-  HelpCircle,
-  Sparkles,
-  LogOut,
-} from "lucide-react";
+  Target,
+} from "@phosphor-icons/react";
 
 import {
   Sidebar,
   SidebarContent,
   SidebarFooter,
   SidebarGroup,
+  SidebarGroupLabel,
   SidebarHeader,
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
   SidebarRail,
+  SidebarSeparator,
 } from "@/components/ui/sidebar";
 import { createClient } from "@/lib/supabase/client";
 
-// Menu items for the finance app
+// Main navigation items
 const navItems = [
   {
-    title: "Chat",
-    icon: MessageSquare,
-    url: "#",
-    isActive: true,
+    title: "AI",
+    icon: Sparkle,
+    url: "/",
   },
+];
+
+// Dashboard navigation items
+const dashboardItems = [
   {
-    title: "Dashboard",
-    icon: LayoutDashboard,
-    url: "#",
+    title: "Home",
+    icon: House,
+    url: "/dashboard",
   },
   {
     title: "Accounts",
     icon: Wallet,
-    url: "#",
-  },
-  {
-    title: "Budgets",
-    icon: PiggyBank,
-    url: "#",
+    url: "/dashboard/accounts",
   },
   {
     title: "Transactions",
     icon: Receipt,
-    url: "#",
+    url: "/dashboard/transactions",
+  },
+  {
+    title: "Spending",
+    icon: ChartPie,
+    url: "/dashboard/spending",
+  },
+  {
+    title: "Goals",
+    icon: Target,
+    url: "/dashboard/goals",
+  },
+  {
+    title: "Payments",
+    icon: PaperPlaneTilt,
+    url: "/dashboard/payments",
   },
 ];
 
 const footerItems = [
   {
     title: "Settings",
-    icon: Settings,
-    url: "#",
+    icon: Gear,
+    url: "/dashboard/settings",
   },
   {
     title: "Help",
-    icon: HelpCircle,
+    icon: Question,
     url: "#",
   },
 ];
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const router = useRouter();
+  const pathname = usePathname();
   const supabase = createClient();
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
     router.push("/login");
     router.refresh();
+  };
+
+  const isActive = (url: string) => {
+    if (url === "/") return pathname === "/";
+    if (url === "/dashboard") return pathname === "/dashboard";
+    return pathname.startsWith(url);
   };
 
   return (
@@ -90,7 +113,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
               className="hover:bg-transparent active:bg-transparent cursor-default"
             >
               <div className="flex aspect-square size-8 items-center justify-center rounded-lg bg-foreground text-background">
-                <Sparkles className="size-4" />
+                <Sparkle size={16} weight="fill" />
               </div>
               <span className="font-semibold">finauraa</span>
             </SidebarMenuButton>
@@ -101,20 +124,48 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
       <SidebarContent>
         <SidebarGroup>
           <SidebarMenu>
-            {navItems.map((item) => (
-              <SidebarMenuItem key={item.title}>
-                <SidebarMenuButton
-                  tooltip={item.title}
-                  isActive={item.isActive}
-                  asChild
-                >
-                  <a href={item.url}>
-                    <item.icon />
-                    <span>{item.title}</span>
-                  </a>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-            ))}
+            {navItems.map((item) => {
+              const active = isActive(item.url);
+              return (
+                <SidebarMenuItem key={item.title}>
+                  <SidebarMenuButton
+                    tooltip={item.title}
+                    isActive={active}
+                    asChild
+                  >
+                    <a href={item.url}>
+                      <item.icon size={20} weight={active ? "fill" : "regular"} />
+                      <span>{item.title}</span>
+                    </a>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              );
+            })}
+          </SidebarMenu>
+        </SidebarGroup>
+
+        <SidebarSeparator />
+
+        <SidebarGroup>
+          <SidebarGroupLabel>Dashboard</SidebarGroupLabel>
+          <SidebarMenu>
+            {dashboardItems.map((item) => {
+              const active = isActive(item.url);
+              return (
+                <SidebarMenuItem key={item.title}>
+                  <SidebarMenuButton
+                    tooltip={item.title}
+                    isActive={active}
+                    asChild
+                  >
+                    <a href={item.url}>
+                      <item.icon size={20} weight={active ? "fill" : "regular"} />
+                      <span>{item.title}</span>
+                    </a>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              );
+            })}
           </SidebarMenu>
         </SidebarGroup>
       </SidebarContent>
@@ -125,7 +176,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
             <SidebarMenuItem key={item.title}>
               <SidebarMenuButton tooltip={item.title} asChild>
                 <a href={item.url}>
-                  <item.icon />
+                  <item.icon size={20} />
                   <span>{item.title}</span>
                 </a>
               </SidebarMenuButton>
@@ -133,7 +184,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
           ))}
           <SidebarMenuItem>
             <SidebarMenuButton tooltip="Log out" onClick={handleLogout}>
-              <LogOut />
+              <SignOut size={20} />
               <span>Log out</span>
             </SidebarMenuButton>
           </SidebarMenuItem>

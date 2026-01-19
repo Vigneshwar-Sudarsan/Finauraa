@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import { ArrowUp, Plus, AudioLines } from "lucide-react";
+import { ArrowUp, Plus, Waveform } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
@@ -78,7 +78,7 @@ export function ChatInput({
               className="text-muted-foreground hover:text-foreground"
               disabled={disabled}
             >
-              <Plus className="size-5" />
+              <Plus size={20} />
             </Button>
 
             {/* Right side - Voice & Send */}
@@ -90,7 +90,7 @@ export function ChatInput({
                 className="text-muted-foreground hover:text-foreground"
                 disabled={disabled}
               >
-                <AudioLines className="size-5" />
+                <Waveform size={20} />
               </Button>
               <Button
                 type="button"
@@ -104,7 +104,7 @@ export function ChatInput({
                     : "bg-muted-foreground/20 text-muted-foreground cursor-not-allowed"
                 )}
               >
-                <ArrowUp className="size-4" />
+                <ArrowUp size={16} weight="bold" />
               </Button>
             </div>
           </div>

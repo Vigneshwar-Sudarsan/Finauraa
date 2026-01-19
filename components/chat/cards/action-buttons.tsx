@@ -1,7 +1,7 @@
 "use client";
 
 import { Button } from "@/components/ui/button";
-import { Check } from "lucide-react";
+import { Check } from "@phosphor-icons/react";
 
 interface ActionButtonsProps {
   actions?: Array<{
@@ -21,7 +21,7 @@ export function ActionButtons({ actions = [], onAction, disabled }: ActionButton
   if (disabled) {
     return (
       <div className="flex items-center gap-1.5 text-xs text-muted-foreground mt-2">
-        <Check className="size-3.5" />
+        <Check size={14} weight="bold" />
         <span>Completed</span>
       </div>
     );

@@ -8,6 +8,7 @@ export type MessageContentType =
   | "bank-connected"
   | "spending-analysis"
   | "budget-card"
+  | "transactions-list"
   | "payment-confirmation"
   | "action-buttons";
 
