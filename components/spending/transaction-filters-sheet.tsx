@@ -129,7 +129,7 @@ export function TransactionFiltersSheet({
       <DrawerContent
         className={
           isMobile
-            ? "!max-h-[96vh] h-auto flex flex-col"
+            ? "max-h-[85svh] flex flex-col"
             : "h-full w-full max-w-md flex flex-col"
         }
       >

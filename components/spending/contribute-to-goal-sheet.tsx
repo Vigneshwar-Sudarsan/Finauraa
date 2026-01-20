@@ -138,7 +138,7 @@ export function ContributeToGoalSheet({
 
   return (
     <Drawer open={open} onOpenChange={handleOpenChange} direction={isMobile ? "bottom" : "right"}>
-      <DrawerContent className={isMobile ? "!max-h-[96vh] h-auto flex flex-col" : "h-full w-full max-w-md flex flex-col"}>
+      <DrawerContent className={isMobile ? "max-h-[85svh] flex flex-col" : "h-full w-full max-w-md flex flex-col"}>
         {justCompleted ? (
           <div className="py-8 flex flex-col items-center justify-center gap-4 animate-in fade-in zoom-in flex-1">
             <div className="size-16 rounded-full bg-emerald-500/10 flex items-center justify-center">

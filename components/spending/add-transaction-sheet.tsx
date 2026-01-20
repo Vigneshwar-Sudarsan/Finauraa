@@ -155,7 +155,7 @@ export function AddTransactionSheet({
 
   return (
     <Drawer open={open} onOpenChange={handleOpenChange} direction={isMobile ? "bottom" : "right"}>
-      <DrawerContent className={isMobile ? "!max-h-[96vh] h-[96vh] flex flex-col" : "h-full w-full max-w-md flex flex-col"}>
+      <DrawerContent className={isMobile ? "max-h-[85svh] flex flex-col" : "h-full w-full max-w-md flex flex-col"}>
         {/* Header */}
         <div className="border-b shrink-0">
           <DrawerHeader className={`pb-4 pt-4 ${!isMobile ? "text-left" : ""}`}>
