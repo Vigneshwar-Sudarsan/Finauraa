@@ -2,10 +2,9 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { SidebarTrigger } from "@/components/ui/sidebar";
-import { Separator } from "@/components/ui/separator";
-import { MobileNavButton } from "@/components/mobile-nav";
+import { DashboardHeader } from "./dashboard-header";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Separator } from "@/components/ui/separator";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -216,17 +215,14 @@ export function AccountDetailContent({ accountId }: { accountId: string }) {
   if (isLoading) {
     return (
       <div className="flex flex-col h-full">
-        <header className="flex h-14 shrink-0 items-center justify-between border-b px-4">
-          <div className="flex items-center gap-2">
-            <SidebarTrigger className="-ml-1" />
-            <Separator orientation="vertical" className="!self-center h-4" />
+        <DashboardHeader
+          title="Account"
+          actions={
             <Button variant="ghost" size="icon" onClick={() => router.back()}>
               <ArrowLeft size={20} />
             </Button>
-            <h1 className="font-semibold">Account</h1>
-          </div>
-          <MobileNavButton />
-        </header>
+          }
+        />
         <div className="flex-1 overflow-auto">
           <div className="p-4 md:p-6 space-y-6 max-w-4xl mx-auto">
             {/* Account Card Skeleton */}
@@ -310,17 +306,14 @@ export function AccountDetailContent({ accountId }: { accountId: string }) {
   if (error || !data) {
     return (
       <div className="flex flex-col h-full">
-        <header className="flex h-14 shrink-0 items-center justify-between border-b px-4">
-          <div className="flex items-center gap-2">
-            <SidebarTrigger className="-ml-1" />
-            <Separator orientation="vertical" className="!self-center h-4" />
+        <DashboardHeader
+          title="Account"
+          actions={
             <Button variant="ghost" size="icon" onClick={() => router.back()}>
               <ArrowLeft size={20} />
             </Button>
-            <h1 className="font-semibold">Account</h1>
-          </div>
-          <MobileNavButton />
-        </header>
+          }
+        />
         <div className="flex-1 flex items-center justify-center">
           <EmptyState
             icon={<Warning size={28} className="text-muted-foreground" />}
@@ -346,32 +339,28 @@ export function AccountDetailContent({ accountId }: { accountId: string }) {
 
   return (
     <div className="flex flex-col h-full">
-      {/* Header */}
-      <header className="flex h-14 shrink-0 items-center justify-between border-b px-4">
-        <div className="flex items-center gap-2">
-          <SidebarTrigger className="-ml-1" />
-          <Separator orientation="vertical" className="!self-center h-4" />
-          <Button variant="ghost" size="icon" onClick={() => router.back()}>
-            <ArrowLeft size={20} />
-          </Button>
-          <h1 className="font-semibold">{account.account_type}</h1>
-        </div>
-        <div className="flex items-center gap-2">
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={handleRefresh}
-            disabled={isRefreshing}
-          >
-            {isRefreshing ? (
-              <SpinnerGap size={20} className="animate-spin" />
-            ) : (
-              <ArrowsClockwise size={20} />
-            )}
-          </Button>
-          <MobileNavButton />
-        </div>
-      </header>
+      <DashboardHeader
+        title={account.account_type}
+        actions={
+          <>
+            <Button variant="ghost" size="icon" onClick={() => router.back()}>
+              <ArrowLeft size={20} />
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={handleRefresh}
+              disabled={isRefreshing}
+            >
+              {isRefreshing ? (
+                <SpinnerGap size={20} className="animate-spin" />
+              ) : (
+                <ArrowsClockwise size={20} />
+              )}
+            </Button>
+          </>
+        }
+      />
 
       {/* Main content */}
       <div className="flex-1 overflow-auto">

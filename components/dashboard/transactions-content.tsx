@@ -1,9 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { SidebarTrigger } from "@/components/ui/sidebar";
-import { Separator } from "@/components/ui/separator";
-import { MobileNavButton } from "@/components/mobile-nav";
+import { DashboardHeader } from "./dashboard-header";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -260,15 +258,7 @@ export function TransactionsContent() {
 
   return (
     <div className="flex flex-col h-full">
-      {/* Header */}
-      <header className="flex h-14 shrink-0 items-center justify-between border-b px-4">
-        <div className="flex items-center gap-2">
-          <SidebarTrigger className="-ml-1" />
-          <Separator orientation="vertical" className="!self-center h-4" />
-          <h1 className="font-semibold">Transactions</h1>
-        </div>
-        <MobileNavButton />
-      </header>
+      <DashboardHeader title="Transactions" />
 
       {/* Error State */}
       {error && !isLoading && (

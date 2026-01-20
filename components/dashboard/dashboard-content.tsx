@@ -1,13 +1,12 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { SidebarTrigger } from "@/components/ui/sidebar";
 import { Separator } from "@/components/ui/separator";
 import { BankSelector } from "./bank-selector";
 import { AccountTabs } from "./account-tabs";
 import { TransactionsList } from "./transactions-list";
 import { SpendingSummary } from "./spending-summary";
-import { MobileNavButton } from "@/components/mobile-nav";
+import { DashboardHeader } from "./dashboard-header";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Bank } from "@phosphor-icons/react";
 
@@ -118,14 +117,7 @@ export function DashboardContent() {
   return (
     <div className="flex flex-col h-full">
       {/* Header */}
-      <header className="flex h-14 shrink-0 items-center justify-between border-b px-4">
-        <div className="flex items-center gap-2">
-          <SidebarTrigger className="-ml-1" />
-          <Separator orientation="vertical" className="!self-center h-4" />
-          <h1 className="font-semibold">Dashboard</h1>
-        </div>
-        <MobileNavButton />
-      </header>
+      <DashboardHeader title="Dashboard" />
 
       {/* Main content */}
       {/* Empty State - No banks connected */}

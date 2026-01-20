@@ -2,9 +2,8 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { SidebarTrigger } from "@/components/ui/sidebar";
 import { Separator } from "@/components/ui/separator";
-import { MobileNavButton } from "@/components/mobile-nav";
+import { DashboardHeader } from "./dashboard-header";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import {
@@ -145,13 +144,9 @@ export function AccountsContent() {
   return (
     <div className="flex flex-col h-full">
       {/* Header */}
-      <header className="flex h-14 shrink-0 items-center justify-between border-b px-4">
-        <div className="flex items-center gap-2">
-          <SidebarTrigger className="-ml-1" />
-          <Separator orientation="vertical" className="!self-center h-4" />
-          <h1 className="font-semibold">Accounts</h1>
-        </div>
-        <div className="flex items-center gap-2">
+      <DashboardHeader
+        title="Accounts"
+        actions={
           <Button
             variant="ghost"
             size="icon"
@@ -164,9 +159,8 @@ export function AccountsContent() {
               <ArrowsClockwise size={20} />
             )}
           </Button>
-          <MobileNavButton />
-        </div>
-      </header>
+        }
+      />
 
       {/* Empty state - No banks connected */}
       {!isLoading && banks.length === 0 && (

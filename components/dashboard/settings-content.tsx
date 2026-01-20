@@ -3,10 +3,9 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useTheme } from "next-themes";
-import { SidebarTrigger } from "@/components/ui/sidebar";
-import { Separator } from "@/components/ui/separator";
-import { MobileNavButton } from "@/components/mobile-nav";
+import { DashboardHeader } from "./dashboard-header";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Separator } from "@/components/ui/separator";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { createClient } from "@/lib/supabase/client";
@@ -239,15 +238,7 @@ export function SettingsContent() {
 
   return (
     <div className="flex flex-col h-full">
-      {/* Header */}
-      <header className="flex h-14 shrink-0 items-center justify-between border-b px-4">
-        <div className="flex items-center gap-2">
-          <SidebarTrigger className="-ml-1" />
-          <Separator orientation="vertical" className="!self-center h-4" />
-          <h1 className="font-semibold">Settings</h1>
-        </div>
-        <MobileNavButton />
-      </header>
+      <DashboardHeader title="Settings" />
 
       {/* Main content */}
       <div className="flex-1 overflow-auto">

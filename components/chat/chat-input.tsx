@@ -56,7 +56,7 @@ export function ChatInput({
   };
 
   return (
-    <div className="p-4 bg-background">
+    <div className="p-4 bg-background" style={{ paddingBottom: "calc(1rem + var(--sab, 0px))" }}>
       <div className="max-w-3xl mx-auto">
         <div
           className={cn(

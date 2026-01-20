@@ -49,7 +49,7 @@ export function DashboardBottomNav() {
   };
 
   return (
-    <nav className="fixed bottom-0 left-0 right-0 z-50 border-t bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80 md:hidden">
+    <nav className="fixed bottom-0 left-0 right-0 z-50 border-t bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80 md:hidden" style={{ paddingBottom: "env(safe-area-inset-bottom)" }}>
       <div className="flex items-center justify-around h-16 px-2">
         {navItems.map((item) => {
           const active = isActive(item.href);
