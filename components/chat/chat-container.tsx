@@ -605,11 +605,86 @@ export function ChatContainer() {
         break;
 
       case "show-spending":
-        handleSendMessage("Show me my spending");
+      case "track-spending":
+      case "Track Spending":
+        await addAndSaveMessage({
+          role: "assistant",
+          content: "Here's your spending overview:",
+          richContent: [
+            {
+              type: "spending-analysis",
+            },
+          ],
+        }, currentConvId);
+        break;
+
+      case "view-balance":
+      case "View Account Balance":
+        if (hasBankConnected) {
+          await addAndSaveMessage({
+            role: "assistant",
+            content: "Here's your account overview:",
+            richContent: [
+              {
+                type: "balance-card",
+              },
+            ],
+          }, currentConvId);
+        } else {
+          await addAndSaveMessage({
+            role: "assistant",
+            content: "You need to connect a bank account first to view your balance.",
+            richContent: [
+              {
+                type: "action-buttons",
+                data: {
+                  actions: [{ label: "Connect Bank", action: "connect-bank" }],
+                },
+              },
+            ],
+          }, currentConvId);
+        }
+        break;
+
+      case "Set Budget":
+        await addAndSaveMessage({
+          role: "assistant",
+          content: "What category would you like to set a budget for?",
+          richContent: [
+            {
+              type: "action-buttons",
+              data: {
+                actions: [
+                  { label: "Groceries", action: "set-budget", data: { category: "groceries" } },
+                  { label: "Dining", action: "set-budget", data: { category: "dining" } },
+                  { label: "Shopping", action: "set-budget", data: { category: "shopping" } },
+                ],
+              },
+            },
+          ],
+        }, currentConvId);
+        break;
+
+      case "Analyze Spending Patterns":
+      case "analyze-patterns":
+        await addAndSaveMessage({
+          role: "assistant",
+          content: "Here's an analysis of your spending patterns:",
+          richContent: [
+            {
+              type: "spending-analysis",
+            },
+          ],
+        }, currentConvId);
         break;
 
       default:
-        console.log("Unknown action:", action, data);
+        // If action looks like a user message, send it to the AI
+        if (action && !action.includes("-") && action.length > 10) {
+          handleSendMessage(action);
+        } else {
+          console.log("Unknown action:", action, data);
+        }
     }
   };
 

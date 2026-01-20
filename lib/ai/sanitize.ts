@@ -3,27 +3,27 @@
  * Prevents prompt injection and data leakage
  */
 
-// Patterns that could indicate prompt injection attempts
-const INJECTION_PATTERNS = [
+// HIGH RISK patterns - definitely block these
+const HIGH_RISK_PATTERNS = [
   /ignore\s+(previous|all|above)\s+(instructions?|prompts?)/i,
-  /disregard\s+(previous|all|above)/i,
-  /forget\s+(everything|all|previous)/i,
-  /you\s+are\s+now/i,
-  /new\s+instructions?:/i,
-  /system\s*:/i,
+  /disregard\s+(previous|all|above)\s+(instructions?|prompts?)/i,
+  /forget\s+(everything|all|previous)\s+(instructions?|prompts?)/i,
   /\[system\]/i,
   /<system>/i,
-  /assistant\s*:/i,
   /\[assistant\]/i,
   /<assistant>/i,
-  /pretend\s+(you|to\s+be)/i,
-  /act\s+as\s+(if|a)/i,
-  /roleplay\s+as/i,
   /jailbreak/i,
   /bypass\s+(safety|filter|restriction)/i,
-  /reveal\s+(system|prompt|instruction)/i,
-  /what\s+(are|is)\s+your\s+(system|instructions?|prompt)/i,
-  /show\s+me\s+(your|the)\s+(system|prompt)/i,
+  /reveal\s+(your\s+)?(system\s+)?prompt/i,
+  /what\s+(are|is)\s+your\s+system\s+prompt/i,
+];
+
+// MEDIUM RISK patterns - log but allow (might be legitimate)
+const MEDIUM_RISK_PATTERNS = [
+  /you\s+are\s+now\s+a/i,
+  /pretend\s+(you\s+are|to\s+be)\s+a/i,
+  /act\s+as\s+if\s+you/i,
+  /roleplay\s+as/i,
 ];
 
 // Characters that could be used for injection
@@ -33,6 +33,7 @@ export interface SanitizeResult {
   sanitized: string;
   wasModified: boolean;
   injectionDetected: boolean;
+  riskLevel: "none" | "medium" | "high";
 }
 
 /**
@@ -42,6 +43,7 @@ export function sanitizeUserInput(input: string): SanitizeResult {
   let sanitized = input;
   let wasModified = false;
   let injectionDetected = false;
+  let riskLevel: "none" | "medium" | "high" = "none";
 
   // Remove control characters
   const withoutControlChars = sanitized.replace(SUSPICIOUS_CHARS, "");
@@ -50,11 +52,23 @@ export function sanitizeUserInput(input: string): SanitizeResult {
     wasModified = true;
   }
 
-  // Check for injection patterns
-  for (const pattern of INJECTION_PATTERNS) {
+  // Check for HIGH RISK patterns - these will be blocked
+  for (const pattern of HIGH_RISK_PATTERNS) {
     if (pattern.test(sanitized)) {
       injectionDetected = true;
+      riskLevel = "high";
       break;
+    }
+  }
+
+  // Check for MEDIUM RISK patterns - these will be logged but allowed
+  if (!injectionDetected) {
+    for (const pattern of MEDIUM_RISK_PATTERNS) {
+      if (pattern.test(sanitized)) {
+        riskLevel = "medium";
+        // Don't set injectionDetected - allow these through
+        break;
+      }
     }
   }
 
@@ -74,7 +88,7 @@ export function sanitizeUserInput(input: string): SanitizeResult {
     wasModified = true;
   }
 
-  return { sanitized, wasModified, injectionDetected };
+  return { sanitized, wasModified, injectionDetected, riskLevel };
 }
 
 /**

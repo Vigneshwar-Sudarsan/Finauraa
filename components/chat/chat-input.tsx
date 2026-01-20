@@ -25,7 +25,13 @@ export function ChatInput({
 }: ChatInputProps) {
   const [message, setMessage] = useState("");
   const [popoverOpen, setPopoverOpen] = useState(false);
+  const [isMounted, setIsMounted] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  // Fix hydration mismatch with Radix Popover
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
 
   // Auto-resize textarea
   useEffect(() => {
@@ -84,32 +90,44 @@ export function ChatInput({
           {/* Bottom toolbar */}
           <div className="flex items-center justify-between px-2 pb-2">
             {/* Left side - Plus button with menu */}
-            <Popover open={popoverOpen} onOpenChange={setPopoverOpen}>
-              <PopoverTrigger asChild>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon-sm"
-                  className="text-muted-foreground hover:text-foreground"
-                  disabled={disabled}
+            {isMounted ? (
+              <Popover open={popoverOpen} onOpenChange={setPopoverOpen}>
+                <PopoverTrigger asChild>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon-sm"
+                    className="text-muted-foreground hover:text-foreground"
+                    disabled={disabled}
+                  >
+                    <Plus size={20} />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent
+                  align="start"
+                  side="top"
+                  className="w-56 p-1.5"
                 >
-                  <Plus size={20} />
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent
-                align="start"
-                side="top"
-                className="w-56 p-1.5"
+                  <button
+                    onClick={handleConnectBank}
+                    className="flex w-full items-center gap-3 rounded-md px-3 py-2.5 text-sm text-foreground hover:bg-muted transition-colors"
+                  >
+                    <Bank size={18} className="text-muted-foreground" />
+                    <span>Connect to bank</span>
+                  </button>
+                </PopoverContent>
+              </Popover>
+            ) : (
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon-sm"
+                className="text-muted-foreground hover:text-foreground"
+                disabled={disabled}
               >
-                <button
-                  onClick={handleConnectBank}
-                  className="flex w-full items-center gap-3 rounded-md px-3 py-2.5 text-sm text-foreground hover:bg-muted transition-colors"
-                >
-                  <Bank size={18} className="text-muted-foreground" />
-                  <span>Connect to bank</span>
-                </button>
-              </PopoverContent>
-            </Popover>
+                <Plus size={20} />
+              </Button>
+            )}
 
             {/* Right side - Voice & Send */}
             <div className="flex items-center gap-1">

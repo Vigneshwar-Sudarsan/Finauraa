@@ -71,11 +71,19 @@ When the user asks about financial data, use these components to trigger data di
   "type": "action-buttons",
   "data": {
     "actions": [
-      { "label": "Connect Bank Account", "action": "connect-bank" },
-      { "label": "Set Budget", "action": "set-budget" }
+      { "label": "Button Text", "action": "action-name" }
     ]
   }
 }
+
+IMPORTANT: Only use these exact action names (the "action" field must match exactly):
+- "connect-bank" - Connect a bank account
+- "show-accounts" - Show account balances
+- "analyze-spending" - Show spending analysis
+- "set-budget" - Set up a budget (can include data: { "category": "groceries" })
+- "show-transactions" - Show recent transactions
+
+The "label" can be any user-friendly text, but "action" MUST be one of the above.
 
 ## Context
 - Currency in Bahrain is BHD (Bahraini Dinar) with 3 decimal places
@@ -143,12 +151,15 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    // Check rate limit (30 requests per minute)
-    const rateLimitResult = checkRateLimit(user.id);
+    // Check rate limit (30 requests per minute) - uses Supabase for persistence
+    const rateLimitResult = await checkRateLimit(user.id);
     if (!rateLimitResult.allowed) {
       logSecurityEvent(user.id, "rate_limit", { remaining: 0 });
       return NextResponse.json(
-        { error: "Too many requests. Please wait a moment." },
+        {
+          error: "Too many requests. Please wait a moment.",
+          resetAt: new Date(rateLimitResult.resetAt).toISOString(),
+        },
         {
           status: 429,
           headers: getRateLimitHeaders(rateLimitResult),
@@ -164,12 +175,14 @@ export async function POST(request: NextRequest) {
       .single();
 
     const isPro = profile?.is_pro ?? false;
-    const dailyResult = checkDailyLimit(user.id, isPro);
+    const dailyResult = await checkDailyLimit(user.id, isPro);
 
     if (!dailyResult.allowed) {
       return NextResponse.json(
         {
-          error: `Daily limit reached (${dailyResult.limit} queries). ${isPro ? "Please try again tomorrow." : "Upgrade to Pro for more queries."}`,
+          error: `Daily limit reached (${dailyResult.limit} queries). ${isPro ? "Please try again tomorrow." : "Upgrade to Pro for unlimited queries."}`,
+          remaining: 0,
+          limit: dailyResult.limit,
         },
         { status: 429 }
       );
@@ -195,12 +208,27 @@ export async function POST(request: NextRequest) {
     const lastUserMessage = sanitizedMessages.filter((m) => m.role === "user").pop();
     if (lastUserMessage) {
       const sanitizeResult = sanitizeUserInput(lastUserMessage.content);
+
+      // Block HIGH risk injection attempts
       if (sanitizeResult.injectionDetected) {
         logSecurityEvent(user.id, "injection_attempt", {
           messagePreview: lastUserMessage.content.slice(0, 50) + "...",
+          riskLevel: sanitizeResult.riskLevel,
         });
-        // Still process but log for monitoring
-        // In production, you might want to flag the account for review
+        return NextResponse.json(
+          {
+            error: "Your message couldn't be processed. Please rephrase and try again.",
+          },
+          { status: 400 }
+        );
+      }
+
+      // Log MEDIUM risk but allow through
+      if (sanitizeResult.riskLevel === "medium") {
+        logSecurityEvent(user.id, "suspicious_input", {
+          messagePreview: lastUserMessage.content.slice(0, 50) + "...",
+          riskLevel: "medium",
+        });
       }
     }
 
@@ -273,9 +301,32 @@ export async function POST(request: NextRequest) {
     );
   } catch (error) {
     console.error("Chat API error:", error);
+
+    // Provide more helpful error messages
+    let errorMessage = "Something went wrong. Please try again.";
+    let statusCode = 500;
+
+    if (error instanceof Error) {
+      if (error.message.includes("API key")) {
+        errorMessage = "AI service configuration error. Please contact support.";
+      } else if (error.message.includes("rate") || error.message.includes("limit")) {
+        errorMessage = "AI service is busy. Please try again in a moment.";
+        statusCode = 503;
+      } else if (error.message.includes("timeout") || error.message.includes("network")) {
+        errorMessage = "Connection issue. Please check your internet and try again.";
+        statusCode = 504;
+      } else if (error.message.includes("content") || error.message.includes("safety")) {
+        errorMessage = "I couldn't process that request. Please try rephrasing.";
+        statusCode = 400;
+      }
+    }
+
     return NextResponse.json(
-      { error: "Failed to process message" },
-      { status: 500 }
+      {
+        error: errorMessage,
+        retryable: statusCode >= 500,
+      },
+      { status: statusCode }
     );
   }
 }

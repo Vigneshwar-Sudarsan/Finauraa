@@ -1,29 +1,13 @@
 /**
- * Simple in-memory rate limiter for AI API requests
- * In production, use Redis or a dedicated rate limiting service
+ * Rate limiter using Supabase for persistence
+ * Survives server restarts and works across all server instances
  */
 
-interface RateLimitEntry {
-  count: number;
-  resetAt: number;
-}
-
-// In-memory store (use Redis in production)
-const rateLimitStore = new Map<string, RateLimitEntry>();
-
-// Clean up old entries periodically
-setInterval(() => {
-  const now = Date.now();
-  for (const [key, entry] of rateLimitStore.entries()) {
-    if (entry.resetAt < now) {
-      rateLimitStore.delete(key);
-    }
-  }
-}, 60000); // Clean every minute
+import { createClient } from "@/lib/supabase/server";
 
 export interface RateLimitConfig {
   maxRequests: number;
-  windowMs: number;
+  windowSeconds: number;
 }
 
 export interface RateLimitResult {
@@ -32,44 +16,94 @@ export interface RateLimitResult {
   resetAt: number;
 }
 
+export interface DailyLimitConfig {
+  freeLimit: number;
+  proLimit: number;
+}
+
 /**
- * Check if request is within rate limit
+ * Check per-minute rate limit using Supabase
+ * Uses atomic database operation to prevent race conditions
  */
-export function checkRateLimit(
+export async function checkRateLimit(
   userId: string,
-  config: RateLimitConfig = { maxRequests: 30, windowMs: 60000 } // 30 requests per minute
-): RateLimitResult {
-  const now = Date.now();
-  const key = `rate:${userId}`;
+  config: RateLimitConfig = { maxRequests: 30, windowSeconds: 60 }
+): Promise<RateLimitResult> {
+  try {
+    const supabase = await createClient();
 
-  let entry = rateLimitStore.get(key);
+    const { data, error } = await supabase.rpc("check_rate_limit", {
+      p_user_id: userId,
+      p_limit_type: "minute",
+      p_max_count: config.maxRequests,
+      p_window_seconds: config.windowSeconds,
+    });
 
-  // If no entry or window expired, create new entry
-  if (!entry || entry.resetAt < now) {
-    entry = {
-      count: 1,
-      resetAt: now + config.windowMs,
+    if (error) {
+      console.error("Rate limit check failed:", error);
+      // Fail open - allow request but log the error
+      return {
+        allowed: true,
+        remaining: config.maxRequests - 1,
+        resetAt: Date.now() + config.windowSeconds * 1000,
+      };
+    }
+
+    const result = data?.[0];
+    return {
+      allowed: result?.allowed ?? true,
+      remaining: Math.max(0, config.maxRequests - (result?.current_count ?? 1)),
+      resetAt: result?.reset_at ? new Date(result.reset_at).getTime() : Date.now() + config.windowSeconds * 1000,
     };
-    rateLimitStore.set(key, entry);
-
+  } catch (error) {
+    console.error("Rate limit error:", error);
+    // Fail open on error
     return {
       allowed: true,
       remaining: config.maxRequests - 1,
-      resetAt: entry.resetAt,
+      resetAt: Date.now() + config.windowSeconds * 1000,
     };
   }
+}
 
-  // Increment count
-  entry.count++;
+/**
+ * Check daily query limit using Supabase
+ * Free users: 50/day, Pro users: 500/day
+ */
+export async function checkDailyLimit(
+  userId: string,
+  isPro: boolean,
+  config: DailyLimitConfig = { freeLimit: 50, proLimit: 500 }
+): Promise<{ allowed: boolean; remaining: number; limit: number }> {
+  const limit = isPro ? config.proLimit : config.freeLimit;
 
-  const allowed = entry.count <= config.maxRequests;
-  const remaining = Math.max(0, config.maxRequests - entry.count);
+  try {
+    const supabase = await createClient();
 
-  return {
-    allowed,
-    remaining,
-    resetAt: entry.resetAt,
-  };
+    // Daily window = 86400 seconds (24 hours)
+    const { data, error } = await supabase.rpc("check_rate_limit", {
+      p_user_id: userId,
+      p_limit_type: "daily",
+      p_max_count: limit,
+      p_window_seconds: 86400,
+    });
+
+    if (error) {
+      console.error("Daily limit check failed:", error);
+      // Fail open
+      return { allowed: true, remaining: limit - 1, limit };
+    }
+
+    const result = data?.[0];
+    return {
+      allowed: result?.allowed ?? true,
+      remaining: Math.max(0, limit - (result?.current_count ?? 1)),
+      limit,
+    };
+  } catch (error) {
+    console.error("Daily limit error:", error);
+    return { allowed: true, remaining: limit - 1, limit };
+  }
 }
 
 /**
@@ -80,43 +114,4 @@ export function getRateLimitHeaders(result: RateLimitResult): Record<string, str
     "X-RateLimit-Remaining": result.remaining.toString(),
     "X-RateLimit-Reset": Math.ceil(result.resetAt / 1000).toString(),
   };
-}
-
-/**
- * Daily query limit for free tier users
- */
-const dailyQueryStore = new Map<string, { count: number; resetAt: number }>();
-
-export interface DailyLimitConfig {
-  freeLimit: number;
-  proLimit: number;
-}
-
-export function checkDailyLimit(
-  userId: string,
-  isPro: boolean,
-  config: DailyLimitConfig = { freeLimit: 50, proLimit: 500 }
-): { allowed: boolean; remaining: number; limit: number } {
-  const now = Date.now();
-  const key = `daily:${userId}`;
-  const limit = isPro ? config.proLimit : config.freeLimit;
-
-  // Calculate midnight reset time
-  const tomorrow = new Date();
-  tomorrow.setHours(24, 0, 0, 0);
-  const resetAt = tomorrow.getTime();
-
-  let entry = dailyQueryStore.get(key);
-
-  if (!entry || entry.resetAt < now) {
-    entry = { count: 1, resetAt };
-    dailyQueryStore.set(key, entry);
-    return { allowed: true, remaining: limit - 1, limit };
-  }
-
-  entry.count++;
-  const allowed = entry.count <= limit;
-  const remaining = Math.max(0, limit - entry.count);
-
-  return { allowed, remaining, limit };
 }

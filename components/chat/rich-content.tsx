@@ -50,7 +50,7 @@ export function RichContent({ content, onAction, disabled }: RichContentProps) {
     case "action-buttons":
       return (
         <ActionButtons
-          actions={content.data?.actions as Array<{ label: string; action: string; variant?: "default" | "outline" | "secondary" | "ghost" }>}
+          actions={content.data?.actions as Array<{ label: string; action: string; variant?: "default" | "outline" | "secondary" | "ghost"; data?: Record<string, unknown> }>}
           onAction={onAction}
           disabled={disabled}
         />
