@@ -224,7 +224,7 @@ export function SetSpendingLimitSheet({
                   value={limitAmount}
                   onChange={(e) => setLimitAmount(e.target.value)}
                   className="text-lg"
-                  autoFocus
+                  autoFocus={!isMobile}
                 />
                 {isEditing && currentSpent > 0 && (
                   <FieldDescription>

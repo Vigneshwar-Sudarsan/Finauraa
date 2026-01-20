@@ -24,24 +24,11 @@ export async function GET(request: NextRequest) {
     const days = searchParams.get("days");
     const accountId = searchParams.get("account_id"); // Filter by specific account
 
-    // Build query
+    // Build query - select all transaction fields
+    // Note: provider_id, merchant_logo, category_group are optional columns added later
     let query = supabase
       .from("transactions")
-      .select(
-        `
-        id,
-        transaction_id,
-        amount,
-        currency,
-        transaction_type,
-        description,
-        merchant_name,
-        category,
-        transaction_date,
-        booking_date,
-        account_id
-      `
-      )
+      .select("*")
       .eq("user_id", user.id)
       .order("transaction_date", { ascending: false })
       .range(offset, offset + limit - 1);

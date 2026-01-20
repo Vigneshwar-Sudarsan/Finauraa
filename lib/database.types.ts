@@ -249,12 +249,15 @@ export type Database = {
           amount: number
           booking_date: string | null
           category: string | null
+          category_group: string | null
           category_icon: string | null
           created_at: string
           currency: string
           description: string | null
           id: string
+          merchant_logo: string | null
           merchant_name: string | null
+          provider_id: string | null
           transaction_date: string
           transaction_id: string | null
           transaction_type: string
@@ -265,12 +268,15 @@ export type Database = {
           amount: number
           booking_date?: string | null
           category?: string | null
+          category_group?: string | null
           category_icon?: string | null
           created_at?: string
           currency?: string
           description?: string | null
           id?: string
+          merchant_logo?: string | null
           merchant_name?: string | null
+          provider_id?: string | null
           transaction_date: string
           transaction_id?: string | null
           transaction_type: string
@@ -281,12 +287,15 @@ export type Database = {
           amount?: number
           booking_date?: string | null
           category?: string | null
+          category_group?: string | null
           category_icon?: string | null
           created_at?: string
           currency?: string
           description?: string | null
           id?: string
+          merchant_logo?: string | null
           merchant_name?: string | null
+          provider_id?: string | null
           transaction_date?: string
           transaction_id?: string | null
           transaction_type?: string

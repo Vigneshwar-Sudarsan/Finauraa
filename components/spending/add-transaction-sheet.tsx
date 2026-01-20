@@ -215,7 +215,7 @@ export function AddTransactionSheet({
                   value={amount}
                   onChange={(e) => setAmount(e.target.value)}
                   className="text-lg"
-                  autoFocus
+                  autoFocus={!isMobile}
                 />
               </Field>
 

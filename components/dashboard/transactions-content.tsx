@@ -47,10 +47,14 @@ interface Transaction {
   currency: string;
   transaction_type: "credit" | "debit";
   category: string;
+  category_group?: string;
+  category_icon?: string;
   description?: string;
   merchant_name?: string;
+  merchant_logo?: string;
+  provider_id?: string;
   transaction_date: string;
-  is_manual: boolean;
+  is_manual?: boolean;
   account_id?: string;
 }
 
@@ -407,21 +411,48 @@ export function TransactionsContent() {
                       {groupedTransactions[group].map((transaction, index) => {
                         const Icon = getCategoryIcon(transaction.category);
                         const isCredit = transaction.transaction_type === "credit";
+                        const hasLogo = transaction.merchant_logo || transaction.category_icon;
 
                         return (
                           <div key={transaction.id}>
                             {index > 0 && <ItemSeparator />}
                             <Item variant="default" size="sm">
                               <ItemMedia variant="icon">
-                                <div className={cn(
-                                  "size-10 rounded-xl flex items-center justify-center",
-                                  isCredit ? "bg-emerald-500/10" : "bg-muted"
-                                )}>
-                                  <Icon
-                                    size={20}
-                                    className={isCredit ? "text-emerald-600" : "text-muted-foreground"}
-                                  />
-                                </div>
+                                {hasLogo ? (
+                                  <div className={cn(
+                                    "size-10 rounded-xl flex items-center justify-center overflow-hidden",
+                                    isCredit ? "bg-emerald-500/10" : "bg-muted"
+                                  )}>
+                                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                                    <img
+                                      src={transaction.merchant_logo || transaction.category_icon}
+                                      alt={transaction.merchant_name || transaction.category}
+                                      className="size-6 object-contain"
+                                      onError={(e) => {
+                                        // Fallback to icon if image fails
+                                        e.currentTarget.style.display = 'none';
+                                        e.currentTarget.nextElementSibling?.classList.remove('hidden');
+                                      }}
+                                    />
+                                    <Icon
+                                      size={20}
+                                      className={cn(
+                                        "hidden",
+                                        isCredit ? "text-emerald-600" : "text-muted-foreground"
+                                      )}
+                                    />
+                                  </div>
+                                ) : (
+                                  <div className={cn(
+                                    "size-10 rounded-xl flex items-center justify-center",
+                                    isCredit ? "bg-emerald-500/10" : "bg-muted"
+                                  )}>
+                                    <Icon
+                                      size={20}
+                                      className={isCredit ? "text-emerald-600" : "text-muted-foreground"}
+                                    />
+                                  </div>
+                                )}
                               </ItemMedia>
                               <ItemContent>
                                 <ItemTitle>

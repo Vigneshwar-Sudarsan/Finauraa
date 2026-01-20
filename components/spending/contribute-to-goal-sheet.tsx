@@ -262,7 +262,7 @@ export function ContributeToGoalSheet({
                       value={amount}
                       onChange={(e) => setAmount(e.target.value)}
                       className="text-lg"
-                      autoFocus
+                      autoFocus={!isMobile}
                     />
                     {goal.days_remaining !== null && goal.days_remaining !== undefined && goal.days_remaining > 0 && (
                       <FieldDescription>

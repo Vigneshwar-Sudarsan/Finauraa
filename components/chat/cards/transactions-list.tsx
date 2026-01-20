@@ -17,7 +17,11 @@ interface Transaction {
   transaction_type: "credit" | "debit";
   description: string;
   merchant_name: string | null;
+  merchant_logo?: string | null;
   category: string;
+  category_group?: string | null;
+  category_icon?: string | null;
+  provider_id?: string | null;
   transaction_date: string;
 }
 
@@ -146,17 +150,36 @@ export function TransactionsList({ data }: TransactionsListProps) {
           const isCredit = tx.transaction_type === "credit";
           const displayName = tx.merchant_name || tx.description || "Transaction";
           const categoryLabel = CATEGORY_LABELS[tx.category?.toLowerCase()] ?? tx.category ?? "Other";
+          const hasLogo = tx.merchant_logo || tx.category_icon;
 
           return (
             <div key={tx.id} className="flex items-center justify-between py-2.5">
               <div className="flex items-center gap-3">
                 {/* Icon */}
                 <div
-                  className={`size-8 rounded-full flex items-center justify-center ${
+                  className={`size-8 rounded-full flex items-center justify-center overflow-hidden ${
                     isCredit ? "bg-green-500/10" : "bg-muted"
                   }`}
                 >
-                  {isCredit ? (
+                  {hasLogo ? (
+                    <>
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={tx.merchant_logo || tx.category_icon || ""}
+                        alt={tx.merchant_name || tx.category}
+                        className="size-5 object-contain"
+                        onError={(e) => {
+                          e.currentTarget.style.display = 'none';
+                          e.currentTarget.nextElementSibling?.classList.remove('hidden');
+                        }}
+                      />
+                      {isCredit ? (
+                        <ArrowDownLeft size={16} weight="bold" className="hidden text-green-600" />
+                      ) : (
+                        <ArrowUpRight size={16} weight="bold" className="hidden text-muted-foreground" />
+                      )}
+                    </>
+                  ) : isCredit ? (
                     <ArrowDownLeft size={16} weight="bold" className="text-green-600" />
                   ) : (
                     <ArrowUpRight size={16} weight="bold" className="text-muted-foreground" />

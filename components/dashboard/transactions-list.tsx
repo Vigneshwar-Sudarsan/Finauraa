@@ -37,7 +37,11 @@ interface Transaction {
   transaction_type: "credit" | "debit";
   description: string;
   merchant_name: string | null;
+  merchant_logo?: string | null;
   category: string;
+  category_group?: string | null;
+  category_icon?: string | null;
+  provider_id?: string | null;
   transaction_date: string;
 }
 
@@ -208,23 +212,51 @@ export function TransactionsList({ accountId }: TransactionsListProps) {
             const categoryLabel =
               CATEGORY_LABELS[tx.category?.toLowerCase()] || tx.category || "Other";
             const Icon = getCategoryIcon(tx.category);
+            const hasLogo = tx.merchant_logo || tx.category_icon;
 
             return (
               <div key={tx.id}>
                 {index > 0 && <ItemSeparator />}
                 <Item variant="default" size="sm">
                   <ItemMedia variant="icon">
-                    <div
-                      className={cn(
-                        "size-10 rounded-xl flex items-center justify-center",
-                        isCredit ? "bg-emerald-500/10" : "bg-muted"
-                      )}
-                    >
-                      <Icon
-                        size={20}
-                        className={isCredit ? "text-emerald-600" : "text-muted-foreground"}
-                      />
-                    </div>
+                    {hasLogo ? (
+                      <div
+                        className={cn(
+                          "size-10 rounded-xl flex items-center justify-center overflow-hidden",
+                          isCredit ? "bg-emerald-500/10" : "bg-muted"
+                        )}
+                      >
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img
+                          src={tx.merchant_logo || tx.category_icon || ""}
+                          alt={tx.merchant_name || tx.category}
+                          className="size-6 object-contain"
+                          onError={(e) => {
+                            e.currentTarget.style.display = 'none';
+                            e.currentTarget.nextElementSibling?.classList.remove('hidden');
+                          }}
+                        />
+                        <Icon
+                          size={20}
+                          className={cn(
+                            "hidden",
+                            isCredit ? "text-emerald-600" : "text-muted-foreground"
+                          )}
+                        />
+                      </div>
+                    ) : (
+                      <div
+                        className={cn(
+                          "size-10 rounded-xl flex items-center justify-center",
+                          isCredit ? "bg-emerald-500/10" : "bg-muted"
+                        )}
+                      >
+                        <Icon
+                          size={20}
+                          className={isCredit ? "text-emerald-600" : "text-muted-foreground"}
+                        />
+                      </div>
+                    )}
                   </ItemMedia>
                   <ItemContent>
                     <ItemTitle className="truncate max-w-[180px] sm:max-w-[240px]">

@@ -247,7 +247,7 @@ export function SavingsGoalSheet({
                   placeholder="e.g., Emergency Fund, New Car"
                   value={name}
                   onChange={(e) => setName(e.target.value)}
-                  autoFocus
+                  autoFocus={!isMobile}
                 />
               </Field>
 

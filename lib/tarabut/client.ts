@@ -77,12 +77,13 @@ export interface TarabutTransaction {
   transactionDescription?: string;
   transactionType?: string;
   category?: {
-    id: string;
-    name: string;
+    group: string;  // "Expense" | "Income"
+    name: string;   // "Eating Out", "Groceries", etc.
+    icon?: string;  // URL to category icon SVG
   };
-  merchantDetails?: {
+  merchant?: {
     name: string;
-    category?: string;
+    logo?: string;  // URL to merchant logo SVG
   };
   creditDebitIndicator: "Credit" | "Debit";
   amount: {
