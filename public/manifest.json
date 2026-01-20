@@ -59,5 +59,21 @@
   "categories": ["finance", "productivity"],
   "lang": "en",
   "dir": "ltr",
-  "prefer_related_applications": false
+  "prefer_related_applications": false,
+  "screenshots": [
+    {
+      "src": "/icons/screenshot-mobile.png",
+      "sizes": "473x1024",
+      "type": "image/png",
+      "form_factor": "narrow",
+      "label": "Finauraa AI Finance Assistant"
+    },
+    {
+      "src": "/icons/screenshot-desktop.png",
+      "sizes": "1409x705",
+      "type": "image/png",
+      "form_factor": "wide",
+      "label": "Finauraa Dashboard"
+    }
+  ]
 }
