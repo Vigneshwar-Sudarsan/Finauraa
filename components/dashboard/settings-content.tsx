@@ -22,6 +22,7 @@ import {
   Trash,
   SpinnerGap,
   Crown,
+  Sparkle,
 } from "@phosphor-icons/react";
 
 interface SettingItem {
@@ -166,6 +167,16 @@ export function SettingsContent() {
     },
   ];
 
+  const aiSettings: SettingItem[] = [
+    {
+      icon: Sparkle,
+      title: "AI Privacy Settings",
+      description: "Choose between Privacy-First or Enhanced AI mode",
+      action: "link",
+      href: "/dashboard/settings/ai-privacy",
+    },
+  ];
+
   const securitySettings: SettingItem[] = [
     {
       icon: Shield,
@@ -267,6 +278,18 @@ export function SettingsContent() {
             </CardContent>
           </Card>
 
+          {/* AI Settings Section */}
+          <Card>
+            <CardHeader className="pb-0">
+              <CardTitle className="text-base">AI Settings</CardTitle>
+            </CardHeader>
+            <CardContent className="p-0">
+              {aiSettings.map((item, index) =>
+                renderSettingItem(item, index, aiSettings.length)
+              )}
+            </CardContent>
+          </Card>
+
           {/* Security Section */}
           <Card>
             <CardHeader className="pb-0">
@@ -355,6 +378,7 @@ export function SettingsContent() {
           </div>
         </div>
       </div>
+
     </div>
   );
 }
