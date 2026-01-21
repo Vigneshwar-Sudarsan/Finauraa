@@ -3,7 +3,6 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
-  House,
   Wallet,
   Receipt,
   ChartPie,
@@ -11,13 +10,8 @@ import {
 } from "@phosphor-icons/react";
 import { cn } from "@/lib/utils";
 
-// First 5 items from sidebar dashboardItems in same order
+// Bottom navigation items
 const navItems = [
-  {
-    title: "Home",
-    icon: House,
-    href: "/dashboard",
-  },
   {
     title: "Accounts",
     icon: Wallet,
@@ -44,6 +38,7 @@ export function DashboardBottomNav() {
   const pathname = usePathname();
 
   const isActive = (href: string) => {
+    if (href === "/") return pathname === "/";
     if (href === "/dashboard") return pathname === "/dashboard";
     return pathname.startsWith(href);
   };

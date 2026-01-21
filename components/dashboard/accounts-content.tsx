@@ -145,7 +145,7 @@ export function AccountsContent() {
     <div className="flex flex-col h-full">
       {/* Header */}
       <DashboardHeader
-        title="Accounts"
+        title="Connected Banks"
         actions={
           <Button
             variant="ghost"

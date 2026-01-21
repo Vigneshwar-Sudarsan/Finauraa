@@ -1,7 +1,7 @@
 import { Suspense } from "react";
 import { AppSidebar } from "@/components/app-sidebar";
 import { SidebarProvider, SidebarInset } from "@/components/ui/sidebar";
-import { AccountsContent } from "@/components/dashboard/accounts-content";
+import { DashboardContent } from "@/components/dashboard/dashboard-content";
 import { DashboardBottomNav } from "@/components/dashboard/dashboard-bottom-nav";
 
 export const dynamic = "force-dynamic";
@@ -31,7 +31,7 @@ export default function AccountsPage() {
       <SidebarInset>
         <main className="h-dvh w-full flex flex-col overflow-hidden pb-16 md:pb-0">
           <Suspense fallback={<AccountsLoading />}>
-            <AccountsContent />
+            <DashboardContent />
           </Suspense>
         </main>
         <DashboardBottomNav />

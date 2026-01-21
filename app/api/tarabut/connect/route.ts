@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createTarabutClient } from "@/lib/tarabut/client";
+import { SubscriptionTier, getTierLimits } from "@/lib/features";
 
 /**
  * POST /api/tarabut/connect
@@ -32,15 +33,46 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Create Tarabut client
-    const client = createTarabutClient();
-
-    // Get user profile for intent creation
+    // Get user profile with subscription tier
     const { data: profile } = await supabase
       .from("profiles")
-      .select("full_name, email")
+      .select("full_name, email, subscription_tier, is_pro")
       .eq("id", user.id)
       .single();
+
+    // Check bank connection limits based on subscription
+    const tier: SubscriptionTier = profile?.subscription_tier || (profile?.is_pro ? "pro" : "free");
+    const tierLimits = getTierLimits(tier);
+    const bankLimit = tierLimits.bankConnections;
+
+    // Count existing active bank connections
+    const { count: existingConnections } = await supabase
+      .from("bank_connections")
+      .select("id", { count: "exact", head: true })
+      .eq("user_id", user.id)
+      .eq("status", "active");
+
+    if ((existingConnections || 0) >= bankLimit) {
+      const tierName = tier.charAt(0).toUpperCase() + tier.slice(1);
+      const upgradeMessage = tier === "free"
+        ? "Upgrade to Pro for up to 5 bank connections."
+        : tier === "pro"
+          ? "Upgrade to Family for up to 15 bank connections."
+          : "You've reached the maximum bank connections.";
+
+      return NextResponse.json(
+        {
+          error: `Bank connection limit reached (${bankLimit}). ${upgradeMessage}`,
+          limit: bankLimit,
+          used: existingConnections,
+          upgradeRequired: tier !== "family",
+        },
+        { status: 403 }
+      );
+    }
+
+    // Create Tarabut client
+    const client = createTarabutClient();
 
     // Parse user name
     const nameParts = (profile?.full_name || "User").split(" ");

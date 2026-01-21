@@ -15,9 +15,9 @@ import {
 } from "@/lib/ai/data-privacy";
 import {
   checkRateLimit,
-  checkDailyLimit,
   getRateLimitHeaders,
 } from "@/lib/ai/rate-limit";
+import { SubscriptionTier, getTierLimits } from "@/lib/features";
 
 const anthropic = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY,
@@ -167,22 +167,48 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Check daily limit based on user tier
+    // Check monthly AI query limit based on subscription tier
     const { data: profile } = await supabase
       .from("profiles")
-      .select("is_pro")
+      .select("subscription_tier, is_pro")
       .eq("id", user.id)
       .single();
 
-    const isPro = profile?.is_pro ?? false;
-    const dailyResult = await checkDailyLimit(user.id, isPro);
+    // Determine tier (with backwards compatibility for is_pro)
+    const tier: SubscriptionTier = profile?.subscription_tier || (profile?.is_pro ? "pro" : "free");
+    const tierLimits = getTierLimits(tier);
+    const monthlyLimit = tierLimits.aiQueriesPerMonth;
 
-    if (!dailyResult.allowed) {
+    // Count queries this month
+    const startOfMonth = new Date();
+    startOfMonth.setDate(1);
+    startOfMonth.setHours(0, 0, 0, 0);
+
+    const { count: queriesThisMonth } = await supabase
+      .from("messages")
+      .select("id", { count: "exact", head: true })
+      .eq("role", "user")
+      .gte("created_at", startOfMonth.toISOString());
+
+    const currentUsage = queriesThisMonth || 0;
+    const remaining = Math.max(0, monthlyLimit - currentUsage);
+
+    if (currentUsage >= monthlyLimit) {
+      const tierName = tier.charAt(0).toUpperCase() + tier.slice(1);
+      const upgradeMessage = tier === "free"
+        ? "Upgrade to Pro for 100 queries/month."
+        : tier === "pro"
+          ? "Upgrade to Family for 200 queries/month."
+          : "You've reached the maximum queries for this month.";
+
       return NextResponse.json(
         {
-          error: `Daily limit reached (${dailyResult.limit} queries). ${isPro ? "Please try again tomorrow." : "Upgrade to Pro for unlimited queries."}`,
+          error: `Monthly limit reached (${monthlyLimit} queries). ${upgradeMessage}`,
           remaining: 0,
-          limit: dailyResult.limit,
+          limit: monthlyLimit,
+          used: currentUsage,
+          tier,
+          upgradeRequired: tier !== "family",
         },
         { status: 429 }
       );
@@ -288,12 +314,14 @@ export async function POST(request: NextRequest) {
       };
     }
 
-    // Return response with rate limit headers
+    // Return response with rate limit headers and usage info
     return NextResponse.json(
       {
         message: parsedResponse.message,
         richContent: parsedResponse.richContent || [],
-        remaining: dailyResult.remaining,
+        remaining: remaining - 1, // Subtract 1 for this query
+        limit: monthlyLimit,
+        tier,
       },
       {
         headers: getRateLimitHeaders(rateLimitResult),

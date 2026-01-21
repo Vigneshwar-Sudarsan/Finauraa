@@ -213,7 +213,7 @@ export function TransactionFiltersSheet({
             )}
 
             {/* Account Filter */}
-            {availableAccounts.length > 0 && (
+            {banks.length > 0 && (
               <Field>
                 <FieldLabel>Account</FieldLabel>
                 <Select
@@ -221,9 +221,10 @@ export function TransactionFiltersSheet({
                   onValueChange={(v) =>
                     setLocalFilters((prev) => ({ ...prev, accountId: v }))
                   }
+                  disabled={availableAccounts.length === 0}
                 >
                   <SelectTrigger className="w-full">
-                    <SelectValue placeholder="All Accounts" />
+                    <SelectValue placeholder={availableAccounts.length === 0 ? "No accounts" : "All Accounts"} />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">All Accounts</SelectItem>
@@ -231,6 +232,7 @@ export function TransactionFiltersSheet({
                       <SelectItem key={account.id} value={account.id}>
                         {account.account_type || "Account"} ****
                         {account.account_number?.slice(-4)}
+                        {localFilters.bankId === "all" && ` (${account.bankName})`}
                       </SelectItem>
                     ))}
                   </SelectContent>

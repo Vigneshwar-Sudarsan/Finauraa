@@ -1,0 +1,398 @@
+"use client";
+
+import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { EmptyState } from "@/components/ui/empty-state";
+import {
+  Item,
+  ItemMedia,
+  ItemContent,
+  ItemTitle,
+  ItemDescription,
+  ItemActions,
+  ItemGroup,
+  ItemSeparator,
+} from "@/components/ui/item";
+import { BankSelector } from "@/components/dashboard/bank-selector";
+import {
+  CaretLeft,
+  Bank,
+  CreditCard,
+  Wallet,
+  CaretRight,
+  ArrowsClockwise,
+  SpinnerGap,
+  Plus,
+  Trash,
+} from "@phosphor-icons/react";
+
+interface Account {
+  id: string;
+  account_id: string;
+  account_type: string;
+  account_number: string;
+  currency: string;
+  balance: number;
+  available_balance: number;
+}
+
+interface BankConnection {
+  id: string;
+  bank_id: string;
+  bank_name: string;
+  status: string;
+  accounts: Account[];
+}
+
+function formatCurrency(amount: number, currency: string = "BHD") {
+  return new Intl.NumberFormat("en-BH", {
+    style: "currency",
+    currency: currency,
+    minimumFractionDigits: 2,
+  }).format(amount);
+}
+
+function getAccountIcon(accountType: string) {
+  const type = accountType.toLowerCase();
+  if (type.includes("credit") || type.includes("card")) {
+    return CreditCard;
+  }
+  if (type.includes("savings")) {
+    return Wallet;
+  }
+  return Bank;
+}
+
+export default function ConnectedBanksPage() {
+  const router = useRouter();
+  const [banks, setBanks] = useState<BankConnection[]>([]);
+  const [selectedBankId, setSelectedBankId] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [isConnecting, setIsConnecting] = useState(false);
+  const [deletingBankId, setDeletingBankId] = useState<string | null>(null);
+
+  const fetchData = async () => {
+    try {
+      const response = await fetch("/api/finance/banks");
+      if (response.ok) {
+        const data = await response.json();
+        setBanks(data.banks ?? []);
+        // Auto-select first bank if available
+        if (data.banks && data.banks.length > 0 && !selectedBankId) {
+          setSelectedBankId(data.banks[0].id);
+        }
+      }
+    } catch (error) {
+      console.error("Failed to fetch data:", error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchData();
+  }, []);
+
+  const handleRefresh = async () => {
+    setIsRefreshing(true);
+    try {
+      const response = await fetch("/api/finance/refresh", { method: "POST" });
+      if (response.ok) {
+        await fetchData();
+      }
+    } catch (error) {
+      console.error("Refresh failed:", error);
+    } finally {
+      setIsRefreshing(false);
+    }
+  };
+
+  const handleAccountClick = (accountId: string) => {
+    router.push(`/dashboard/accounts/${accountId}`);
+  };
+
+  const handleConnectBank = async () => {
+    setIsConnecting(true);
+    try {
+      const response = await fetch("/api/tarabut/connect", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to connect");
+      }
+
+      const { authorizationUrl } = await response.json();
+      window.location.href = authorizationUrl;
+    } catch (error) {
+      console.error("Failed to initiate connection:", error);
+      setIsConnecting(false);
+    }
+  };
+
+  const handleDisconnectBank = async (bankId: string, bankName: string) => {
+    if (!confirm(`Are you sure you want to disconnect ${bankName}? All accounts and transactions will be deleted.`)) {
+      return;
+    }
+
+    setDeletingBankId(bankId);
+    try {
+      const response = await fetch(`/api/finance/connections/${bankId}`, {
+        method: "DELETE",
+      });
+
+      if (response.ok) {
+        // Remove the bank from state
+        setBanks(banks.filter(b => b.id !== bankId));
+        // Reset selection if the deleted bank was selected
+        if (selectedBankId === bankId) {
+          setSelectedBankId(banks.length > 1 ? banks.find(b => b.id !== bankId)?.id ?? null : null);
+        }
+      }
+    } catch (error) {
+      console.error("Failed to disconnect:", error);
+    } finally {
+      setDeletingBankId(null);
+    }
+  };
+
+  // Get accounts - filter by selected bank if one is selected
+  const allAccounts = banks.flatMap((bank) =>
+    bank.accounts.map((acc) => ({ ...acc, bankName: bank.bank_name, bankId: bank.id }))
+  );
+
+  const displayedAccounts = selectedBankId
+    ? allAccounts.filter((acc) => acc.bankId === selectedBankId)
+    : allAccounts;
+
+  if (isLoading) {
+    return (
+      <div className="flex flex-col h-full">
+        <div className="p-4 border-b">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => router.back()}
+            className="gap-2"
+          >
+            <CaretLeft size={16} />
+            Back
+          </Button>
+        </div>
+        <div className="flex-1 flex items-center justify-center">
+          <div className="flex items-center gap-2 text-muted-foreground">
+            <SpinnerGap size={20} className="animate-spin" />
+            <span>Loading...</span>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex flex-col h-full">
+      {/* Header with Back Button */}
+      <div className="p-4 border-b sticky top-0 bg-background z-10 flex items-center justify-between">
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => router.back()}
+          className="gap-2"
+        >
+          <CaretLeft size={16} />
+          Back to Settings
+        </Button>
+        <div className="flex items-center gap-2">
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={handleRefresh}
+            disabled={isRefreshing}
+          >
+            {isRefreshing ? (
+              <SpinnerGap size={20} className="animate-spin" />
+            ) : (
+              <ArrowsClockwise size={20} />
+            )}
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleConnectBank}
+            disabled={isConnecting}
+            className="gap-2"
+          >
+            {isConnecting ? (
+              <SpinnerGap size={16} className="animate-spin" />
+            ) : (
+              <Plus size={16} />
+            )}
+            Add Bank
+          </Button>
+        </div>
+      </div>
+
+      {/* Empty state - No banks connected */}
+      {banks.length === 0 && (
+        <div className="flex-1 flex items-center justify-center">
+          <EmptyState
+            icon={<Bank size={28} className="text-muted-foreground" />}
+            title="No banks connected"
+            description="Connect your bank accounts to view balances, transactions, and get insights on your spending."
+            action={{
+              label: isConnecting ? "Connecting..." : "Connect Bank",
+              onClick: handleConnectBank,
+              loading: isConnecting,
+            }}
+          />
+        </div>
+      )}
+
+      {/* Main content */}
+      {banks.length > 0 && (
+        <div className="flex-1 overflow-auto">
+          <div className="p-4 md:p-6 space-y-6 max-w-4xl mx-auto">
+            {/* Page Title */}
+            <div>
+              <h1 className="text-xl font-semibold">Connected Banks</h1>
+              <p className="text-sm text-muted-foreground">
+                Manage your bank connections and accounts
+              </p>
+            </div>
+
+            {/* Banks */}
+            <BankSelector
+              banks={banks}
+              selectedBankId={selectedBankId}
+              onBankSelect={setSelectedBankId}
+              isLoading={isLoading}
+            />
+
+            {/* Accounts List */}
+            {displayedAccounts.length > 0 && (
+              <Card>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-base">Accounts</CardTitle>
+                </CardHeader>
+                <CardContent className="p-0">
+                  <ItemGroup>
+                    {displayedAccounts.map((account, index) => {
+                      const Icon = getAccountIcon(account.account_type);
+
+                      return (
+                        <div key={account.id}>
+                          {index > 0 && <ItemSeparator />}
+                          <Item
+                            variant="default"
+                            size="sm"
+                            asChild
+                            className="cursor-pointer hover:bg-muted/50"
+                          >
+                            <button
+                              onClick={() => handleAccountClick(account.id)}
+                            >
+                              <ItemMedia variant="icon">
+                                <div className="size-10 rounded-xl bg-muted flex items-center justify-center">
+                                  <Icon size={20} className="text-muted-foreground" />
+                                </div>
+                              </ItemMedia>
+                              <ItemContent>
+                                <ItemTitle>{account.account_type}</ItemTitle>
+                                <ItemDescription>
+                                  {account.bankName} · ****{account.account_number.slice(-4)}
+                                </ItemDescription>
+                              </ItemContent>
+                              <ItemActions>
+                                <div className="flex items-center gap-2">
+                                  <div className="text-right">
+                                    <p className="font-semibold tabular-nums">
+                                      {formatCurrency(account.balance, account.currency)}
+                                    </p>
+                                    {account.available_balance !== account.balance && (
+                                      <p className="text-xs text-muted-foreground">
+                                        Avail: {formatCurrency(account.available_balance, account.currency)}
+                                      </p>
+                                    )}
+                                  </div>
+                                  <CaretRight size={16} className="text-muted-foreground" />
+                                </div>
+                              </ItemActions>
+                            </button>
+                          </Item>
+                        </div>
+                      );
+                    })}
+                  </ItemGroup>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* Empty state - No accounts for selected bank */}
+            {displayedAccounts.length === 0 && (
+              <EmptyState
+                icon={<Wallet size={28} className="text-muted-foreground" />}
+                title="No accounts found"
+                description="This bank doesn't have any accounts yet. Try refreshing or selecting a different bank."
+                action={{
+                  label: isRefreshing ? "Refreshing..." : "Refresh",
+                  onClick: handleRefresh,
+                  loading: isRefreshing,
+                  variant: "outline",
+                }}
+              />
+            )}
+
+            {/* Danger Zone */}
+            <Card className="border-red-500/30">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-base text-red-600">Danger Zone</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <p className="text-sm text-muted-foreground">
+                  Disconnecting a bank will remove all its accounts and transaction history.
+                </p>
+                <div className="space-y-2">
+                  {banks.map((bank) => (
+                    <div
+                      key={bank.id}
+                      className="flex items-center justify-between p-3 rounded-lg border border-red-500/20 bg-red-500/5"
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className="size-8 rounded-lg bg-red-500/10 flex items-center justify-center">
+                          <Bank size={16} className="text-red-600" />
+                        </div>
+                        <div>
+                          <p className="text-sm font-medium">{bank.bank_name}</p>
+                          <p className="text-xs text-muted-foreground">
+                            {bank.accounts.length} account{bank.accounts.length !== 1 ? "s" : ""}
+                          </p>
+                        </div>
+                      </div>
+                      <Button
+                        variant="destructive"
+                        size="sm"
+                        onClick={() => handleDisconnectBank(bank.id, bank.bank_name)}
+                        disabled={deletingBankId === bank.id}
+                      >
+                        {deletingBankId === bank.id ? (
+                          <SpinnerGap size={14} className="animate-spin mr-1" />
+                        ) : (
+                          <Trash size={14} className="mr-1" />
+                        )}
+                        Disconnect
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}

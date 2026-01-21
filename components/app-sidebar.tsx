@@ -41,11 +41,6 @@ const navItems = [
 // Dashboard navigation items
 const dashboardItems = [
   {
-    title: "Home",
-    icon: House,
-    url: "/dashboard",
-  },
-  {
     title: "Accounts",
     icon: Wallet,
     url: "/dashboard/accounts",

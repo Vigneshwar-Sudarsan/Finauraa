@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { SubscriptionTier, getTierLimits } from "@/lib/features";
 
 /**
  * GET /api/finance/transactions
@@ -15,6 +16,17 @@ export async function GET(request: NextRequest) {
     if (!user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
+
+    // Get user's subscription tier for transaction history limits
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("subscription_tier, is_pro")
+      .eq("id", user.id)
+      .single();
+
+    const tier: SubscriptionTier = profile?.subscription_tier || (profile?.is_pro ? "pro" : "free");
+    const tierLimits = getTierLimits(tier);
+    const historyDaysLimit = tierLimits.transactionHistoryDays; // null = unlimited
 
     const searchParams = request.nextUrl.searchParams;
     const limit = parseInt(searchParams.get("limit") || "50", 10);
@@ -46,7 +58,14 @@ export async function GET(request: NextRequest) {
       query = query.eq("transaction_type", type.toLowerCase());
     }
 
-    if (days) {
+    // Apply transaction history limit based on subscription tier
+    // Free tier: 30 days, Pro/Family: unlimited (null)
+    if (historyDaysLimit !== null) {
+      const startDate = new Date();
+      startDate.setDate(startDate.getDate() - historyDaysLimit);
+      query = query.gte("transaction_date", startDate.toISOString());
+    } else if (days) {
+      // Only apply user-specified days filter if they have unlimited access
       const daysNum = parseInt(days, 10);
       const startDate = new Date();
       startDate.setDate(startDate.getDate() - daysNum);
@@ -76,6 +95,11 @@ export async function GET(request: NextRequest) {
         offset,
         total: totalCount || 0,
         hasMore: (offset + limit) < (totalCount || 0),
+      },
+      subscription: {
+        tier,
+        historyDaysLimit, // null = unlimited
+        isLimited: historyDaysLimit !== null,
       },
     });
   } catch (error) {

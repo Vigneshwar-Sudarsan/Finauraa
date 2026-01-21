@@ -1,11 +1,11 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { Separator } from "@/components/ui/separator";
 import { BankSelector } from "./bank-selector";
 import { AccountTabs } from "./account-tabs";
 import { TransactionsList } from "./transactions-list";
-import { SpendingSummary } from "./spending-summary";
 import { DashboardHeader } from "./dashboard-header";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Bank } from "@phosphor-icons/react";
@@ -29,6 +29,7 @@ interface Account {
 }
 
 export function DashboardContent() {
+  const router = useRouter();
   const [banks, setBanks] = useState<BankConnection[]>([]);
   const [selectedBankId, setSelectedBankId] = useState<string | null>(null);
   const [selectedAccountId, setSelectedAccountId] = useState<string | null>(null);
@@ -94,6 +95,10 @@ export function DashboardContent() {
     setSelectedAccountId(accountId);
   };
 
+  const handleViewAccountDetails = (accountId: string) => {
+    router.push(`/dashboard/accounts/${accountId}`);
+  };
+
   const handleConnectBank = async () => {
     setIsConnecting(true);
     try {
@@ -117,7 +122,7 @@ export function DashboardContent() {
   return (
     <div className="flex flex-col h-full">
       {/* Header */}
-      <DashboardHeader title="Dashboard" />
+      <DashboardHeader title="Accounts" />
 
       {/* Main content */}
       {/* Empty State - No banks connected */}
@@ -214,20 +219,11 @@ export function DashboardContent() {
                       accounts={accounts}
                       selectedAccountId={selectedAccountId ?? accounts[0]?.id}
                       onAccountSelect={handleAccountSelect}
+                      onViewDetails={handleViewAccountDetails}
                     />
                   </section>
                 </>
               )}
-
-              <Separator />
-
-              {/* Spending Summary */}
-              <section>
-                <h2 className="text-sm font-medium text-muted-foreground mb-3">
-                  {selectedAccount ? "Account Spending" : "Spending This Month"}
-                </h2>
-                <SpendingSummary accountId={selectedAccount?.id ?? null} />
-              </section>
 
               <Separator />
 

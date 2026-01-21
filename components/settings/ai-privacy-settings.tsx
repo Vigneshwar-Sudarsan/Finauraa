@@ -1,26 +1,33 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { EnhancedAIConsentDialog } from "./enhanced-ai-consent-dialog";
 import { AIModeComparison } from "./ai-mode-comparison";
-import { ShieldCheck, Sparkle, Info, Crown } from "@phosphor-icons/react";
+import { ShieldCheck, Sparkle, Info, Crown, Lock } from "@phosphor-icons/react";
 import { Switch } from "@/components/ui/switch";
+import { useFeatureAccess } from "@/hooks/use-feature-access";
 
 interface AIPrivacySettingsProps {
   userId: string;
 }
 
 export function AIPrivacySettings({ userId }: AIPrivacySettingsProps) {
+  const router = useRouter();
+  const { canAccess, tier, isLoading: featureLoading } = useFeatureAccess();
+
   const [mode, setMode] = useState<'privacy-first' | 'enhanced'>('privacy-first');
-  const [isPro, setIsPro] = useState(false);
   const [hasConsent, setHasConsent] = useState(false);
   const [showConsentDialog, setShowConsentDialog] = useState(false);
   const [loading, setLoading] = useState(true);
   const [updating, setUpdating] = useState(false);
+
+  // Check if user can access enhanced AI based on subscription
+  const canUseEnhancedAI = canAccess("enhancedAI");
 
   // Fetch current AI mode
   useEffect(() => {
@@ -33,7 +40,6 @@ export function AIPrivacySettings({ userId }: AIPrivacySettingsProps) {
       if (response.ok) {
         const data = await response.json();
         setMode(data.mode);
-        setIsPro(data.isPro);
         setHasConsent(data.hasConsent);
       }
     } catch (error) {
@@ -46,11 +52,11 @@ export function AIPrivacySettings({ userId }: AIPrivacySettingsProps) {
   const handleModeToggle = async () => {
     const newMode = mode === 'privacy-first' ? 'enhanced' : 'privacy-first';
 
-    // If switching to enhanced, show consent dialog
+    // If switching to enhanced, check subscription first
     if (newMode === 'enhanced') {
-      if (!isPro) {
-        // Show upgrade prompt
-        alert('Enhanced AI is a Pro feature. Upgrade to Pro for BHD 2.900/month to unlock specific financial insights.');
+      if (!canUseEnhancedAI) {
+        // Redirect to upgrade page
+        router.push("/dashboard/settings/subscription/plans");
         return;
       }
       setShowConsentDialog(true);
@@ -165,16 +171,27 @@ export function AIPrivacySettings({ userId }: AIPrivacySettingsProps) {
             <div className={`p-4 rounded-lg border-2 transition-colors ${
               mode === 'enhanced'
                 ? 'border-primary bg-primary/5'
-                : 'border-border bg-muted/20'
+                : !canUseEnhancedAI
+                  ? 'border-border bg-muted/30 opacity-75'
+                  : 'border-border bg-muted/20'
             }`}>
               <div className="flex items-start justify-between">
                 <div className="flex-1">
                   <div className="flex items-center gap-2 mb-1">
                     <Sparkle className="h-5 w-5 text-primary" weight="duotone" />
                     <h3 className="font-semibold">Enhanced AI Mode</h3>
-                    <Badge variant="default" className="text-xs flex items-center gap-1">
-                      <Crown className="h-3 w-3" weight="fill" />
-                      Pro Only
+                    <Badge variant={canUseEnhancedAI ? "default" : "secondary"} className="text-xs flex items-center gap-1">
+                      {canUseEnhancedAI ? (
+                        <>
+                          <Crown className="h-3 w-3" weight="fill" />
+                          {tier === "family" ? "Family" : "Pro"}
+                        </>
+                      ) : (
+                        <>
+                          <Lock className="h-3 w-3" weight="fill" />
+                          Pro & Family
+                        </>
+                      )}
                     </Badge>
                   </div>
                   <p className="text-sm text-muted-foreground mb-3">
@@ -186,7 +203,18 @@ export function AIPrivacySettings({ userId }: AIPrivacySettingsProps) {
                     <p>✓ Precise budget coaching</p>
                     <p>✓ Cash flow predictions</p>
                   </div>
-                  {mode === 'enhanced' && hasConsent && (
+                  {!canUseEnhancedAI && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="mt-3"
+                      onClick={() => router.push("/dashboard/settings/subscription/plans")}
+                    >
+                      <Crown className="h-4 w-4 mr-2" weight="fill" />
+                      Upgrade to Pro
+                    </Button>
+                  )}
+                  {mode === 'enhanced' && hasConsent && canUseEnhancedAI && (
                     <div className="mt-3 text-xs text-muted-foreground flex items-start gap-2">
                       <Info className="h-4 w-4 flex-shrink-0 mt-0.5" />
                       <span>You consented to share full data. Data is stored for 7 days by Anthropic, never used for training.</span>
@@ -257,7 +285,7 @@ export function AIPrivacySettings({ userId }: AIPrivacySettingsProps) {
         onOpenChange={setShowConsentDialog}
         onConsent={handleConsent}
         onDecline={handleDecline}
-        isPro={isPro}
+        isPro={canUseEnhancedAI}
       />
     </>
   );

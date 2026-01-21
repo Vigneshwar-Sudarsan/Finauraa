@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { useTransactionFilterStore } from "@/lib/stores/transaction-filter-store";
 import { DashboardHeader } from "./dashboard-header";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -137,18 +138,43 @@ export function TransactionsContent() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [addTransactionOpen, setAddTransactionOpen] = useState(false);
-
-  // Filters
-  const [searchQuery, setSearchQuery] = useState("");
   const [filtersOpen, setFiltersOpen] = useState(false);
-  const [filters, setFilters] = useState<TransactionFilters>({
-    type: "all",
-    category: "all",
-    bankId: "all",
-    accountId: "all",
-    minAmount: "",
-    maxAmount: "",
-  });
+  const [pendingFilterApplied, setPendingFilterApplied] = useState(false);
+
+  // Zustand store for filters
+  const {
+    filters,
+    searchQuery,
+    setFilters,
+    setSearchQuery,
+    clearFilters: clearStoreFilters,
+    consumePendingFilter,
+  } = useTransactionFilterStore();
+
+  // Apply pending account filter when banks are loaded
+  useEffect(() => {
+    if (banks.length > 0 && !pendingFilterApplied) {
+      const pendingAccountId = consumePendingFilter();
+      if (pendingAccountId) {
+        // Find which bank this account belongs to
+        const bankWithAccount = banks.find(bank =>
+          bank.accounts?.some(acc => acc.id === pendingAccountId)
+        );
+
+        setFilters({
+          ...filters,
+          accountId: pendingAccountId,
+          bankId: bankWithAccount?.id || "all",
+        });
+      }
+      setPendingFilterApplied(true);
+    }
+  }, [banks, pendingFilterApplied, consumePendingFilter, setFilters, filters]);
+
+  // Function to clear filters
+  const clearFilters = () => {
+    clearStoreFilters();
+  };
 
   const fetchTransactions = useCallback(async () => {
     try {
@@ -166,10 +192,10 @@ export function TransactionsContent() {
 
   const fetchBanks = useCallback(async () => {
     try {
-      const response = await fetch("/api/finance/connections");
-      if (!response.ok) throw new Error("Failed to fetch connections");
-      const { connections } = await response.json();
-      setBanks(connections || []);
+      const response = await fetch("/api/finance/banks");
+      if (!response.ok) throw new Error("Failed to fetch banks");
+      const { banks: banksData } = await response.json();
+      setBanks(banksData || []);
     } catch (err) {
       console.error("Failed to fetch banks:", err);
     }
@@ -495,17 +521,7 @@ export function TransactionsContent() {
             description="Try adjusting your search or filters."
             action={{
               label: "Clear Filters",
-              onClick: () => {
-                setSearchQuery("");
-                setFilters({
-                  type: "all",
-                  category: "all",
-                  bankId: "all",
-                  accountId: "all",
-                  minAmount: "",
-                  maxAmount: "",
-                });
-              },
+              onClick: clearFilters,
               variant: "outline",
             }}
           />

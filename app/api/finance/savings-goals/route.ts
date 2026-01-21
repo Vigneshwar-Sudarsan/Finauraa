@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { SubscriptionTier, getTierLimits } from "@/lib/features";
 
 /**
  * GET /api/finance/savings-goals
@@ -79,6 +80,41 @@ export async function POST(request: NextRequest) {
 
     if (!user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    // Check subscription tier and savings goal limits
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("subscription_tier, is_pro")
+      .eq("id", user.id)
+      .single();
+
+    const tier: SubscriptionTier = profile?.subscription_tier || (profile?.is_pro ? "pro" : "free");
+    const tierLimits = getTierLimits(tier);
+    const goalLimit = tierLimits.savingsGoals;
+
+    // Count existing goals (only if there's a limit)
+    if (goalLimit !== null) {
+      const { count: existingGoals } = await supabase
+        .from("savings_goals")
+        .select("id", { count: "exact", head: true })
+        .eq("user_id", user.id);
+
+      if ((existingGoals || 0) >= goalLimit) {
+        const upgradeMessage = tier === "free"
+          ? "Upgrade to Pro for unlimited savings goals."
+          : "You've reached the maximum savings goals for your plan.";
+
+        return NextResponse.json(
+          {
+            error: `Savings goal limit reached (${goalLimit}). ${upgradeMessage}`,
+            limit: goalLimit,
+            used: existingGoals,
+            upgradeRequired: tier === "free",
+          },
+          { status: 403 }
+        );
+      }
     }
 
     const body = await request.json();

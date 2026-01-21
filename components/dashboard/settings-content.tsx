@@ -44,7 +44,6 @@ export function SettingsContent() {
 
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const [isDeletingAccount, setIsDeletingAccount] = useState(false);
-  const [notifications, setNotifications] = useState(true);
 
   // Wait for component to mount to avoid hydration mismatch
   useEffect(() => {
@@ -122,14 +121,14 @@ export function SettingsContent() {
       title: "Profile",
       description: "Manage your personal information",
       action: "link",
-      href: "#profile",
+      href: "/dashboard/settings/profile",
     },
     {
       icon: Crown,
       title: "Subscription",
-      description: "You're on the Free plan",
+      description: "Manage your plan and billing",
       action: "link",
-      href: "#subscription",
+      href: "/dashboard/settings/subscription",
       badge: "Free",
     },
     {
@@ -137,7 +136,7 @@ export function SettingsContent() {
       title: "Connected Banks",
       description: "Manage your bank connections",
       action: "link",
-      href: "/dashboard/accounts",
+      href: "/dashboard/settings/connected-banks",
     },
   ];
 
@@ -145,10 +144,9 @@ export function SettingsContent() {
     {
       icon: Bell,
       title: "Notifications",
-      description: "Receive spending alerts and insights",
-      action: "toggle",
-      value: notifications,
-      onClick: () => setNotifications(!notifications),
+      description: "Manage alerts and notification preferences",
+      action: "link",
+      href: "/dashboard/settings/notifications",
     },
     {
       icon: isDarkMode ? Moon : Sun,

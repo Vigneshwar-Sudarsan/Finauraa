@@ -18,6 +18,7 @@ interface AccountTabsProps {
   accounts: Account[];
   selectedAccountId: string;
   onAccountSelect: (accountId: string | null) => void;
+  onViewDetails?: (accountId: string) => void;
 }
 
 type AccountCategory = "accounts" | "cards" | "finance";
@@ -59,6 +60,7 @@ export function AccountTabs({
   accounts,
   selectedAccountId,
   onAccountSelect,
+  onViewDetails,
 }: AccountTabsProps) {
   const [activeCategory, setActiveCategory] = useState<AccountCategory>("accounts");
   const [showScrollIndicator, setShowScrollIndicator] = useState(false);
@@ -180,18 +182,19 @@ export function AccountTabs({
             const Icon = getAccountIcon(account.account_type);
 
             return (
-              <button
+              <div
                 key={account.id}
-                onClick={() => onAccountSelect(account.id)}
                 className={cn(
-                  "flex-shrink-0 min-w-[160px] rounded-lg border p-3 flex flex-col gap-2 snap-start transition-all text-left",
-                  "focus:outline-none",
+                  "flex-shrink-0 min-w-[160px] rounded-lg border p-3 flex flex-col gap-2 snap-start transition-all",
                   isSelected
                     ? "border-foreground bg-foreground/5"
-                    : "bg-card hover:bg-muted/50"
+                    : "bg-card"
                 )}
               >
-                <div className="flex items-center gap-2">
+                <button
+                  onClick={() => onAccountSelect(account.id)}
+                  className="flex items-center gap-2 text-left focus:outline-none"
+                >
                   <Icon
                     size={16}
                     weight={isSelected ? "fill" : "regular"}
@@ -207,17 +210,39 @@ export function AccountTabs({
                   >
                     {account.account_type}
                   </span>
-                </div>
+                </button>
 
-                <div>
+                <button
+                  onClick={() => onAccountSelect(account.id)}
+                  className="text-left focus:outline-none"
+                >
                   <p className="font-semibold">
                     {formatCurrency(account.balance, account.currency)}
                   </p>
                   <p className="text-xs text-muted-foreground">
                     {account.account_number}
                   </p>
-                </div>
-              </button>
+                </button>
+
+                {onViewDetails && (
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onViewDetails(account.id);
+                    }}
+                    className={cn(
+                      "flex items-center justify-center gap-1 text-xs font-medium py-1.5 rounded-md transition-colors mt-1",
+                      "focus:outline-none",
+                      isSelected
+                        ? "bg-foreground text-background hover:bg-foreground/90"
+                        : "bg-muted hover:bg-muted/80 text-muted-foreground"
+                    )}
+                  >
+                    <span>View Details</span>
+                    <CaretRight size={12} />
+                  </button>
+                )}
+              </div>
             );
           })}
         </div>
