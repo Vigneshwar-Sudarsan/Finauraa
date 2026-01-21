@@ -128,8 +128,9 @@ async function handleSubscriptionUpdate(subscription: Stripe.Subscription) {
     return;
   }
 
-  // Get the price ID to determine the tier
-  const priceId = subscription.items.data[0]?.price.id;
+  // Get the subscription item (current_period_end is now on items in newer Stripe API)
+  const subscriptionItem = subscription.items.data[0];
+  const priceId = subscriptionItem?.price.id;
   const tier = mapPriceIdToTier(priceId);
 
   // Map Stripe status to our status
@@ -154,11 +155,11 @@ async function handleSubscriptionUpdate(subscription: Stripe.Subscription) {
       subscription_status: status,
       stripe_subscription_id: subscription.id,
       subscription_started_at: new Date(subscription.created * 1000).toISOString(),
-      subscription_ends_at: subscription.currentPeriodEnd
-        ? new Date(subscription.currentPeriodEnd * 1000).toISOString()
+      subscription_ends_at: subscriptionItem?.current_period_end
+        ? new Date(subscriptionItem.current_period_end * 1000).toISOString()
         : null,
-      trial_ends_at: subscription.trialEnd
-        ? new Date(subscription.trialEnd * 1000).toISOString()
+      trial_ends_at: subscription.trial_end
+        ? new Date(subscription.trial_end * 1000).toISOString()
         : null,
       is_pro: tier !== "free", // Backwards compatibility
       updated_at: new Date().toISOString(),
@@ -197,8 +198,8 @@ async function handleSubscriptionCanceled(subscription: Stripe.Subscription) {
     .update({
       subscription_tier: "free",
       subscription_status: "canceled",
-      subscription_ends_at: subscription.endedAt
-        ? new Date(subscription.endedAt * 1000).toISOString()
+      subscription_ends_at: subscription.ended_at
+        ? new Date(subscription.ended_at * 1000).toISOString()
         : new Date().toISOString(),
       is_pro: false,
       updated_at: new Date().toISOString(),
@@ -230,14 +231,16 @@ async function handleInvoicePayment(
   }
 
   // Record in billing history
+  // In newer Stripe API, payment_intent is accessed via the payments array
+  const paymentIntentId = invoice.payments?.data?.[0]?.payment?.payment_intent;
   await supabaseAdmin.from("billing_history").insert({
     user_id: profile.id,
-    amount: (invoice.amountPaid || invoice.amountDue) / 100, // Convert from cents
+    amount: (invoice.amount_paid || invoice.amount_due) / 100, // Convert from cents
     currency: invoice.currency?.toUpperCase() || "USD",
     status,
     description: invoice.lines.data[0]?.description || "Subscription payment",
-    invoice_url: invoice.hostedInvoiceUrl,
-    stripe_payment_id: invoice.paymentIntent as string,
+    invoice_url: invoice.hosted_invoice_url,
+    stripe_payment_id: typeof paymentIntentId === "string" ? paymentIntentId : null,
     created_at: new Date().toISOString(),
   });
 
@@ -252,7 +255,7 @@ async function handleInvoicePayment(
       .eq("id", profile.id);
   }
 
-  console.log(`Invoice ${status} for user ${profile.id}: ${invoice.amountPaid / 100} ${invoice.currency}`);
+  console.log(`Invoice ${status} for user ${profile.id}: ${invoice.amount_paid / 100} ${invoice.currency}`);
 }
 
 /**
