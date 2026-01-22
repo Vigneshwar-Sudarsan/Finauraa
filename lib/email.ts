@@ -5,8 +5,18 @@
 
 import { Resend } from "resend";
 
-// Initialize Resend client
-const resend = new Resend(process.env.RESEND_API_KEY);
+// Lazy-initialized Resend client to avoid build-time errors
+let resend: Resend | null = null;
+
+function getResendClient(): Resend | null {
+  if (!process.env.RESEND_API_KEY) {
+    return null;
+  }
+  if (!resend) {
+    resend = new Resend(process.env.RESEND_API_KEY);
+  }
+  return resend;
+}
 
 // Email sender configuration
 const FROM_EMAIL = process.env.EMAIL_FROM || "Finauraa <notifications@send.finauraa.com>";
@@ -29,7 +39,8 @@ export async function sendConsentExpiryWarning(
   providerName: string | null,
   expiresAt: string
 ): Promise<EmailResult> {
-  if (!process.env.RESEND_API_KEY) {
+  const client = getResendClient();
+  if (!client) {
     console.log("RESEND_API_KEY not configured, skipping email");
     return { success: false, error: "Email service not configured" };
   }
@@ -46,7 +57,7 @@ export async function sendConsentExpiryWarning(
     : "Your bank data consent expires soon";
 
   try {
-    const { data, error } = await resend.emails.send({
+    const { data, error } = await client.emails.send({
       from: FROM_EMAIL,
       to: email,
       subject,
@@ -115,7 +126,8 @@ export async function sendPaymentFailedNotification(
   currency: string,
   failureReason?: string
 ): Promise<EmailResult> {
-  if (!process.env.RESEND_API_KEY) {
+  const client = getResendClient();
+  if (!client) {
     console.log("RESEND_API_KEY not configured, skipping email");
     return { success: false, error: "Email service not configured" };
   }
@@ -126,7 +138,7 @@ export async function sendPaymentFailedNotification(
   }).format(amount / 100); // Stripe amounts are in smallest unit
 
   try {
-    const { data, error } = await resend.emails.send({
+    const { data, error } = await client.emails.send({
       from: FROM_EMAIL,
       to: email,
       subject: "Payment Failed - Action Required",
@@ -198,7 +210,8 @@ export async function sendTrialEndingNotification(
   userName: string,
   trialEndDate: string
 ): Promise<EmailResult> {
-  if (!process.env.RESEND_API_KEY) {
+  const client = getResendClient();
+  if (!client) {
     console.log("RESEND_API_KEY not configured, skipping email");
     return { success: false, error: "Email service not configured" };
   }
@@ -211,7 +224,7 @@ export async function sendTrialEndingNotification(
   });
 
   try {
-    const { data, error } = await resend.emails.send({
+    const { data, error } = await client.emails.send({
       from: FROM_EMAIL,
       to: email,
       subject: "Your trial ends soon - Keep your Pro features",
@@ -278,13 +291,14 @@ export async function sendDataExportReadyNotification(
   userName: string,
   downloadUrl: string
 ): Promise<EmailResult> {
-  if (!process.env.RESEND_API_KEY) {
+  const client = getResendClient();
+  if (!client) {
     console.log("RESEND_API_KEY not configured, skipping email");
     return { success: false, error: "Email service not configured" };
   }
 
   try {
-    const { data, error } = await resend.emails.send({
+    const { data, error } = await client.emails.send({
       from: FROM_EMAIL,
       to: email,
       subject: "Your data export is ready",
@@ -344,13 +358,14 @@ export async function sendFamilyInvitationEmail(
   groupName: string,
   acceptUrl: string
 ): Promise<EmailResult> {
-  if (!process.env.RESEND_API_KEY) {
+  const client = getResendClient();
+  if (!client) {
     console.log("RESEND_API_KEY not configured, skipping email");
     return { success: false, error: "Email service not configured" };
   }
 
   try {
-    const { data, error } = await resend.emails.send({
+    const { data, error } = await client.emails.send({
       from: FROM_EMAIL,
       to: email,
       subject: `You've been invited to join ${groupName} on Finauraa`,
@@ -423,13 +438,14 @@ export async function sendMemberJoinedNotification(
   memberName: string,
   groupName: string
 ): Promise<EmailResult> {
-  if (!process.env.RESEND_API_KEY) {
+  const client = getResendClient();
+  if (!client) {
     console.log("RESEND_API_KEY not configured, skipping email");
     return { success: false, error: "Email service not configured" };
   }
 
   try {
-    const { data, error } = await resend.emails.send({
+    const { data, error } = await client.emails.send({
       from: FROM_EMAIL,
       to: ownerEmail,
       subject: `${memberName} joined ${groupName}`,
@@ -493,7 +509,8 @@ export async function sendMemberRemovedNotification(
   groupName: string,
   wasRemoved: boolean = true
 ): Promise<EmailResult> {
-  if (!process.env.RESEND_API_KEY) {
+  const client = getResendClient();
+  if (!client) {
     console.log("RESEND_API_KEY not configured, skipping email");
     return { success: false, error: "Email service not configured" };
   }
@@ -507,7 +524,7 @@ export async function sendMemberRemovedNotification(
     : `You have successfully left <strong>${groupName}</strong>.`;
 
   try {
-    const { data, error } = await resend.emails.send({
+    const { data, error } = await client.emails.send({
       from: FROM_EMAIL,
       to: memberEmail,
       subject,
