@@ -1,41 +1,32 @@
-import { Suspense } from "react";
-import { AppSidebar } from "@/components/app-sidebar";
-import { SidebarProvider, SidebarInset } from "@/components/ui/sidebar";
+"use client";
+
+import { useRouter } from "next/navigation";
 import { PrivacyContent } from "@/components/dashboard/privacy-content";
-import { DashboardBottomNav } from "@/components/dashboard/dashboard-bottom-nav";
-
-export const dynamic = "force-dynamic";
-
-function PrivacyLoading() {
-  return (
-    <div className="h-dvh w-full flex items-center justify-center">
-      <div className="flex items-center gap-2 text-muted-foreground">
-        <div className="size-2 bg-foreground/40 rounded-full animate-pulse" />
-        <div
-          className="size-2 bg-foreground/40 rounded-full animate-pulse"
-          style={{ animationDelay: "150ms" }}
-        />
-        <div
-          className="size-2 bg-foreground/40 rounded-full animate-pulse"
-          style={{ animationDelay: "300ms" }}
-        />
-      </div>
-    </div>
-  );
-}
+import { Button } from "@/components/ui/button";
+import { CaretLeft } from "@phosphor-icons/react";
 
 export default function PrivacyPage() {
+  const router = useRouter();
+
   return (
-    <SidebarProvider defaultOpen={false}>
-      <AppSidebar className="hidden md:flex" />
-      <SidebarInset>
-        <main className="h-dvh w-full flex flex-col overflow-hidden pb-16 md:pb-0">
-          <Suspense fallback={<PrivacyLoading />}>
-            <PrivacyContent />
-          </Suspense>
-        </main>
-        <DashboardBottomNav />
-      </SidebarInset>
-    </SidebarProvider>
+    <div className="flex flex-col h-full">
+      {/* Header with Back Button */}
+      <div className="p-4 border-b sticky top-0 bg-background z-10">
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => router.back()}
+          className="gap-2"
+        >
+          <CaretLeft size={16} />
+          Back to Settings
+        </Button>
+      </div>
+
+      {/* Main content */}
+      <div className="flex-1 overflow-auto">
+        <PrivacyContent />
+      </div>
+    </div>
   );
 }

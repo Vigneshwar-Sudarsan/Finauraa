@@ -24,6 +24,16 @@ export async function GET() {
       return consentCheck.response;
     }
 
+    // If no banks connected, return empty data (not an error)
+    if (consentCheck.noBanksConnected) {
+      return NextResponse.json({
+        accounts: [],
+        totalBalance: 0,
+        accountCount: 0,
+        noBanksConnected: true,
+      });
+    }
+
     // Fetch accounts with their bank connection info
     const { data: accounts, error } = await supabase
       .from("bank_accounts")
@@ -86,10 +96,12 @@ export async function GET() {
       0
     );
 
-    // Log successful data access
-    await logDataAccessSuccess(user.id, "bank_account", consentCheck.consentId, "/api/finance/accounts", {
-      accountCount: transformedAccounts.length,
-    });
+    // Log successful data access (only if we have a consentId)
+    if (consentCheck.consentId) {
+      await logDataAccessSuccess(user.id, "bank_account", consentCheck.consentId, "/api/finance/accounts", {
+        accountCount: transformedAccounts.length,
+      });
+    }
 
     return NextResponse.json({
       accounts: transformedAccounts,

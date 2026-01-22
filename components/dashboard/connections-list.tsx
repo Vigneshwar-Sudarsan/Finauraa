@@ -24,6 +24,7 @@ import {
   Clock,
 } from "@phosphor-icons/react";
 import { cn } from "@/lib/utils";
+import { useBankConnection } from "@/hooks/use-bank-connection";
 
 interface BankConnection {
   id: string;
@@ -38,13 +39,20 @@ interface BankConnection {
 export function ConnectionsList() {
   const [connections, setConnections] = useState<BankConnection[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [isConnecting, setIsConnecting] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+
+  // Bank connection with consent dialog
+  const { connectBank, isConnecting, ConsentDialog } = useBankConnection();
 
   useEffect(() => {
     const fetchConnections = async () => {
       try {
         const response = await fetch("/api/finance/connections");
+        // Silently handle 403 - will show empty state with Connect Bank prompt
+        if (response.status === 403) {
+          setConnections([]);
+          return;
+        }
         if (response.ok) {
           const data = await response.json();
           setConnections(data.connections ?? []);
@@ -59,25 +67,6 @@ export function ConnectionsList() {
     fetchConnections();
   }, []);
 
-  const handleConnect = async () => {
-    setIsConnecting(true);
-    try {
-      const response = await fetch("/api/tarabut/connect", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-      });
-
-      if (!response.ok) {
-        throw new Error("Failed to connect");
-      }
-
-      const { authorizationUrl } = await response.json();
-      window.location.href = authorizationUrl;
-    } catch (error) {
-      console.error("Failed to initiate connection:", error);
-      setIsConnecting(false);
-    }
-  };
 
   const handleDisconnect = async (connectionId: string) => {
     setDeletingId(connectionId);
@@ -143,28 +132,31 @@ export function ConnectionsList() {
 
   if (connections.length === 0) {
     return (
-      <div className="py-8 text-center">
-        <Bank size={40} className="mx-auto mb-3 text-muted-foreground opacity-50" />
-        <p className="text-sm text-muted-foreground">No banks connected</p>
-        <Button
-          onClick={handleConnect}
-          disabled={isConnecting}
-          className="mt-4"
-          size="sm"
-        >
-          {isConnecting ? (
-            <>
-              <SpinnerGap size={16} className="mr-2 animate-spin" />
-              Connecting...
-            </>
-          ) : (
-            <>
-              <Plus size={16} className="mr-2" />
-              Connect Bank
-            </>
-          )}
-        </Button>
-      </div>
+      <>
+        <div className="py-8 text-center">
+          <Bank size={40} className="mx-auto mb-3 text-muted-foreground opacity-50" />
+          <p className="text-sm text-muted-foreground">No banks connected</p>
+          <Button
+            onClick={connectBank}
+            disabled={isConnecting}
+            className="mt-4"
+            size="sm"
+          >
+            {isConnecting ? (
+              <>
+                <SpinnerGap size={16} className="mr-2 animate-spin" />
+                Connecting...
+              </>
+            ) : (
+              <>
+                <Plus size={16} className="mr-2" />
+                Connect Bank
+              </>
+            )}
+          </Button>
+        </div>
+        <ConsentDialog />
+      </>
     );
   }
 
@@ -240,7 +232,7 @@ export function ConnectionsList() {
       <div className="py-4">
         <Button
           variant="ghost"
-          onClick={handleConnect}
+          onClick={connectBank}
           disabled={isConnecting}
           className="w-full justify-start text-muted-foreground hover:text-foreground"
         >
@@ -257,6 +249,9 @@ export function ConnectionsList() {
           )}
         </Button>
       </div>
+
+      {/* Bank Consent Dialog */}
+      <ConsentDialog />
     </div>
   );
 }

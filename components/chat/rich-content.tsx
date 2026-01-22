@@ -8,6 +8,7 @@ import { SpendingAnalysis } from "./cards/spending-analysis";
 import { BudgetCard } from "./cards/budget-card";
 import { TransactionsList } from "./cards/transactions-list";
 import { ActionButtons } from "./cards/action-buttons";
+import { AIModeIntro } from "./cards/ai-mode-intro";
 
 interface RichContentProps {
   content: MessageContent;
@@ -51,6 +52,14 @@ export function RichContent({ content, onAction, disabled }: RichContentProps) {
       return (
         <ActionButtons
           actions={content.data?.actions as Array<{ label: string; action: string; variant?: "default" | "outline" | "secondary" | "ghost"; data?: Record<string, unknown> }>}
+          onAction={onAction}
+          disabled={disabled}
+        />
+      );
+
+    case "ai-mode-intro":
+      return (
+        <AIModeIntro
           onAction={onAction}
           disabled={disabled}
         />

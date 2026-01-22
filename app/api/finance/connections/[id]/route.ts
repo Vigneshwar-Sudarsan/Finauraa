@@ -30,6 +30,11 @@ export async function GET(
       return consentCheck.response;
     }
 
+    // If no banks connected, return 404 (no connections can exist)
+    if (consentCheck.noBanksConnected) {
+      return NextResponse.json({ error: "Connection not found" }, { status: 404 });
+    }
+
     const { data: connection, error } = await supabase
       .from("bank_connections")
       .select(`

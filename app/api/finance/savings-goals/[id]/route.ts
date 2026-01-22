@@ -29,6 +29,14 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
       return consentCheck.response;
     }
 
+    // If no banks connected, return 404 (no goals can exist without bank data context)
+    if (consentCheck.noBanksConnected) {
+      return NextResponse.json(
+        { error: "Savings goal not found" },
+        { status: 404 }
+      );
+    }
+
     const { data: goal, error } = await supabase
       .from("savings_goals")
       .select("*")

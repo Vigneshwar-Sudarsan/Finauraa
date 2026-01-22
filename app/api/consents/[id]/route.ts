@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { logConsentEvent, logAuditEvent } from "@/lib/audit";
 import { headers } from "next/headers";
+import { checkRateLimit } from "@/lib/ratelimit";
 
 interface RouteParams {
   params: Promise<{ id: string }>;
@@ -22,6 +23,10 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
     if (!user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
+
+    // Rate limit check
+    const rateLimitResponse = await checkRateLimit("consent", user.id);
+    if (rateLimitResponse) return rateLimitResponse;
 
     const { data: consent, error } = await supabase
       .from("user_consents")
@@ -60,6 +65,10 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
     if (!user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
+
+    // Rate limit check (stricter for consent revocation)
+    const rateLimitResponse = await checkRateLimit("consent", user.id);
+    if (rateLimitResponse) return rateLimitResponse;
 
     // Get the consent to verify ownership and type
     const { data: consent, error: fetchError } = await supabase

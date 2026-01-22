@@ -24,6 +24,7 @@ import {
   Crown,
   Sparkle,
   LockKey,
+  Users,
 } from "@phosphor-icons/react";
 
 interface SettingItem {
@@ -48,6 +49,7 @@ export function SettingsContent() {
   const [isDeletingAccount, setIsDeletingAccount] = useState(false);
   const [subscriptionTier, setSubscriptionTier] = useState<"free" | "pro" | "family" | null>(null);
   const [isLoadingSubscription, setIsLoadingSubscription] = useState(true);
+  const [familyMemberCount, setFamilyMemberCount] = useState<number | null>(null);
 
   // Fetch subscription tier
   const fetchSubscriptionTier = useCallback(async () => {
@@ -56,7 +58,13 @@ export function SettingsContent() {
       const response = await fetch("/api/subscription");
       if (response.ok) {
         const data = await response.json();
-        setSubscriptionTier(data.subscription?.tier || "free");
+        const tier = data.subscription?.tier || "free";
+        setSubscriptionTier(tier);
+
+        // Fetch family group info if user has family tier
+        if (tier === "family") {
+          fetchFamilyInfo();
+        }
       } else {
         setSubscriptionTier("free");
       }
@@ -67,6 +75,21 @@ export function SettingsContent() {
       setIsLoadingSubscription(false);
     }
   }, []);
+
+  // Fetch family group info
+  const fetchFamilyInfo = async () => {
+    try {
+      const response = await fetch("/api/family/group");
+      if (response.ok) {
+        const data = await response.json();
+        if (data.group) {
+          setFamilyMemberCount(data.group.member_count || 0);
+        }
+      }
+    } catch (error) {
+      console.error("Failed to fetch family info:", error);
+    }
+  };
 
   // Wait for component to mount to avoid hydration mismatch
   useEffect(() => {
@@ -169,6 +192,19 @@ export function SettingsContent() {
       badge: getTierDisplayName(subscriptionTier),
       badgeLoading: isLoadingSubscription,
     },
+    // Family settings - only show for family tier
+    ...(subscriptionTier === "family"
+      ? [
+          {
+            icon: Users,
+            title: "Family Group",
+            description: "Manage your family members",
+            action: "link" as const,
+            href: "/dashboard/settings/family",
+            badge: familyMemberCount !== null ? `${familyMemberCount}/7` : null,
+          },
+        ]
+      : []),
     {
       icon: Bank,
       title: "Connected Banks",

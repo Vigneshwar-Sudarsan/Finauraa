@@ -25,7 +25,17 @@ export async function GET() {
       return consentCheck.response;
     }
 
-    // Check if user has bank connections
+    // If no banks connected, return empty data (not an error)
+    if (consentCheck.noBanksConnected) {
+      return NextResponse.json({
+        totalIncome: 0,
+        currency: "BHD",
+        sources: [],
+        noBanksConnected: true,
+      });
+    }
+
+    // Check if user has bank connections (fallback check)
     const { data: connections } = await supabase
       .from("bank_connections")
       .select("id")
@@ -35,10 +45,10 @@ export async function GET() {
 
     if (!connections || connections.length === 0) {
       return NextResponse.json({
-        error: "No bank connections",
         totalIncome: 0,
         currency: "BHD",
         sources: [],
+        noBanksConnected: true,
       });
     }
 

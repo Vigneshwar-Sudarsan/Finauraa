@@ -114,6 +114,11 @@ export function TransactionsList({ accountId }: TransactionsListProps) {
         }
 
         const response = await fetch(`/api/finance/transactions?${params.toString()}`);
+        // Silently handle 403 - parent component handles consent flow
+        if (response.status === 403) {
+          setTransactions([]);
+          return;
+        }
         if (response.ok) {
           const data = await response.json();
           setTransactions(data.transactions ?? []);

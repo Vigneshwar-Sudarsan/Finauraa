@@ -7,6 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { EmptyState } from "@/components/ui/empty-state";
+import { useBankConnection } from "@/hooks/use-bank-connection";
 import {
   Item,
   ItemMedia,
@@ -36,7 +37,10 @@ import {
   Receipt,
   MagnifyingGlass,
   Funnel,
+  Crown,
+  Clock,
 } from "@phosphor-icons/react";
+import Link from "next/link";
 import { AddTransactionSheet, TransactionFiltersSheet, type TransactionFilters } from "@/components/spending";
 import { format, isToday, isYesterday, isThisWeek, isThisMonth, parseISO } from "date-fns";
 
@@ -132,14 +136,25 @@ interface GroupedTransactions {
   [key: string]: Transaction[];
 }
 
+interface SubscriptionInfo {
+  tier: string;
+  historyDaysLimit: number | null;
+  isLimited: boolean;
+}
+
 export function TransactionsContent() {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [banks, setBanks] = useState<BankConnection[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [needsConsent, setNeedsConsent] = useState(false);
   const [addTransactionOpen, setAddTransactionOpen] = useState(false);
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [pendingFilterApplied, setPendingFilterApplied] = useState(false);
+  const [subscription, setSubscription] = useState<SubscriptionInfo | null>(null);
+
+  // Bank connection with consent dialog
+  const { connectBank, isConnecting, ConsentDialog } = useBankConnection();
 
   // Zustand store for filters
   const {
@@ -179,9 +194,20 @@ export function TransactionsContent() {
   const fetchTransactions = useCallback(async () => {
     try {
       const response = await fetch("/api/finance/transactions");
-      if (!response.ok) throw new Error("Failed to fetch transactions");
+      if (!response.ok) {
+        // Check if it's a consent/authorization issue
+        if (response.status === 403) {
+          setNeedsConsent(true);
+          setError("Bank connection required");
+        } else {
+          throw new Error("Failed to fetch transactions");
+        }
+        return;
+      }
       const data = await response.json();
       setTransactions(data.transactions || []);
+      setSubscription(data.subscription || null);
+      setNeedsConsent(false);
     } catch (err) {
       console.error("Failed to fetch transactions:", err);
       setError("Unable to load transactions");
@@ -193,6 +219,8 @@ export function TransactionsContent() {
   const fetchBanks = useCallback(async () => {
     try {
       const response = await fetch("/api/finance/banks");
+      // Silently handle 403 - main fetchTransactions handles consent flow
+      if (response.status === 403) return;
       if (!response.ok) throw new Error("Failed to fetch banks");
       const { banks: banksData } = await response.json();
       setBanks(banksData || []);
@@ -286,8 +314,24 @@ export function TransactionsContent() {
     <div className="flex flex-col h-full">
       <DashboardHeader title="Transactions" />
 
-      {/* Error State */}
-      {error && !isLoading && (
+      {/* Error State - Needs Bank Connection */}
+      {error && !isLoading && needsConsent && (
+        <div className="flex-1 flex items-center justify-center">
+          <EmptyState
+            icon={<Bank size={28} className="text-muted-foreground" />}
+            title="Connect your bank"
+            description="Connect your bank account to view and track your transactions."
+            action={{
+              label: isConnecting ? "Connecting..." : "Connect Bank",
+              onClick: connectBank,
+              loading: isConnecting,
+            }}
+          />
+        </div>
+      )}
+
+      {/* Error State - Other Errors */}
+      {error && !isLoading && !needsConsent && (
         <div className="flex-1 flex items-center justify-center">
           <EmptyState
             icon={<Receipt size={28} className="text-muted-foreground" />}
@@ -407,6 +451,24 @@ export function TransactionsContent() {
                 Add
               </Button>
             </div>
+
+            {/* Free Tier Limit Banner */}
+            {subscription?.isLimited && (
+              <div className="flex items-center gap-3 p-3 rounded-lg bg-amber-500/10 border border-amber-500/20">
+                <Clock size={18} className="text-amber-600 shrink-0" />
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm text-amber-900 dark:text-amber-100">
+                    Showing last {subscription.historyDaysLimit} days of transactions
+                  </p>
+                </div>
+                <Link href="/dashboard/settings/subscription/plans">
+                  <Button size="sm" variant="outline" className="shrink-0 gap-1.5 border-amber-500/30 text-amber-700 dark:text-amber-300 hover:bg-amber-500/10">
+                    <Crown size={14} weight="fill" />
+                    Upgrade
+                  </Button>
+                </Link>
+              </div>
+            )}
 
             <Card>
               <CardHeader className="pb-2">
@@ -554,6 +616,9 @@ export function TransactionsContent() {
         onApplyFilters={setFilters}
         banks={banks}
       />
+
+      {/* Bank Consent Dialog */}
+      <ConsentDialog />
     </div>
   );
 }

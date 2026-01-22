@@ -24,6 +24,11 @@ export async function GET() {
       return consentCheck.response;
     }
 
+    // If no banks connected, return empty data (not an error)
+    if (consentCheck.noBanksConnected) {
+      return NextResponse.json({ connections: [], noBanksConnected: true });
+    }
+
     // Fetch connections
     const { data: connections, error } = await supabase
       .from("bank_connections")

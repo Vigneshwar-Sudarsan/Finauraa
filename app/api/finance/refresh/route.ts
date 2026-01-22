@@ -26,6 +26,15 @@ export async function POST() {
       return consentCheck.response;
     }
 
+    // If no banks connected, return empty response (not an error)
+    if (consentCheck.noBanksConnected) {
+      return NextResponse.json({
+        message: "No banks connected",
+        synced: false,
+        noBanksConnected: true,
+      });
+    }
+
     // Get all active bank connections
     const { data: connections } = await supabase
       .from("bank_connections")

@@ -8,6 +8,7 @@ import { AccountTabs } from "./account-tabs";
 import { TransactionsList } from "./transactions-list";
 import { DashboardHeader } from "./dashboard-header";
 import { EmptyState } from "@/components/ui/empty-state";
+import { useBankConnection } from "@/hooks/use-bank-connection";
 import { Bank } from "@phosphor-icons/react";
 
 interface BankConnection {
@@ -34,12 +35,19 @@ export function DashboardContent() {
   const [selectedBankId, setSelectedBankId] = useState<string | null>(null);
   const [selectedAccountId, setSelectedAccountId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [isConnecting, setIsConnecting] = useState(false);
+
+  // Bank connection with consent dialog
+  const { connectBank, isConnecting, ConsentDialog } = useBankConnection();
 
   useEffect(() => {
     const fetchData = async () => {
       try {
         const response = await fetch("/api/finance/banks");
+        // Silently handle 403 - will show empty state with Connect Bank prompt
+        if (response.status === 403) {
+          setBanks([]);
+          return;
+        }
         if (response.ok) {
           const data = await response.json();
           setBanks(data.banks ?? []);
@@ -99,25 +107,6 @@ export function DashboardContent() {
     router.push(`/dashboard/accounts/${accountId}`);
   };
 
-  const handleConnectBank = async () => {
-    setIsConnecting(true);
-    try {
-      const response = await fetch("/api/tarabut/connect", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-      });
-
-      if (!response.ok) {
-        throw new Error("Failed to connect");
-      }
-
-      const { authorizationUrl } = await response.json();
-      window.location.href = authorizationUrl;
-    } catch (error) {
-      console.error("Failed to initiate connection:", error);
-      setIsConnecting(false);
-    }
-  };
 
   return (
     <div className="flex flex-col h-full">
@@ -134,7 +123,7 @@ export function DashboardContent() {
             description="Connect your bank accounts to start tracking your finances, view balances, and get AI-powered insights."
             action={{
               label: isConnecting ? "Connecting..." : "Connect Your First Bank",
-              onClick: handleConnectBank,
+              onClick: connectBank,
               loading: isConnecting,
             }}
           />
@@ -235,6 +224,9 @@ export function DashboardContent() {
         </div>
       </div>
       )}
+
+      {/* Bank Consent Dialog */}
+      <ConsentDialog />
     </div>
   );
 }

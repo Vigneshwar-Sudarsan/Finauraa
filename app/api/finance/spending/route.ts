@@ -24,6 +24,19 @@ export async function GET(request: NextRequest) {
       return consentCheck.response;
     }
 
+    // If no banks connected, return empty data (not an error)
+    if (consentCheck.noBanksConnected) {
+      return NextResponse.json({
+        totalSpent: 0,
+        currency: "BHD",
+        period: "Last 90 days",
+        categories: [],
+        topCategory: null,
+        transactionCount: 0,
+        noBanksConnected: true,
+      });
+    }
+
     // Get period from query params (default: 90 days)
     const searchParams = request.nextUrl.searchParams;
     const days = parseInt(searchParams.get("days") || "90", 10);

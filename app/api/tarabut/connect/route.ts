@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createTarabutClient } from "@/lib/tarabut/client";
 import { SubscriptionTier, getTierLimits } from "@/lib/features";
+import { logAuditEvent } from "@/lib/audit";
+import { headers } from "next/headers";
 
 /**
  * POST /api/tarabut/connect
@@ -108,6 +110,64 @@ export async function POST(request: NextRequest) {
     if (insertError) {
       console.error("Failed to store intent:", insertError);
       // Continue anyway - the intent was created successfully
+    }
+
+    // BOBF/PDPL: Create bank_access consent record
+    // This ensures consent is tracked for compliance
+    const headersList = await headers();
+    const ipAddress =
+      headersList.get("x-forwarded-for")?.split(",")[0]?.trim() ||
+      headersList.get("x-real-ip") ||
+      null;
+    const userAgent = headersList.get("user-agent") || null;
+
+    const consentExpiresAt = new Date();
+    consentExpiresAt.setDate(consentExpiresAt.getDate() + 90); // BOBF: 90 days max
+
+    const { data: consent, error: consentError } = await supabase
+      .from("user_consents")
+      .insert({
+        user_id: user.id,
+        consent_type: "bank_access",
+        provider_id: "pending", // Will be updated in callback when bank is selected
+        provider_name: "Pending Bank Selection",
+        permissions_granted: [
+          "ReadAccountsBasic",
+          "ReadAccountsDetail",
+          "ReadBalances",
+          "ReadTransactionsBasic",
+          "ReadTransactionsDetail",
+        ],
+        purpose: "Access bank account information for personal finance management",
+        scope: "accounts,balances,transactions",
+        consent_status: "pending",
+        consent_given_at: new Date().toISOString(),
+        consent_expires_at: consentExpiresAt.toISOString(),
+        ip_address: ipAddress,
+        user_agent: userAgent,
+        consent_version: "1.0",
+        tarabut_consent_id: intentResponse.intentId,
+      })
+      .select()
+      .single();
+
+    if (consentError) {
+      console.error("Failed to create consent record:", consentError);
+      // Continue anyway - we want the user to proceed with connection
+    } else if (consent) {
+      // Log consent initiation (pending state)
+      await logAuditEvent({
+        userId: user.id,
+        actionType: "data_create",
+        resourceType: "consent",
+        resourceId: consent.id,
+        requestDetails: {
+          consent_type: "bank_access",
+          consent_status: "pending",
+          provider_id: "pending",
+          intent_id: intentResponse.intentId,
+        },
+      });
     }
 
     // Return the Tarabut Connect URL

@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { DashboardHeader } from "./dashboard-header";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -12,6 +11,7 @@ import {
   SheetHeader,
   SheetTitle,
   SheetDescription,
+  SheetFooter,
 } from "@/components/ui/sheet";
 import {
   AlertDialog,
@@ -232,11 +232,8 @@ export function PrivacyContent() {
   const inactiveConsents = consents.filter((c) => c.consent_status !== "active");
 
   return (
-    <div className="flex flex-col h-full">
-      <DashboardHeader title="Privacy & Data" />
-
-      <div className="flex-1 overflow-auto">
-        <div className="p-4 md:p-6 space-y-6 max-w-4xl mx-auto">
+    <>
+      <div className="p-4 md:p-6 space-y-6 max-w-4xl mx-auto pb-24">
           {/* Info Banner */}
           <Card className="bg-primary/5 border-primary/20">
             <CardContent className="p-4 flex items-start gap-3">
@@ -449,11 +446,10 @@ export function PrivacyContent() {
             </CardContent>
           </Card>
 
-          {/* Footer Info */}
-          <div className="text-center text-xs text-muted-foreground pt-4">
-            <p>Protected under Bahrain Personal Data Protection Law (PDPL)</p>
-            <p className="mt-1">Compliant with BOBF Open Banking Framework</p>
-          </div>
+        {/* Footer Info */}
+        <div className="text-center text-xs text-muted-foreground pt-4">
+          <p>Protected under Bahrain Personal Data Protection Law (PDPL)</p>
+          <p className="mt-1">Compliant with BOBF Open Banking Framework</p>
         </div>
       </div>
 
@@ -467,73 +463,74 @@ export function PrivacyContent() {
             </SheetDescription>
           </SheetHeader>
           {selectedConsent && (
-            <div className="mt-6 space-y-6">
-              <div>
-                <div className="flex items-center gap-2 mb-4">
+            <>
+              <div className="flex-1 px-4 space-y-6">
+                {/* Consent Header */}
+                <div className="flex items-center gap-3">
                   {(() => {
                     const Icon = getConsentIcon(selectedConsent.consent_type);
                     return (
-                      <div className="size-12 rounded-full bg-primary/10 flex items-center justify-center">
+                      <div className="size-12 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
                         <Icon size={24} className="text-primary" />
                       </div>
                     );
                   })()}
-                  <div>
-                    <p className="font-semibold">
+                  <div className="space-y-1">
+                    <p className="font-semibold leading-none">
                       {selectedConsent.provider_name || getConsentTypeName(selectedConsent.consent_type)}
                     </p>
                     {getStatusBadge(selectedConsent.consent_status)}
                   </div>
                 </div>
-              </div>
 
-              <Separator />
+                <Separator />
 
-              <div className="space-y-4">
-                <div>
-                  <p className="text-xs font-medium text-muted-foreground mb-1">Purpose</p>
-                  <p className="text-sm">{selectedConsent.purpose}</p>
-                </div>
-
-                <div>
-                  <p className="text-xs font-medium text-muted-foreground mb-1">Permissions Granted</p>
-                  <div className="flex flex-wrap gap-1">
-                    {selectedConsent.permissions_granted.map((perm) => (
-                      <Badge key={perm} variant="outline" className="text-xs">
-                        {perm}
-                      </Badge>
-                    ))}
+                {/* Details */}
+                <div className="space-y-4">
+                  <div className="space-y-1.5">
+                    <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Purpose</p>
+                    <p className="text-sm">{selectedConsent.purpose}</p>
                   </div>
-                </div>
 
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <p className="text-xs font-medium text-muted-foreground mb-1">Given On</p>
-                    <div className="flex items-center gap-1 text-sm">
-                      <CalendarBlank size={14} />
-                      {format(new Date(selectedConsent.consent_given_at), "MMM d, yyyy")}
+                  <div className="space-y-1.5">
+                    <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Permissions Granted</p>
+                    <div className="flex flex-wrap gap-2">
+                      {selectedConsent.permissions_granted.map((perm) => (
+                        <Badge key={perm} variant="secondary" className="text-xs">
+                          {perm}
+                        </Badge>
+                      ))}
                     </div>
                   </div>
-                  <div>
-                    <p className="text-xs font-medium text-muted-foreground mb-1">Expires On</p>
-                    <div className="flex items-center gap-1 text-sm">
-                      <Clock size={14} />
-                      {format(new Date(selectedConsent.consent_expires_at), "MMM d, yyyy")}
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-1.5">
+                      <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Given On</p>
+                      <div className="flex items-center gap-1.5 text-sm">
+                        <CalendarBlank size={14} className="text-muted-foreground" />
+                        {format(new Date(selectedConsent.consent_given_at), "MMM d, yyyy")}
+                      </div>
+                    </div>
+                    <div className="space-y-1.5">
+                      <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Expires On</p>
+                      <div className="flex items-center gap-1.5 text-sm">
+                        <Clock size={14} className="text-muted-foreground" />
+                        {format(new Date(selectedConsent.consent_expires_at), "MMM d, yyyy")}
+                      </div>
                     </div>
                   </div>
-                </div>
 
-                {selectedConsent.consent_status === "revoked" && selectedConsent.revocation_reason && (
-                  <div>
-                    <p className="text-xs font-medium text-muted-foreground mb-1">Revocation Reason</p>
-                    <p className="text-sm">{selectedConsent.revocation_reason}</p>
-                  </div>
-                )}
+                  {selectedConsent.consent_status === "revoked" && selectedConsent.revocation_reason && (
+                    <div className="space-y-1.5">
+                      <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Revocation Reason</p>
+                      <p className="text-sm">{selectedConsent.revocation_reason}</p>
+                    </div>
+                  )}
+                </div>
               </div>
 
               {selectedConsent.consent_status === "active" && (
-                <>
-                  <Separator />
+                <SheetFooter>
                   <Button
                     variant="destructive"
                     className="w-full"
@@ -543,9 +540,9 @@ export function PrivacyContent() {
                   >
                     Revoke Consent
                   </Button>
-                </>
+                </SheetFooter>
               )}
-            </div>
+            </>
           )}
         </SheetContent>
       </Sheet>
@@ -614,6 +611,6 @@ export function PrivacyContent() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </div>
+    </>
   );
 }

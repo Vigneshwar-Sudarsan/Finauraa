@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { logAuditEvent } from "@/lib/audit";
 import { headers } from "next/headers";
+import { checkRateLimit } from "@/lib/ratelimit";
+import { dataExportRequestSchema, formatZodError, validateRequestBody } from "@/lib/validations/consent";
 
 /**
  * GET /api/user/data-export
@@ -59,21 +61,21 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    // Parse options from request body
-    let options = {
-      include_profile: true,
-      include_transactions: true,
-      include_accounts: true,
-      include_consents: true,
-      include_messages: false,
-      format: "json" as "json" | "csv",
-    };
+    // Rate limit check (strict - 3 requests per hour for data export)
+    const rateLimitResponse = await checkRateLimit("dataExport", user.id);
+    if (rateLimitResponse) return rateLimitResponse;
+
+    // Parse and validate options from request body with Zod
+    let options = dataExportRequestSchema.parse({});
 
     try {
       const body = await request.json();
-      options = { ...options, ...body };
+      const validation = validateRequestBody(dataExportRequestSchema, body);
+      if (validation.success) {
+        options = validation.data;
+      }
     } catch {
-      // Use defaults
+      // Use defaults if no body provided
     }
 
     // Get client IP for audit

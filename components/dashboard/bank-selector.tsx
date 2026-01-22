@@ -2,7 +2,7 @@
 
 import { Plus, Bank, SpinnerGap, Check } from "@phosphor-icons/react";
 import { cn } from "@/lib/utils";
-import { useState } from "react";
+import { useBankConnection } from "@/hooks/use-bank-connection";
 
 interface Account {
   id: string;
@@ -31,27 +31,8 @@ export function BankSelector({
   onBankSelect,
   isLoading,
 }: BankSelectorProps) {
-  const [isConnecting, setIsConnecting] = useState(false);
-
-  const handleAddBank = async () => {
-    setIsConnecting(true);
-    try {
-      const response = await fetch("/api/tarabut/connect", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-      });
-
-      if (!response.ok) {
-        throw new Error("Failed to connect");
-      }
-
-      const { authorizationUrl } = await response.json();
-      window.location.href = authorizationUrl;
-    } catch (error) {
-      console.error("Failed to initiate connection:", error);
-      setIsConnecting(false);
-    }
-  };
+  // Bank connection with consent dialog
+  const { connectBank: handleAddBank, isConnecting, ConsentDialog } = useBankConnection();
 
   const formatCurrency = (amount: number, currency: string) => {
     return new Intl.NumberFormat("en-BH", {
@@ -179,6 +160,9 @@ export function BankSelector({
           </p>
         </div>
       )}
+
+      {/* Bank Consent Dialog */}
+      <ConsentDialog />
     </div>
   );
 }

@@ -8,6 +8,7 @@ import { Separator } from "@/components/ui/separator";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { EmptyState } from "@/components/ui/empty-state";
+import { useBankConnection } from "@/hooks/use-bank-connection";
 import {
   Item,
   ItemMedia,
@@ -145,16 +146,28 @@ export function AccountDetailContent({ accountId }: { accountId: string }) {
   const [isLoading, setIsLoading] = useState(true);
   const [copied, setCopied] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [needsConsent, setNeedsConsent] = useState(false);
+
+  // Bank connection with consent dialog
+  const { connectBank, isConnecting, ConsentDialog } = useBankConnection();
 
   useEffect(() => {
     const fetchData = async () => {
       try {
         const response = await fetch(`/api/finance/accounts/${accountId}`);
         if (!response.ok) {
-          throw new Error("Failed to fetch account");
+          // Check if it's a consent/authorization issue
+          if (response.status === 403) {
+            setNeedsConsent(true);
+            setError("Bank connection required");
+          } else {
+            throw new Error("Failed to fetch account");
+          }
+          return;
         }
         const accountData = await response.json();
         setData(accountData);
+        setNeedsConsent(false);
       } catch (err) {
         console.error("Failed to fetch account:", err);
         setError("Unable to load account details");
@@ -250,6 +263,26 @@ export function AccountDetailContent({ accountId }: { accountId: string }) {
               </CardContent>
             </Card>
           </div>
+    );
+  }
+
+  if (error && needsConsent) {
+    return (
+      <>
+        <div className="flex-1 flex items-center justify-center p-4">
+          <EmptyState
+            icon={<Bank size={28} className="text-muted-foreground" />}
+            title="Connect your bank"
+            description="Connect your bank account to view account details and transactions."
+            action={{
+              label: isConnecting ? "Connecting..." : "Connect Bank",
+              onClick: connectBank,
+              loading: isConnecting,
+            }}
+          />
+        </div>
+        <ConsentDialog />
+      </>
     );
   }
 

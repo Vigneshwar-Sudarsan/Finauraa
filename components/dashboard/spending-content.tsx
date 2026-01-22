@@ -16,6 +16,7 @@ import {
   ItemSeparator,
 } from "@/components/ui/item";
 import { EmptyState } from "@/components/ui/empty-state";
+import { useBankConnection } from "@/hooks/use-bank-connection";
 import { cn } from "@/lib/utils";
 import {
   ShoppingCart,
@@ -161,7 +162,10 @@ export function SpendingContent() {
   const [isLoading, setIsLoading] = useState(true);
   const [isLoadingBudgets, setIsLoadingBudgets] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [isConnecting, setIsConnecting] = useState(false);
+  const [needsConsent, setNeedsConsent] = useState(false);
+
+  // Bank connection with consent dialog
+  const { connectBank, isConnecting, ConsentDialog } = useBankConnection();
 
   // Sheet states
   const [addTransactionOpen, setAddTransactionOpen] = useState(false);
@@ -169,34 +173,22 @@ export function SpendingContent() {
   const [selectedBudget, setSelectedBudget] = useState<Budget | null>(null);
   const [selectedCategory, setSelectedCategory] = useState<string | undefined>();
 
-  const handleConnectBank = async () => {
-    setIsConnecting(true);
-    try {
-      const response = await fetch("/api/tarabut/connect", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-      });
-
-      if (!response.ok) {
-        throw new Error("Failed to connect");
-      }
-
-      const { authorizationUrl } = await response.json();
-      window.location.href = authorizationUrl;
-    } catch (err) {
-      console.error("Failed to initiate connection:", err);
-      setIsConnecting(false);
-    }
-  };
-
   const fetchSpendingData = useCallback(async () => {
     try {
       const response = await fetch("/api/finance/insights/spending");
       if (!response.ok) {
-        throw new Error("Failed to fetch spending data");
+        // Check if it's a consent/authorization issue
+        if (response.status === 403) {
+          setNeedsConsent(true);
+          setError("Bank connection required");
+        } else {
+          throw new Error("Failed to fetch spending data");
+        }
+        return;
       }
       const spendingData = await response.json();
       setData(spendingData);
+      setNeedsConsent(false);
     } catch (err) {
       console.error("Failed to fetch spending data:", err);
       setError("Unable to load spending data");
@@ -208,6 +200,8 @@ export function SpendingContent() {
   const fetchBudgets = useCallback(async () => {
     try {
       const response = await fetch("/api/finance/budgets");
+      // Silently handle 403 - main fetchSpendingData handles consent flow
+      if (response.status === 403) return;
       if (!response.ok) throw new Error("Failed to fetch budgets");
       const { budgets: budgetsData } = await response.json();
       setBudgets(budgetsData || []);
@@ -221,6 +215,8 @@ export function SpendingContent() {
   const fetchBanks = useCallback(async () => {
     try {
       const response = await fetch("/api/finance/connections");
+      // Silently handle 403 - main fetchSpendingData handles consent flow
+      if (response.status === 403) return;
       if (!response.ok) throw new Error("Failed to fetch connections");
       const { connections } = await response.json();
       setBanks(connections || []);
@@ -273,8 +269,24 @@ export function SpendingContent() {
     <div className="flex flex-col h-full">
       <DashboardHeader title="Spending" />
 
-      {/* Error State */}
-      {error && !isLoading && (
+      {/* Error State - Needs Bank Connection */}
+      {error && !isLoading && needsConsent && (
+        <div className="flex-1 flex items-center justify-center">
+          <EmptyState
+            icon={<Bank size={28} className="text-muted-foreground" />}
+            title="Connect your bank"
+            description="Connect your bank account to view your spending insights and budgets."
+            action={{
+              label: isConnecting ? "Connecting..." : "Connect Bank",
+              onClick: connectBank,
+              loading: isConnecting,
+            }}
+          />
+        </div>
+      )}
+
+      {/* Error State - Other Errors */}
+      {error && !isLoading && !needsConsent && (
         <div className="flex-1 flex items-center justify-center">
           <EmptyState
             icon={<ChartPieSlice size={28} className="text-muted-foreground" />}
@@ -298,7 +310,7 @@ export function SpendingContent() {
             description="Connect your bank accounts and make some transactions to see your spending insights here."
             action={{
               label: isConnecting ? "Connecting..." : "Connect Bank",
-              onClick: handleConnectBank,
+              onClick: connectBank,
               loading: isConnecting,
             }}
           />
@@ -795,6 +807,9 @@ export function SpendingContent() {
         selectedCategory={selectedCategory}
         defaultCurrency={data?.currency || "BHD"}
       />
+
+      {/* Bank Consent Dialog */}
+      <ConsentDialog />
     </div>
   );
 }

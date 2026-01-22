@@ -10,7 +10,8 @@ export type MessageContentType =
   | "budget-card"
   | "transactions-list"
   | "payment-confirmation"
-  | "action-buttons";
+  | "action-buttons"
+  | "ai-mode-intro";
 
 export interface MessageContent {
   type: MessageContentType;
@@ -78,4 +79,41 @@ export interface UserState {
   queryCount: number;
   queryLimit: number;
   isPro: boolean;
+}
+
+// Family types
+export type FamilyMemberRole = "owner" | "admin" | "member";
+export type FamilyMemberStatus = "pending" | "active" | "removed";
+
+export interface FamilyGroup {
+  id: string;
+  owner_id: string;
+  name: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface FamilyMember {
+  id: string;
+  group_id: string;
+  user_id: string | null;
+  email: string;
+  role: FamilyMemberRole;
+  invited_by: string;
+  invited_at: string;
+  joined_at: string | null;
+  status: FamilyMemberStatus;
+  invitation_token?: string | null;
+  invitation_expires_at?: string | null;
+  profile?: {
+    full_name: string | null;
+    email: string | null;
+    avatar_url: string | null;
+  };
+}
+
+export interface FamilyGroupWithMembers extends FamilyGroup {
+  members: FamilyMember[];
+  member_count: number;
+  pending_count: number;
 }

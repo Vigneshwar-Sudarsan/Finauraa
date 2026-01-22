@@ -24,6 +24,25 @@ export async function GET() {
       return consentCheck.response;
     }
 
+    // If no banks connected, return empty data (not an error)
+    if (consentCheck.noBanksConnected) {
+      return NextResponse.json({
+        hasBankConnected: false,
+        accounts: [],
+        totalBalance: 0,
+        recentSpending: null,
+        budgets: [],
+        noBanksConnected: true,
+      });
+    }
+
+    // Get user profile for ai_data_mode
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("ai_data_mode")
+      .eq("id", user.id)
+      .single();
+
     // Check if user has bank connections
     const { data: connections } = await supabase
       .from("bank_connections")
@@ -32,10 +51,12 @@ export async function GET() {
       .eq("status", "active");
 
     const hasBankConnected = (connections?.length ?? 0) > 0;
+    const aiDataMode = profile?.ai_data_mode || null;
 
     if (!hasBankConnected) {
       return NextResponse.json({
         hasBankConnected: false,
+        aiDataMode,
         accounts: [],
         totalBalance: 0,
         recentSpending: null,
@@ -152,6 +173,7 @@ export async function GET() {
 
     return NextResponse.json({
       hasBankConnected: true,
+      aiDataMode,
       accounts: formattedAccounts,
       totalBalance,
       accountCount: formattedAccounts.length,

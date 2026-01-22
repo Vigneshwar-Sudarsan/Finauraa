@@ -16,6 +16,7 @@ import {
 import { Progress } from "@/components/ui/progress";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
+import { useBankConnection } from "@/hooks/use-bank-connection";
 import { cn } from "@/lib/utils";
 import {
   Plus,
@@ -24,6 +25,7 @@ import {
   Check,
   TrendUp,
   Confetti,
+  Bank,
 } from "@phosphor-icons/react";
 import {
   SavingsGoalSheet,
@@ -51,7 +53,11 @@ export function GoalsContent() {
   const [goals, setGoals] = useState<SavingsGoal[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [needsConsent, setNeedsConsent] = useState(false);
   const [recentIncome, setRecentIncome] = useState(0);
+
+  // Bank connection with consent dialog
+  const { connectBank, isConnecting, ConsentDialog } = useBankConnection();
 
   // Sheet states
   const [savingsGoalOpen, setSavingsGoalOpen] = useState(false);
@@ -68,9 +74,19 @@ export function GoalsContent() {
   const fetchGoals = useCallback(async () => {
     try {
       const response = await fetch("/api/finance/savings-goals");
-      if (!response.ok) throw new Error("Failed to fetch savings goals");
+      if (!response.ok) {
+        // Check if it's a consent/authorization issue
+        if (response.status === 403) {
+          setNeedsConsent(true);
+          setError("Bank connection required");
+        } else {
+          throw new Error("Failed to fetch savings goals");
+        }
+        return;
+      }
       const { goals: goalsData } = await response.json();
       setGoals(goalsData || []);
+      setNeedsConsent(false);
     } catch (err) {
       console.error("Failed to fetch savings goals:", err);
       setError("Unable to load savings goals");
@@ -150,8 +166,24 @@ export function GoalsContent() {
     <div className="flex flex-col h-full">
       <DashboardHeader title="Savings Goals" />
 
-      {/* Error State */}
-      {error && !isLoading && (
+      {/* Error State - Needs Bank Connection */}
+      {error && !isLoading && needsConsent && (
+        <div className="flex-1 flex items-center justify-center">
+          <EmptyState
+            icon={<Bank size={28} className="text-muted-foreground" />}
+            title="Connect your bank"
+            description="Connect your bank account to track your savings goals and progress."
+            action={{
+              label: isConnecting ? "Connecting..." : "Connect Bank",
+              onClick: connectBank,
+              loading: isConnecting,
+            }}
+          />
+        </div>
+      )}
+
+      {/* Error State - Other Errors */}
+      {error && !isLoading && !needsConsent && (
         <div className="flex-1 flex items-center justify-center">
           <EmptyState
             icon={<Target size={28} className="text-muted-foreground" />}
@@ -512,6 +544,9 @@ export function GoalsContent() {
             : undefined
         }
       />
+
+      {/* Bank Consent Dialog */}
+      <ConsentDialog />
     </div>
   );
 }

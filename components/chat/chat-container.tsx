@@ -6,6 +6,7 @@ import { ChatHeader } from "./chat-header";
 import { ChatMessage } from "./chat-message";
 import { ChatInput } from "./chat-input";
 import { ConversationHistoryDrawer } from "./conversation-history-drawer";
+import { useBankConnection } from "@/hooks/use-bank-connection";
 import { Message, MessageContent } from "@/lib/types";
 import { generateId } from "@/lib/utils";
 import { Sparkle } from "@phosphor-icons/react";
@@ -74,18 +75,55 @@ const WELCOME_MESSAGE_WITH_BANK: Message = {
   timestamp: new Date(),
 };
 
+// Welcome message for users who have bank but haven't chosen AI mode yet
+const WELCOME_MESSAGE_CHOOSE_AI_MODE: Message = {
+  id: "welcome",
+  role: "assistant",
+  content:
+    "Your bank account is connected! Before we start, let me explain how I can help you:",
+  richContent: [
+    {
+      type: "ai-mode-intro",
+    },
+  ],
+  timestamp: new Date(),
+};
+
 export function ChatContainer() {
   const searchParams = useSearchParams();
   const [messages, setMessages] = useState<Message[]>([]); // Start empty, set after bank check
   const [isLoading, setIsLoading] = useState(false);
   const [hasBankConnected, setHasBankConnected] = useState(false);
   const [isCheckingBank, setIsCheckingBank] = useState(true);
-  const [isConnectingBank, setIsConnectingBank] = useState(false);
+  const [hasChosenAiMode, setHasChosenAiMode] = useState(true); // Default true, set false when showing intro
   const scrollRef = useRef<HTMLDivElement>(null);
 
   // Conversation state
   const [conversationId, setConversationId] = useState<string | null>(null);
   const [historyOpen, setHistoryOpen] = useState(false);
+
+  // Bank connection with consent dialog
+  const { connectBank, isConnecting: isConnectingBank, ConsentDialog } = useBankConnection({
+    onError: (error) => {
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: generateId(),
+          role: "assistant",
+          content: `Connection failed: ${error}`,
+          richContent: [
+            {
+              type: "action-buttons",
+              data: {
+                actions: [{ label: "Try Again", action: "connect-bank" }],
+              },
+            },
+          ],
+          timestamp: new Date(),
+        },
+      ]);
+    },
+  });
 
   // Check for bank connection status on mount
   useEffect(() => {
@@ -96,7 +134,14 @@ export function ChatContainer() {
           const data = await response.json();
           if (data.hasBankConnected) {
             setHasBankConnected(true);
-            setMessages([WELCOME_MESSAGE_WITH_BANK]);
+            // Show AI mode intro if user hasn't chosen their mode yet
+            if (!data.aiDataMode) {
+              setMessages([WELCOME_MESSAGE_CHOOSE_AI_MODE]);
+              setHasChosenAiMode(false);
+            } else {
+              setMessages([WELCOME_MESSAGE_WITH_BANK]);
+              setHasChosenAiMode(true);
+            }
           } else {
             setMessages([WELCOME_MESSAGE_NO_BANK]);
           }
@@ -123,24 +168,19 @@ export function ChatContainer() {
 
     if (bankConnected === "true") {
       setHasBankConnected(true);
+      setHasChosenAiMode(false); // Show AI mode intro
       // Clear the URL params
       window.history.replaceState({}, "", "/");
-      // Add success message
+      // Add success message with AI mode intro
       setMessages((prev) => [
         ...prev.filter((m) => m.id !== "welcome"),
         {
           id: generateId(),
           role: "assistant",
-          content: "Your bank account is now connected! I can see your accounts and transactions.",
+          content: "Your bank account is now connected! I can see your accounts and transactions.\n\nBefore we start, let me explain how I can help you:",
           richContent: [
             {
-              type: "action-buttons",
-              data: {
-                actions: [
-                  { label: "Show Balance", action: "show-accounts" },
-                  { label: "Analyze Spending", action: "analyze-spending" },
-                ],
-              },
+              type: "ai-mode-intro",
             },
           ],
           timestamp: new Date(),
@@ -323,6 +363,44 @@ export function ChatContainer() {
   }, [messages]);
 
   const handleSendMessage = async (content: string) => {
+    // Check if user is asking about AI modes/enhanced AI
+    const lowerContent = content.toLowerCase();
+    const aiModeKeywords = ["enhanced ai", "ai mode", "switch mode", "change mode", "upgrade ai", "pro mode", "privacy mode"];
+    const isAskingAboutAiMode = aiModeKeywords.some(keyword => lowerContent.includes(keyword));
+
+    if (isAskingAboutAiMode) {
+      // Show the AI mode intro card
+      addMessage({ role: "user", content });
+      setHasChosenAiMode(false);
+      addMessage({
+        role: "assistant",
+        content: "Here are the AI modes available. You can switch anytime:",
+        richContent: [
+          {
+            type: "ai-mode-intro",
+          },
+        ],
+      });
+      return;
+    }
+
+    // Track if we need to show privacy mode notification
+    const shouldShowPrivacyNotification = !hasChosenAiMode;
+
+    // Auto-select privacy mode if user starts chatting without choosing
+    if (!hasChosenAiMode) {
+      try {
+        await fetch("/api/user/ai-mode", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ mode: "privacy-first" }),
+        });
+        setHasChosenAiMode(true);
+      } catch (e) {
+        console.error("Failed to auto-save AI mode:", e);
+      }
+    }
+
     // Create conversation if this is the first real message
     let currentConvId = conversationId;
     if (!currentConvId) {
@@ -332,8 +410,16 @@ export function ChatContainer() {
       }
     }
 
-    // Add user message
+    // Add user message first
     addMessage({ role: "user", content });
+
+    // Show privacy mode notification after user message (if auto-selected)
+    if (shouldShowPrivacyNotification) {
+      addMessage({
+        role: "assistant",
+        content: "I've set you up with **Privacy Mode** - I'll help you with general guidance while keeping your exact amounts private. You can change this anytime by asking about \"AI mode\".\n\nNow, let me help you with that:",
+      });
+    }
 
     // Save user message to database
     if (currentConvId) {
@@ -417,43 +503,8 @@ export function ChatContainer() {
 
     switch (action) {
       case "connect-bank":
-        // Initiate Tarabut connection - redirect user to Tarabut Connect
-        // Using standard OAuth flow (same-tab redirect) since Tarabut's flow
-        // doesn't work well in popups due to how banks handle their auth pages
-        setIsConnectingBank(true);
-
-        try {
-          const response = await fetch("/api/tarabut/connect", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-          });
-
-          if (!response.ok) {
-            const errorData = await response.json();
-            throw new Error(errorData.error || "Failed to connect");
-          }
-
-          const { authorizationUrl } = await response.json();
-
-          // Redirect to Tarabut Connect in the same tab
-          // User will be redirected back to our app after completing the flow
-          window.location.href = authorizationUrl;
-
-        } catch (err) {
-          setIsConnectingBank(false);
-          addAndSaveMessage({
-            role: "assistant",
-            content: `Connection failed: ${err instanceof Error ? err.message : "Please try again"}`,
-            richContent: [
-              {
-                type: "action-buttons",
-                data: {
-                  actions: [{ label: "Try Again", action: "connect-bank" }],
-                },
-              },
-            ],
-          }, currentConvId);
-        }
+        // Show consent dialog, then initiate Tarabut connection
+        connectBank();
         break;
 
       case "analyze-spending":
@@ -678,6 +729,64 @@ export function ChatContainer() {
         }, currentConvId);
         break;
 
+      case "upgrade-for-enhanced-ai":
+        // Save choice first, then redirect to upgrade page
+        setHasChosenAiMode(true);
+        try {
+          await fetch("/api/user/ai-mode", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ mode: "enhanced" }),
+          });
+        } catch (e) {
+          console.error("Failed to save AI mode:", e);
+        }
+        window.location.href = "/dashboard/settings/subscription/plans";
+        break;
+
+      case "continue-privacy-mode":
+        // Save the user's choice to the database
+        setHasChosenAiMode(true);
+        try {
+          await fetch("/api/user/ai-mode", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ mode: "privacy-first" }),
+          });
+        } catch (e) {
+          console.error("Failed to save AI mode:", e);
+        }
+        await addAndSaveMessage({
+          role: "assistant",
+          content: "Great! You're all set with Privacy Mode. I'll give you helpful guidance while keeping your exact amounts private.\n\nWhat would you like to do first?",
+          richContent: [
+            {
+              type: "action-buttons",
+              data: {
+                actions: [
+                  { label: "Show Balance", action: "show-accounts" },
+                  { label: "Analyze Spending", action: "analyze-spending" },
+                ],
+              },
+            },
+          ],
+        }, currentConvId);
+        break;
+
+      case "show-ai-modes":
+        // Show the AI mode intro card again
+        setHasChosenAiMode(false);
+        await addAndSaveMessage({
+          role: "assistant",
+          content: "Here are the AI modes available. You can switch anytime:",
+          richContent: [
+            {
+              type: "ai-mode-intro",
+            },
+          ],
+        }, currentConvId);
+        break;
+
       default:
         // If action looks like a user message, send it to the AI
         if (action && !action.includes("-") && action.length > 10) {
@@ -767,6 +876,9 @@ export function ChatContainer() {
         onSelectConversation={handleSelectConversation}
         currentConversationId={conversationId}
       />
+
+      {/* Bank Consent Dialog */}
+      <ConsentDialog />
     </div>
   );
 }

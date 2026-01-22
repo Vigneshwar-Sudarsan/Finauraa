@@ -46,6 +46,11 @@ export function SpendingSummary({ accountId }: SpendingSummaryProps) {
         }
 
         const response = await fetch(`/api/finance/spending?${params.toString()}`);
+        // Silently handle 403 - parent component handles consent flow
+        if (response.status === 403) {
+          setSpending(null);
+          return;
+        }
         if (response.ok) {
           const result = await response.json();
           setSpending({

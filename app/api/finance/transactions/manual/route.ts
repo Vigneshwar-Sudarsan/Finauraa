@@ -19,10 +19,14 @@ export async function POST(request: NextRequest) {
     }
 
     // BOBF/PDPL: Verify active consent before creating financial data
+    // Note: Manual transactions can be created even without bank connections
+    // since users may want to track cash spending before connecting a bank
     const consentCheck = await requireBankConsent(supabase, user.id, "/api/finance/transactions/manual");
     if (!consentCheck.allowed) {
       return consentCheck.response;
     }
+    // If noBanksConnected, we still allow manual transaction creation
+    // (user can track cash spending without connecting a bank)
 
     const body = await request.json();
     const {

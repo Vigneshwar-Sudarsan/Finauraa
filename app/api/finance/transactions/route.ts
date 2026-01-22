@@ -25,6 +25,25 @@ export async function GET(request: NextRequest) {
       return consentCheck.response;
     }
 
+    // If no banks connected, return empty data (not an error)
+    if (consentCheck.noBanksConnected) {
+      return NextResponse.json({
+        transactions: [],
+        pagination: {
+          limit: 50,
+          offset: 0,
+          total: 0,
+          hasMore: false,
+        },
+        subscription: {
+          tier: "free",
+          historyDaysLimit: 30,
+          isLimited: true,
+        },
+        noBanksConnected: true,
+      });
+    }
+
     // Get user's subscription tier for transaction history limits
     const { data: profile } = await supabase
       .from("profiles")
@@ -96,11 +115,13 @@ export async function GET(request: NextRequest) {
       .select("id", { count: "exact", head: true })
       .eq("user_id", user.id);
 
-    // Log successful data access
-    await logDataAccessSuccess(user.id, "transaction", consentCheck.consentId, "/api/finance/transactions", {
-      transactionCount: transactions?.length || 0,
-      filters: { category, type, accountId },
-    });
+    // Log successful data access (only if we have a consentId)
+    if (consentCheck.consentId) {
+      await logDataAccessSuccess(user.id, "transaction", consentCheck.consentId, "/api/finance/transactions", {
+        transactionCount: transactions?.length || 0,
+        filters: { category, type, accountId },
+      });
+    }
 
     return NextResponse.json({
       transactions: transactions || [],

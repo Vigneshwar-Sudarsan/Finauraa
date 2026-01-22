@@ -18,6 +18,7 @@ import {
 } from "@/components/ui/item";
 import { BankSelector } from "./bank-selector";
 import { EmptyState } from "@/components/ui/empty-state";
+import { useBankConnection } from "@/hooks/use-bank-connection";
 import {
   Bank,
   CreditCard,
@@ -70,11 +71,18 @@ export function AccountsContent() {
   const [selectedBankId, setSelectedBankId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
-  const [isConnecting, setIsConnecting] = useState(false);
+
+  // Bank connection with consent dialog
+  const { connectBank, isConnecting, ConsentDialog } = useBankConnection();
 
   const fetchData = async () => {
     try {
       const response = await fetch("/api/finance/banks");
+      // Silently handle 403 - will show empty state with Connect Bank prompt
+      if (response.status === 403) {
+        setBanks([]);
+        return;
+      }
       if (response.ok) {
         const data = await response.json();
         setBanks(data.banks ?? []);
@@ -98,6 +106,8 @@ export function AccountsContent() {
     setIsRefreshing(true);
     try {
       const response = await fetch("/api/finance/refresh", { method: "POST" });
+      // Silently handle 403 - user will see appropriate state
+      if (response.status === 403) return;
       if (response.ok) {
         await fetchData();
       }
@@ -112,25 +122,6 @@ export function AccountsContent() {
     router.push(`/dashboard/accounts/${accountId}`);
   };
 
-  const handleConnectBank = async () => {
-    setIsConnecting(true);
-    try {
-      const response = await fetch("/api/tarabut/connect", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-      });
-
-      if (!response.ok) {
-        throw new Error("Failed to connect");
-      }
-
-      const { authorizationUrl } = await response.json();
-      window.location.href = authorizationUrl;
-    } catch (error) {
-      console.error("Failed to initiate connection:", error);
-      setIsConnecting(false);
-    }
-  };
 
   // Get accounts - filter by selected bank if one is selected
   const allAccounts = banks.flatMap((bank) =>
@@ -171,7 +162,7 @@ export function AccountsContent() {
             description="Connect your bank accounts to view balances, transactions, and get insights on your spending."
             action={{
               label: isConnecting ? "Connecting..." : "Connect Bank",
-              onClick: handleConnectBank,
+              onClick: connectBank,
               loading: isConnecting,
             }}
           />
@@ -309,6 +300,9 @@ export function AccountsContent() {
         </div>
       </div>
       )}
+
+      {/* Bank Consent Dialog */}
+      <ConsentDialog />
     </div>
   );
 }

@@ -16,6 +16,7 @@ import {
   ItemSeparator,
 } from "@/components/ui/item";
 import { BankSelector } from "@/components/dashboard/bank-selector";
+import { BankConsentDialog } from "@/components/dashboard/bank-consent-dialog";
 import {
   CaretLeft,
   Bank,
@@ -73,6 +74,7 @@ export default function ConnectedBanksPage() {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [isConnecting, setIsConnecting] = useState(false);
   const [deletingBankId, setDeletingBankId] = useState<string | null>(null);
+  const [showConsentDialog, setShowConsentDialog] = useState(false);
 
   const fetchData = async () => {
     try {
@@ -114,7 +116,13 @@ export default function ConnectedBanksPage() {
     router.push(`/dashboard/accounts/${accountId}`);
   };
 
-  const handleConnectBank = async () => {
+  // Open consent dialog before connecting
+  const handleConnectBank = () => {
+    setShowConsentDialog(true);
+  };
+
+  // Actually perform the connection after consent is given
+  const handleConfirmConnect = async () => {
     setIsConnecting(true);
     try {
       const response = await fetch("/api/tarabut/connect", {
@@ -131,6 +139,7 @@ export default function ConnectedBanksPage() {
     } catch (error) {
       console.error("Failed to initiate connection:", error);
       setIsConnecting(false);
+      setShowConsentDialog(false);
     }
   };
 
@@ -393,6 +402,14 @@ export default function ConnectedBanksPage() {
           </div>
         </div>
       )}
+
+      {/* Consent Dialog */}
+      <BankConsentDialog
+        open={showConsentDialog}
+        onOpenChange={setShowConsentDialog}
+        onConfirm={handleConfirmConnect}
+        isConnecting={isConnecting}
+      />
     </div>
   );
 }

@@ -25,6 +25,11 @@ export async function GET() {
       return consentCheck.response;
     }
 
+    // If no banks connected, return empty data (not an error)
+    if (consentCheck.noBanksConnected) {
+      return NextResponse.json({ goals: [], noBanksConnected: true });
+    }
+
     const { data: goals, error } = await supabase
       .from("savings_goals")
       .select("*")

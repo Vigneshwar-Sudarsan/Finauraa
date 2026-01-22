@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { logConsentEvent } from "@/lib/audit";
 import { headers } from "next/headers";
+import { checkRateLimit } from "@/lib/ratelimit";
+import { createConsentSchema, formatZodError, validateRequestBody } from "@/lib/validations/consent";
 
 /**
  * GET /api/consents
@@ -18,6 +20,10 @@ export async function GET(request: NextRequest) {
     if (!user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
+
+    // Rate limit check
+    const rateLimitResponse = await checkRateLimit("consent", user.id);
+    if (rateLimitResponse) return rateLimitResponse;
 
     const { searchParams } = new URL(request.url);
     const status = searchParams.get("status"); // active, revoked, expired, all
@@ -76,7 +82,18 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
+    // Rate limit check (stricter for consent creation)
+    const rateLimitResponse = await checkRateLimit("consent", user.id);
+    if (rateLimitResponse) return rateLimitResponse;
+
     const body = await request.json();
+
+    // Validate request body with Zod schema
+    const validation = validateRequestBody(createConsentSchema, body);
+    if (!validation.success) {
+      return NextResponse.json(formatZodError(validation.error), { status: 400 });
+    }
+
     const {
       consent_type,
       provider_id,
@@ -84,30 +101,10 @@ export async function POST(request: NextRequest) {
       permissions_granted,
       purpose,
       scope,
-      expires_in_days = 90, // Default 90 days per BOBF
-      consent_version = "1.0",
+      expires_in_days,
+      consent_version,
       metadata,
-    } = body;
-
-    // Validate required fields
-    if (!consent_type || !permissions_granted || !purpose) {
-      return NextResponse.json(
-        {
-          error: "Missing required fields",
-          required: ["consent_type", "permissions_granted", "purpose"],
-        },
-        { status: 400 }
-      );
-    }
-
-    // Validate consent type
-    const validTypes = ["bank_access", "ai_data", "marketing", "terms_of_service", "privacy_policy"];
-    if (!validTypes.includes(consent_type)) {
-      return NextResponse.json(
-        { error: `Invalid consent_type. Must be one of: ${validTypes.join(", ")}` },
-        { status: 400 }
-      );
-    }
+    } = validation.data;
 
     // Get client IP and user agent for audit trail
     const headersList = await headers();

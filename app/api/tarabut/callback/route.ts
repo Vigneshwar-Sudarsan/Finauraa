@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createTarabutClient } from "@/lib/tarabut/client";
+import { logConsentEvent, logBankEvent } from "@/lib/audit";
 
 /**
  * GET /api/tarabut/callback
@@ -28,13 +29,21 @@ export async function GET(request: NextRequest) {
     if (error || statusLower === "failed") {
       console.error("Tarabut authorization error:", error, errorDescription, status);
 
-      // Clean up any pending connection
+      // Clean up any pending connection and consent
       if (user) {
         await supabase
           .from("bank_connections")
           .delete()
           .eq("user_id", user.id)
           .eq("status", "pending");
+
+        // Also clean up pending consent
+        await supabase
+          .from("user_consents")
+          .delete()
+          .eq("user_id", user.id)
+          .eq("consent_type", "bank_access")
+          .eq("consent_status", "pending");
       }
 
       return NextResponse.redirect(
@@ -46,13 +55,21 @@ export async function GET(request: NextRequest) {
     if (statusLower !== "successful" && statusLower !== "success") {
       console.error("Unexpected Tarabut status:", status);
 
-      // Clean up any pending connection
+      // Clean up any pending connection and consent
       if (user) {
         await supabase
           .from("bank_connections")
           .delete()
           .eq("user_id", user.id)
           .eq("status", "pending");
+
+        // Also clean up pending consent
+        await supabase
+          .from("user_consents")
+          .delete()
+          .eq("user_id", user.id)
+          .eq("consent_type", "bank_access")
+          .eq("consent_status", "pending");
       }
 
       return NextResponse.redirect(
@@ -133,6 +150,14 @@ export async function GET(request: NextRequest) {
         .delete()
         .eq("id", pendingConnection.id);
 
+      // Also clean up pending consent
+      await supabase
+        .from("user_consents")
+        .delete()
+        .eq("user_id", user.id)
+        .eq("consent_type", "bank_access")
+        .eq("consent_status", "pending");
+
       return NextResponse.redirect(
         new URL("/?bank_error=No accounts found. Please try again.", request.url)
       );
@@ -154,6 +179,60 @@ export async function GET(request: NextRequest) {
         status: "active",
       })
       .eq("id", pendingConnection.id);
+
+    // BOBF/PDPL: Update consent record to active status
+    // First, find the pending consent
+    const { data: pendingConsent } = await supabase
+      .from("user_consents")
+      .select("id")
+      .eq("user_id", user.id)
+      .eq("consent_type", "bank_access")
+      .eq("consent_status", "pending")
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .single();
+
+    let updatedConsent = null;
+    let consentUpdateError = null;
+
+    if (pendingConsent) {
+      // Update the specific consent by ID
+      const result = await supabase
+        .from("user_consents")
+        .update({
+          consent_status: "active",
+          provider_id: bankId,
+          provider_name: bankName,
+          tarabut_authorization_id: activeConsent?.providerId || null,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", pendingConsent.id)
+        .select()
+        .single();
+
+      updatedConsent = result.data;
+      consentUpdateError = result.error;
+    } else {
+      console.error("No pending consent found to update");
+    }
+
+    if (consentUpdateError) {
+      console.error("Failed to update consent status:", consentUpdateError);
+    } else if (updatedConsent) {
+      // Log consent activation
+      await logConsentEvent(user.id, "consent_given", updatedConsent.id, {
+        consent_type: "bank_access",
+        provider_id: bankId,
+        provider_name: bankName,
+      });
+    }
+
+    // Log bank connection event
+    await logBankEvent(user.id, "bank_connected", pendingConnection.id, {
+      bank_id: bankId,
+      bank_name: bankName,
+      accounts_count: filteredAccounts.length,
+    });
 
     // Process each account from the filtered list
     for (const account of filteredAccounts) {

@@ -24,6 +24,11 @@ export async function GET() {
       return consentCheck.response;
     }
 
+    // If no banks connected, return empty data (not an error)
+    if (consentCheck.noBanksConnected) {
+      return NextResponse.json({ budgets: [], noBanksConnected: true });
+    }
+
     // Get all active budgets for the user
     const { data: budgets, error: budgetsError } = await supabase
       .from("budgets")

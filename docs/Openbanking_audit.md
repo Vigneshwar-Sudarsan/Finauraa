@@ -289,7 +289,7 @@ After your audit, provide:
 - **Authentication**: Supabase Auth
 - **AI**: Anthropic Claude API (@anthropic-ai/sdk)
 - **Payments**: Stripe (subscriptions, webhooks)
-- **Rate Limiting**: Upstash Redis (@upstash/ratelimit)
+- **Rate Limiting**: Supabase (database-based)
 - **State Management**: Zustand
 - **Error Tracking**: Sentry
 - **Hosting**: Vercel
@@ -404,12 +404,16 @@ All `/api/finance/*` routes now verify active `bank_access` consent before data 
 ### ❌ Remaining TODOs
 
 #### Frontend
-- [ ] Consent capture screen improvements (show permissions explicitly during bank connection)
+- [x] Consent capture screen improvements (show permissions explicitly during bank connection) ✅ (`BankConsentDialog` component)
 
 #### Security
-- [ ] Verify Supabase encryption at rest is enabled
-- [ ] Add rate limiting to consent endpoints
-- [ ] Add input validation schemas (Zod)
+- [x] Verify Supabase encryption at rest is enabled ✅ (Enabled by default on all Supabase projects)
+- [x] Add rate limiting to consent endpoints ✅ (`lib/ratelimit.ts` - uses Supabase)
+- [x] Add input validation schemas (Zod) ✅ (`lib/validations/consent.ts`)
+- [x] Fix RLS policies on `data_retention_policies` ✅ (Migration applied)
+- [x] Fix function search_path vulnerabilities ✅ (8 functions fixed)
+- [x] Fix overly permissive RLS on `audit_logs` and `billing_history` ✅ (Migration applied)
+- [ ] Enable leaked password protection (Requires Supabase Pro plan)
 
 ---
 
@@ -421,19 +425,28 @@ supabase/migrations/20250122_compliance_bobf_pdpl.sql  # Database migration
 lib/audit.ts                                            # Audit logging utility
 lib/consent-middleware.ts                               # Consent verification middleware
 lib/email.ts                                            # Email notification service (Resend)
-app/api/consents/route.ts                              # Consent list/create
-app/api/consents/[id]/route.ts                         # Consent get/revoke
-app/api/user/data-export/route.ts                      # Data export API
+lib/ratelimit.ts                                        # Rate limiting utility (uses Supabase)
+lib/validations/consent.ts                             # Zod validation schemas for consent endpoints
+app/api/consents/route.ts                              # Consent list/create (+ rate limiting + validation)
+app/api/consents/[id]/route.ts                         # Consent get/revoke (+ rate limiting)
+app/api/user/data-export/route.ts                      # Data export API (+ rate limiting + validation)
 app/api/cron/expire-consents/route.ts                  # Cron: expire consents + email notifications
 app/api/cron/data-retention/route.ts                   # Cron: data retention cleanup
 components/dashboard/privacy-content.tsx               # Privacy & Data UI component
+components/dashboard/bank-consent-dialog.tsx           # Bank connection consent dialog (BOBF/PDPL)
 app/dashboard/settings/privacy/page.tsx                # Privacy settings page
 vercel.json                                            # Vercel cron configuration
 ```
 
 ### Modified Files
 ```
-app/api/webhooks/stripe/route.ts                       # Added audit logging + billing_history + email notifications
+app/api/webhooks/stripe/route.ts                       # Audit logging + billing_history + lazy init
+app/api/subscription/checkout/route.ts                # Lazy Stripe initialization
+app/api/subscription/portal/route.ts                  # Lazy Stripe initialization
+app/api/subscription/cancel/route.ts                  # Lazy Stripe initialization
+app/api/subscription/change-billing/route.ts          # Lazy Stripe initialization
+app/api/subscription/change-plan/route.ts             # Lazy Stripe initialization
+app/api/subscription/sync/route.ts                    # Lazy Stripe initialization
 app/api/finance/accounts/route.ts                      # Added consent middleware
 app/api/finance/accounts/[id]/route.ts                 # Added consent middleware
 app/api/finance/transactions/route.ts                  # Added consent middleware
@@ -452,6 +465,8 @@ app/api/finance/insights/income/route.ts              # Added consent middleware
 app/api/finance/insights/spending/route.ts            # Added consent middleware
 app/api/finance/insights/salary/route.ts              # Added consent middleware
 components/dashboard/settings-content.tsx              # Added Privacy & Data link
+app/dashboard/settings/connected-banks/page.tsx       # Added consent dialog before bank connection
+.env.example                                           # Updated for compliance
 ```
 
 ---
@@ -486,10 +501,11 @@ CRON_SECRET=your-secure-cron-secret-here
 
 # Email Notifications (Resend)
 RESEND_API_KEY=re_xxxxxxxxxxxxx
-EMAIL_FROM=Finauraa <notifications@finauraa.com>
+EMAIL_FROM=Finauraa <notifications@send.finauraa.com>
 ```
 
 **Setup Notes:**
 - `CRON_SECRET` - Used to secure cron endpoints. Generate with: `openssl rand -base64 32`
 - `RESEND_API_KEY` - Get from [resend.com](https://resend.com). Required for email notifications.
 - `EMAIL_FROM` - Must be a verified domain in Resend, or use `onboarding@resend.dev` for testing.
+- Rate limiting uses your existing Supabase database (no additional services needed).
