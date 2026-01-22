@@ -33,7 +33,8 @@ interface SettingItem {
   value?: boolean;
   onClick?: () => void;
   href?: string;
-  badge?: string;
+  badge?: string | null;
+  badgeLoading?: boolean;
 }
 
 export function SettingsContent() {
@@ -44,18 +45,25 @@ export function SettingsContent() {
 
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const [isDeletingAccount, setIsDeletingAccount] = useState(false);
-  const [subscriptionTier, setSubscriptionTier] = useState<"free" | "pro" | "family">("free");
+  const [subscriptionTier, setSubscriptionTier] = useState<"free" | "pro" | "family" | null>(null);
+  const [isLoadingSubscription, setIsLoadingSubscription] = useState(true);
 
   // Fetch subscription tier
   const fetchSubscriptionTier = useCallback(async () => {
+    setIsLoadingSubscription(true);
     try {
       const response = await fetch("/api/subscription");
       if (response.ok) {
         const data = await response.json();
         setSubscriptionTier(data.subscription?.tier || "free");
+      } else {
+        setSubscriptionTier("free");
       }
     } catch (error) {
       console.error("Failed to fetch subscription:", error);
+      setSubscriptionTier("free");
+    } finally {
+      setIsLoadingSubscription(false);
     }
   }, []);
 
@@ -131,7 +139,8 @@ export function SettingsContent() {
   };
 
   // Get display name for subscription tier
-  const getTierDisplayName = (tier: "free" | "pro" | "family") => {
+  const getTierDisplayName = (tier: "free" | "pro" | "family" | null) => {
+    if (tier === null) return null; // Loading state
     switch (tier) {
       case "pro":
         return "Pro";
@@ -157,6 +166,7 @@ export function SettingsContent() {
       action: "link",
       href: "/dashboard/settings/subscription",
       badge: getTierDisplayName(subscriptionTier),
+      badgeLoading: isLoadingSubscription,
     },
     {
       icon: Bank,
@@ -257,11 +267,13 @@ export function SettingsContent() {
             <div>
               <div className="flex items-center gap-2">
                 <p className="font-medium text-sm">{item.title}</p>
-                {item.badge && (
+                {item.badgeLoading ? (
+                  <span className="text-[10px] font-medium bg-muted px-1.5 py-0.5 rounded animate-pulse w-10 h-4" />
+                ) : item.badge ? (
                   <span className="text-[10px] font-medium bg-primary/10 text-primary px-1.5 py-0.5 rounded">
                     {item.badge}
                   </span>
-                )}
+                ) : null}
               </div>
               <p className="text-xs text-muted-foreground">{item.description}</p>
             </div>
