@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { Inter } from "next/font/google";
 import { ThemeProvider } from "@/components/theme-provider";
 import { PWAInstallPrompt } from "@/components/pwa-install-prompt";
+import { Toaster } from "@/components/ui/sonner";
 import "./globals.css";
 
 const inter = Inter({ subsets: ["latin"], variable: "--font-sans" });
@@ -72,6 +73,7 @@ export default function RootLayout({
         >
           {children}
           <PWAInstallPrompt />
+          <Toaster position="top-center" richColors closeButton />
         </ThemeProvider>
       </body>
     </html>

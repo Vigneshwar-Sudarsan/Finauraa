@@ -36,7 +36,7 @@ export default function UpgradePlansPage() {
         <Button
           variant="ghost"
           size="sm"
-          onClick={() => router.back()}
+          onClick={() => router.push("/dashboard/settings/subscription")}
           className="gap-2"
         >
           <CaretLeft size={16} />

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -10,11 +11,25 @@ import {
   Check,
   X,
   SpinnerGap,
+  CheckCircle,
+  ArrowDown,
+  ArrowUp,
 } from "@phosphor-icons/react";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { toast } from "sonner";
 
-// Plan features configuration (prices in BHD - Bahraini Dinar)
+// Plan features configuration (prices in USD)
 const planFeatures = {
   free: {
     name: "Free",
@@ -34,11 +49,11 @@ const planFeatures = {
   },
   pro: {
     name: "Pro",
-    price: 2.99,
+    price: 7.99,
     period: "month",
     description: "For singles & couples",
     popular: true,
-    annualPrice: 29.99,
+    annualPrice: 79.99,
     features: [
       { text: "5 bank connections", included: true },
       { text: "Unlimited transaction history", included: true },
@@ -54,10 +69,10 @@ const planFeatures = {
   },
   family: {
     name: "Family",
-    price: 5.99,
+    price: 15.99,
     period: "month",
     description: "For the whole family",
-    annualPrice: 59.99,
+    annualPrice: 159.99,
     features: [
       { text: "15 bank connections (shared)", included: true },
       { text: "Unlimited transaction history", included: true },
@@ -75,19 +90,38 @@ const planFeatures = {
 };
 
 function formatCurrency(amount: number) {
-  return new Intl.NumberFormat("en-BH", {
+  return new Intl.NumberFormat("en-US", {
     style: "currency",
-    currency: "BHD",
+    currency: "USD",
     minimumFractionDigits: 2,
   }).format(amount);
 }
 
 export function UpgradePlansContent() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
   const [currentTier, setCurrentTier] = useState<"free" | "pro" | "family">("free");
+  const [currentBillingCycle, setCurrentBillingCycle] = useState<"monthly" | "yearly">("monthly");
+  const [subscriptionStatus, setSubscriptionStatus] = useState<string>("active");
+  const [hasActiveSubscription, setHasActiveSubscription] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [isUpgrading, setIsUpgrading] = useState(false);
   const [selectedPlan, setSelectedPlan] = useState<string | null>(null);
   const [isAnnual, setIsAnnual] = useState(false);
+  const [showDowngradeDialog, setShowDowngradeDialog] = useState(false);
+  const [showBillingChangeDialog, setShowBillingChangeDialog] = useState(false);
+  const [pendingPlan, setPendingPlan] = useState<string | null>(null);
+
+  // Check for canceled checkout
+  useEffect(() => {
+    if (searchParams.get("canceled") === "true") {
+      toast.warning("Checkout canceled", {
+        description: "No worries! You can upgrade anytime when you're ready.",
+      });
+      // Clear the URL parameter
+      router.replace("/dashboard/settings/subscription/plans", { scroll: false });
+    }
+  }, [searchParams, router]);
 
   useEffect(() => {
     const fetchSubscription = async () => {
@@ -96,6 +130,15 @@ export function UpgradePlansContent() {
         if (response.ok) {
           const data = await response.json();
           setCurrentTier(data.subscription.tier);
+          setSubscriptionStatus(data.subscription.status);
+          setCurrentBillingCycle(data.subscription.billingCycle || "monthly");
+          // Set the toggle to match current billing cycle
+          setIsAnnual(data.subscription.billingCycle === "yearly");
+          // User has active subscription if not on free tier and not canceled
+          setHasActiveSubscription(
+            data.subscription.tier !== "free" &&
+            data.subscription.status !== "canceled"
+          );
         }
       } catch (error) {
         console.error("Failed to fetch subscription:", error);
@@ -108,26 +151,160 @@ export function UpgradePlansContent() {
   }, []);
 
   const handleSelectPlan = async (plan: string) => {
-    if (plan === currentTier) return;
+    if (plan === "free") return; // Can't select free plan, use cancel instead
 
+    const selectedBilling = isAnnual ? "yearly" : "monthly";
+    const isSamePlan = plan === currentTier;
+    const isBillingChange = selectedBilling !== currentBillingCycle;
+
+    // If same plan but different billing cycle, handle billing cycle change
+    if (isSamePlan && isBillingChange && hasActiveSubscription) {
+      setPendingPlan(plan);
+      setShowBillingChangeDialog(true);
+      return;
+    }
+
+    // If same plan and same billing, do nothing
+    if (isSamePlan && !isBillingChange) return;
+
+    // Check if this is a downgrade
+    const tierOrder = { free: 0, pro: 1, family: 2 };
+    const isDowngrade = tierOrder[plan as keyof typeof tierOrder] < tierOrder[currentTier];
+
+    // If downgrading, show confirmation dialog
+    if (isDowngrade && hasActiveSubscription) {
+      setPendingPlan(plan);
+      setShowDowngradeDialog(true);
+      return;
+    }
+
+    await processSubscriptionChange(plan);
+  };
+
+  const processSubscriptionChange = async (plan: string) => {
     setIsUpgrading(true);
     setSelectedPlan(plan);
+
+    try {
+      // If user has an active subscription, use change-plan endpoint
+      // Otherwise, use checkout endpoint for new subscriptions
+      if (hasActiveSubscription) {
+        const response = await fetch("/api/subscription/change-plan", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ plan, billing: isAnnual ? "yearly" : "monthly" }),
+        });
+
+        const data = await response.json();
+
+        if (response.ok) {
+          // Redirect to subscription page with success message
+          router.push("/dashboard/settings/subscription?success=true");
+        } else {
+          // If change-plan fails because no subscription exists, try checkout
+          if (data.redirectTo === "/api/subscription/checkout") {
+            await processNewCheckout(plan);
+          } else if (data.redirectTo === "/api/subscription/change-billing") {
+            // Same plan but different billing - use change-billing endpoint
+            await processBillingChange();
+          } else {
+            toast.error(data.error || "Failed to change plan");
+          }
+        }
+      } else {
+        await processNewCheckout(plan);
+      }
+    } catch (error) {
+      console.error("Failed to process subscription:", error);
+      toast.error("An unexpected error occurred. Please try again.");
+    } finally {
+      setIsUpgrading(false);
+      setSelectedPlan(null);
+    }
+  };
+
+  const processBillingChange = async () => {
+    try {
+      const newBilling = isAnnual ? "yearly" : "monthly";
+      const response = await fetch("/api/subscription/change-billing", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ billing: newBilling }),
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        router.push("/dashboard/settings/subscription?success=true");
+      } else {
+        toast.error(data.error || "Failed to change billing cycle");
+      }
+    } catch (error) {
+      console.error("Failed to change billing cycle:", error);
+      toast.error("An unexpected error occurred. Please try again.");
+    }
+  };
+
+  const processNewCheckout = async (plan: string) => {
     try {
       const response = await fetch("/api/subscription/checkout", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ plan, interval: isAnnual ? "year" : "month" }),
+        body: JSON.stringify({ plan, billing: isAnnual ? "yearly" : "monthly" }),
       });
 
       if (response.ok) {
-        const { checkoutUrl } = await response.json();
-        window.location.href = checkoutUrl;
+        const data = await response.json();
+        if (data.checkoutUrl) {
+          window.location.href = data.checkoutUrl;
+        } else {
+          toast.error("No checkout URL returned");
+        }
+      } else {
+        const data = await response.json();
+        toast.error(data.error || "Failed to start checkout");
+      }
+    } catch (err) {
+      console.error("Checkout fetch error:", err);
+      toast.error("Network error. Please try again.");
+    }
+  };
+
+  const handleDowngradeConfirm = async () => {
+    setShowDowngradeDialog(false);
+    if (pendingPlan) {
+      await processSubscriptionChange(pendingPlan);
+      setPendingPlan(null);
+    }
+  };
+
+  const handleBillingChangeConfirm = async () => {
+    setShowBillingChangeDialog(false);
+    setIsUpgrading(true);
+    setSelectedPlan(pendingPlan);
+
+    try {
+      const newBilling = isAnnual ? "yearly" : "monthly";
+      const response = await fetch("/api/subscription/change-billing", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ billing: newBilling }),
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        router.push("/dashboard/settings/subscription?success=true");
+      } else {
+        toast.error(data.error || "Failed to change billing cycle");
       }
     } catch (error) {
-      console.error("Failed to start checkout:", error);
+      console.error("Failed to change billing cycle:", error);
+      toast.error("An unexpected error occurred. Please try again.");
     } finally {
       setIsUpgrading(false);
       setSelectedPlan(null);
+      setPendingPlan(null);
     }
   };
 
@@ -144,6 +321,82 @@ export function UpgradePlansContent() {
 
   return (
     <>
+      {/* Downgrade Confirmation Dialog */}
+      <AlertDialog open={showDowngradeDialog} onOpenChange={setShowDowngradeDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <ArrowDown size={20} className="text-yellow-500" />
+              Downgrade Plan?
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              You&apos;re about to downgrade to the {pendingPlan && planFeatures[pendingPlan as keyof typeof planFeatures]?.name} plan.
+              Your new plan will take effect immediately, but you&apos;ll receive a prorated credit for the unused time on your current plan.
+              <br /><br />
+              <strong>Note:</strong> Some features may become unavailable. If you exceed the limits of the new plan, some functionality may be restricted.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setPendingPlan(null)}>
+              Keep Current Plan
+            </AlertDialogCancel>
+            <AlertDialogAction onClick={handleDowngradeConfirm}>
+              Confirm Downgrade
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Billing Cycle Change Confirmation Dialog */}
+      <AlertDialog open={showBillingChangeDialog} onOpenChange={setShowBillingChangeDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              {isAnnual ? (
+                <>
+                  <ArrowUp size={20} className="text-green-500" />
+                  Switch to Yearly Billing?
+                </>
+              ) : (
+                <>
+                  <ArrowDown size={20} className="text-yellow-500" />
+                  Switch to Monthly Billing?
+                </>
+              )}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {isAnnual ? (
+                <>
+                  You&apos;re about to switch to yearly billing for your {planFeatures[currentTier]?.name} plan.
+                  A prorated amount will be charged to your payment method.
+                  <br /><br />
+                  <strong className="text-green-600">You&apos;ll save 17% with annual billing!</strong>
+                </>
+              ) : (
+                <>
+                  You&apos;re about to switch to monthly billing for your {planFeatures[currentTier]?.name} plan.
+                  The unused portion of your yearly subscription will be credited to your account.
+                  <br /><br />
+                  <strong>Note:</strong> This credit will offset your future monthly charges.
+                </>
+              )}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => {
+              setPendingPlan(null);
+              // Reset toggle to current billing
+              setIsAnnual(currentBillingCycle === "yearly");
+            }}>
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction onClick={handleBillingChangeConfirm}>
+              Confirm Change
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
       {/* Page Title */}
       <div className="text-center">
         <div className="inline-flex items-center justify-center size-12 rounded-full bg-primary/10 mb-4">
@@ -189,6 +442,11 @@ export function UpgradePlansContent() {
           const displayPrice = hasPaidPlan && isAnnual ? annualPrice : plan.price;
           const displayPeriod = hasPaidPlan && isAnnual ? "year" : plan.period;
           const monthlyEquivalent = hasPaidPlan && isAnnual ? annualPrice / 12 : 0;
+
+          // Check if this is a billing cycle change (same plan, different billing)
+          const selectedBilling = isAnnual ? "yearly" : "monthly";
+          const isBillingChange = isCurrentPlan && hasPaidPlan && selectedBilling !== currentBillingCycle;
+          const canSwitchBilling = isBillingChange && hasActiveSubscription;
 
           return (
             <Card
@@ -240,10 +498,14 @@ export function UpgradePlansContent() {
                   ))}
                 </ul>
                 <Button
-                  className="w-full mt-6"
-                  variant={isCurrentPlan ? "outline" : isPlanPopular ? "default" : "outline"}
+                  className={cn(
+                    "w-full mt-6",
+                    isDowngrade && !isCurrentPlan && "border-yellow-500 text-yellow-600 hover:bg-yellow-50 dark:hover:bg-yellow-950",
+                    canSwitchBilling && "border-green-500 text-green-600 hover:bg-green-50 dark:hover:bg-green-950"
+                  )}
+                  variant={isCurrentPlan && !canSwitchBilling ? "outline" : isPlanPopular && !isDowngrade ? "default" : "outline"}
                   size="lg"
-                  disabled={isCurrentPlan || (isUpgrading && selectedPlan === key)}
+                  disabled={(isCurrentPlan && !canSwitchBilling) || key === "free" || (isUpgrading && selectedPlan === key)}
                   onClick={() => handleSelectPlan(key)}
                 >
                   {isUpgrading && selectedPlan === key ? (
@@ -251,12 +513,28 @@ export function UpgradePlansContent() {
                       <SpinnerGap size={18} className="animate-spin mr-2" />
                       Processing...
                     </>
+                  ) : canSwitchBilling ? (
+                    <>
+                      <ArrowUp size={18} className="mr-2" />
+                      Switch to {isAnnual ? "Yearly" : "Monthly"}
+                    </>
                   ) : isCurrentPlan ? (
-                    "Current Plan"
+                    <>
+                      <CheckCircle size={18} className="mr-2" weight="fill" />
+                      Current Plan
+                    </>
+                  ) : key === "free" ? (
+                    "Cancel to downgrade"
                   ) : isDowngrade ? (
-                    `Downgrade to ${plan.name}`
+                    <>
+                      <ArrowDown size={18} className="mr-2" />
+                      Downgrade to {plan.name}
+                    </>
                   ) : (
-                    `Upgrade to ${plan.name}`
+                    <>
+                      <ArrowUp size={18} className="mr-2" />
+                      {currentTier === "free" ? "Get" : "Upgrade to"} {plan.name}
+                    </>
                   )}
                 </Button>
               </CardContent>

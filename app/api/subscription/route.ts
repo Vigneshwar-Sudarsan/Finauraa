@@ -1,6 +1,18 @@
 import { NextResponse } from "next/server";
+import Stripe from "stripe";
 import { createClient } from "@/lib/supabase/server";
+import { createClient as createAdminClient } from "@supabase/supabase-js";
 import { SubscriptionTier, getTierLimits } from "@/lib/features";
+
+const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
+  apiVersion: "2025-12-15.clover",
+});
+
+// Use service role for database updates to bypass RLS
+const supabaseAdmin = createAdminClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!
+);
 
 /**
  * GET /api/subscription
@@ -26,7 +38,9 @@ export async function GET() {
         subscription_started_at,
         subscription_ends_at,
         trial_ends_at,
-        is_pro
+        is_pro,
+        stripe_customer_id,
+        stripe_subscription_id
       `)
       .eq("id", user.id)
       .single();
@@ -35,9 +49,106 @@ export async function GET() {
       console.error("Failed to fetch profile:", profileError);
     }
 
-    // Determine subscription tier (fallback to is_pro for backwards compatibility)
-    const tier: SubscriptionTier = profile?.subscription_tier || (profile?.is_pro ? "pro" : "free");
-    const status = profile?.subscription_status || "active";
+    // Try to get fresh data from Stripe if user has a Stripe subscription
+    let tier: SubscriptionTier = profile?.subscription_tier || (profile?.is_pro ? "pro" : "free");
+    let status = profile?.subscription_status || "active";
+    let startedAt = profile?.subscription_started_at;
+    let endsAt = profile?.subscription_ends_at;
+    let trialEndsAt = profile?.trial_ends_at;
+    let billingCycle: "monthly" | "yearly" = "monthly";
+    let subscriptionPaymentMethodId: string | null = null;
+
+    // Price ID to billing cycle mapping
+    const priceToBilling: Record<string, "monthly" | "yearly"> = {
+      [process.env.STRIPE_PRO_PRICE_ID_MONTHLY!]: "monthly",
+      [process.env.STRIPE_PRO_PRICE_ID_YEARLY!]: "yearly",
+      [process.env.STRIPE_FAMILY_PRICE_ID_MONTHLY!]: "monthly",
+      [process.env.STRIPE_FAMILY_PRICE_ID_YEARLY!]: "yearly",
+    };
+
+    // Fetch fresh subscription data from Stripe if available
+    if (profile?.stripe_subscription_id) {
+      try {
+        const stripeSubscription = await stripe.subscriptions.retrieve(
+          profile.stripe_subscription_id
+        );
+
+        // Map Stripe price to tier
+        const priceId = stripeSubscription.items.data[0]?.price.id;
+        const proPriceIds = [
+          process.env.STRIPE_PRO_PRICE_ID_MONTHLY,
+          process.env.STRIPE_PRO_PRICE_ID_YEARLY,
+        ].filter(Boolean);
+        const familyPriceIds = [
+          process.env.STRIPE_FAMILY_PRICE_ID_MONTHLY,
+          process.env.STRIPE_FAMILY_PRICE_ID_YEARLY,
+        ].filter(Boolean);
+
+        if (proPriceIds.includes(priceId)) {
+          tier = "pro";
+        } else if (familyPriceIds.includes(priceId)) {
+          tier = "family";
+        }
+
+        // Determine billing cycle from price ID
+        if (priceId && priceToBilling[priceId]) {
+          billingCycle = priceToBilling[priceId];
+        }
+
+        // Map Stripe status
+        const statusMap: Record<string, string> = {
+          active: "active",
+          trialing: "trialing",
+          past_due: "past_due",
+          canceled: "canceled",
+          incomplete: "incomplete",
+          incomplete_expired: "canceled",
+          unpaid: "past_due",
+          paused: "paused",
+        };
+        status = statusMap[stripeSubscription.status] || "active";
+
+        // Check if canceling
+        if (stripeSubscription.cancel_at_period_end && stripeSubscription.status === "active") {
+          status = "canceling";
+        }
+
+        // Update dates from Stripe
+        const subscriptionItem = stripeSubscription.items.data[0];
+        startedAt = new Date(stripeSubscription.created * 1000).toISOString();
+        endsAt = subscriptionItem?.current_period_end
+          ? new Date(subscriptionItem.current_period_end * 1000).toISOString()
+          : null;
+        trialEndsAt = stripeSubscription.trial_end
+          ? new Date(stripeSubscription.trial_end * 1000).toISOString()
+          : null;
+
+        // Get the subscription's payment method
+        subscriptionPaymentMethodId = stripeSubscription.default_payment_method as string | null;
+
+        // Update the database with fresh data if it's different (use admin to bypass RLS)
+        if (
+          tier !== profile.subscription_tier ||
+          status !== profile.subscription_status
+        ) {
+          await supabaseAdmin
+            .from("profiles")
+            .update({
+              subscription_tier: tier,
+              subscription_status: status,
+              subscription_started_at: startedAt,
+              subscription_ends_at: endsAt,
+              trial_ends_at: trialEndsAt,
+              is_pro: tier !== "free",
+              updated_at: new Date().toISOString(),
+            })
+            .eq("id", user.id);
+        }
+      } catch (stripeError) {
+        console.error("Failed to fetch Stripe subscription:", stripeError);
+        // Fall back to database values
+      }
+    }
 
     // Fetch usage data
     const [banksResult, transactionsResult, aiQueriesResult] = await Promise.all([
@@ -84,13 +195,59 @@ export async function GET() {
       createdAt: record.created_at,
     }));
 
+    // Fetch payment methods from Stripe
+    let paymentMethods: Array<{
+      id: string;
+      type: string;
+      brand: string;
+      last4: string;
+      expMonth: number;
+      expYear: number;
+      isDefault: boolean;
+      isSubscriptionPayment: boolean;
+    }> = [];
+
+    if (profile?.stripe_customer_id) {
+      try {
+        const stripePaymentMethods = await stripe.paymentMethods.list({
+          customer: profile.stripe_customer_id,
+          type: "card",
+        });
+
+        // Get default payment method
+        let defaultPaymentMethodId: string | null = null;
+        try {
+          const customer = await stripe.customers.retrieve(profile.stripe_customer_id);
+          if (customer && !customer.deleted) {
+            defaultPaymentMethodId = customer.invoice_settings?.default_payment_method as string | null;
+          }
+        } catch {
+          // Ignore error getting default
+        }
+
+        paymentMethods = stripePaymentMethods.data.map((pm) => ({
+          id: pm.id,
+          type: pm.type,
+          brand: pm.card?.brand || "unknown",
+          last4: pm.card?.last4 || "****",
+          expMonth: pm.card?.exp_month || 0,
+          expYear: pm.card?.exp_year || 0,
+          isDefault: pm.id === defaultPaymentMethodId,
+          isSubscriptionPayment: pm.id === subscriptionPaymentMethodId,
+        }));
+      } catch (stripeError) {
+        console.error("Failed to fetch payment methods:", stripeError);
+      }
+    }
+
     return NextResponse.json({
       subscription: {
         tier,
         status,
-        startedAt: profile?.subscription_started_at,
-        endsAt: profile?.subscription_ends_at,
-        trialEndsAt: profile?.trial_ends_at,
+        billingCycle,
+        startedAt,
+        endsAt,
+        trialEndsAt,
       },
       usage: {
         bankConnections: {
@@ -125,7 +282,7 @@ export async function GET() {
         syncFrequency: tierLimits.syncFrequency,
       },
       billingHistory: formattedBillingHistory,
-      paymentMethods: [], // Would come from Stripe
+      paymentMethods,
     });
   } catch (error) {
     console.error("Subscription fetch error:", error);

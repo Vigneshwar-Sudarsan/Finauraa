@@ -27,6 +27,6 @@ export const FREE_TIER = {
 
 // Pro tier pricing
 export const PRO_TIER = {
-  priceMonthly: 2.9, // BHD
-  priceCurrency: "BHD",
+  priceMonthly: 7.99, // USD
+  priceCurrency: "USD",
 };

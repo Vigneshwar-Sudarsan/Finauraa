@@ -123,16 +123,55 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     console.error("Checkout error:", error);
 
+    // Get error message safely
+    let errorMessage = "Unable to start checkout. Please try again.";
+    let statusCode = 500;
+
     if (error instanceof Stripe.errors.StripeError) {
-      return NextResponse.json(
-        { error: error.message },
-        { status: 400 }
-      );
+      console.error("Stripe error:", error.type, error.code, error.message);
+      statusCode = 400;
+
+      // Handle specific Stripe errors with user-friendly messages
+      switch (error.code) {
+        case "resource_missing":
+          if (error.message.includes("No such price")) {
+            errorMessage = "This plan is temporarily unavailable. Please contact support.";
+          } else if (error.message.includes("No such customer")) {
+            errorMessage = "Account setup issue. Please try again or contact support.";
+          } else {
+            errorMessage = "Configuration error. Please contact support.";
+          }
+          break;
+        case "card_declined":
+          errorMessage = "Your card was declined. Please try a different payment method.";
+          break;
+        case "expired_card":
+          errorMessage = "Your card has expired. Please use a different card.";
+          break;
+        case "incorrect_cvc":
+          errorMessage = "Invalid security code. Please check and try again.";
+          break;
+        case "processing_error":
+          errorMessage = "Payment processing error. Please try again in a moment.";
+          break;
+        case "rate_limit":
+          errorMessage = "Too many requests. Please wait a moment and try again.";
+          statusCode = 429;
+          break;
+        default:
+          // For other Stripe errors, use a generic message
+          errorMessage = "Payment service error. Please try again or contact support.";
+      }
+    } else if (error instanceof Error) {
+      console.error("Error:", error.message, error.stack);
+      errorMessage = "Something went wrong. Please try again.";
+    } else {
+      console.error("Unknown error type:", typeof error, error);
     }
 
     return NextResponse.json(
-      { error: "Failed to create checkout session" },
-      { status: 500 }
+      { error: errorMessage },
+      { status: statusCode }
     );
   }
 }

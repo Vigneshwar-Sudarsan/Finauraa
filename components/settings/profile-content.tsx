@@ -40,6 +40,7 @@ interface ProfileData {
   avatar_url: string | null;
   email: string | null;
   is_pro: boolean;
+  subscription_tier: "free" | "pro" | "family";
   created_at: string;
 }
 
@@ -74,14 +75,24 @@ export function ProfileContent({ userId, userEmail }: ProfileContentProps) {
 
   const fetchProfileData = async () => {
     try {
-      // Fetch profile
-      const { data: profileData, error: profileError } = await supabase
-        .from("profiles")
-        .select("*")
-        .eq("id", userId)
-        .single();
+      // Fetch profile and subscription data in parallel
+      const [profileResult, subscriptionResult] = await Promise.all([
+        supabase
+          .from("profiles")
+          .select("*")
+          .eq("id", userId)
+          .single(),
+        fetch("/api/subscription").then(res => res.ok ? res.json() : null).catch(() => null)
+      ]);
 
-      if (profileError) throw profileError;
+      if (profileResult.error) throw profileResult.error;
+
+      // Merge subscription tier from API (most accurate) with profile data
+      const profileData = {
+        ...profileResult.data,
+        subscription_tier: subscriptionResult?.subscription?.tier || profileResult.data.subscription_tier || "free"
+      };
+
       setProfile(profileData);
       setEditedName(profileData.full_name || "");
 
@@ -193,8 +204,8 @@ export function ProfileContent({ userId, userEmail }: ProfileContentProps) {
   };
 
   const handleExportData = async () => {
-    if (!profile?.is_pro) {
-      alert("Data export is a Pro feature. Upgrade to Pro for BHD 2.900/month to export your financial data.");
+    if (!profile || profile.subscription_tier === "free") {
+      alert("Data export is a Pro feature. Upgrade to Pro for $7.99/month to export your financial data.");
       return;
     }
 
@@ -219,7 +230,7 @@ export function ProfileContent({ userId, userEmail }: ProfileContentProps) {
           name: profile.full_name,
           email: profile.email,
           memberSince: profile.created_at,
-          isPro: profile.is_pro,
+          subscriptionTier: profile.subscription_tier,
         },
         bankConnections: connections,
         accounts: accounts?.map(a => ({
@@ -439,9 +450,9 @@ export function ProfileContent({ userId, userEmail }: ProfileContentProps) {
             <div className="space-y-1">
               <Label className="text-xs text-muted-foreground uppercase tracking-wide">Plan</Label>
               <div className="flex items-center gap-2">
-                <Crown size={16} className={profile.is_pro ? "text-yellow-500" : "text-muted-foreground"} weight={profile.is_pro ? "fill" : "regular"} />
-                <Badge variant={profile.is_pro ? "default" : "secondary"}>
-                  {profile.is_pro ? "Pro" : "Free"}
+                <Crown size={16} className={profile.subscription_tier !== "free" ? "text-yellow-500" : "text-muted-foreground"} weight={profile.subscription_tier !== "free" ? "fill" : "regular"} />
+                <Badge variant={profile.subscription_tier !== "free" ? "default" : "secondary"}>
+                  {profile.subscription_tier === "family" ? "Family" : profile.subscription_tier === "pro" ? "Pro" : "Free"}
                 </Badge>
               </div>
             </div>
@@ -547,7 +558,7 @@ export function ProfileContent({ userId, userEmail }: ProfileContentProps) {
               <div>
                 <div className="flex items-center gap-2">
                   <p className="font-medium text-sm">Export Your Data</p>
-                  {!profile.is_pro && (
+                  {profile.subscription_tier === "free" && (
                     <Badge variant="secondary" className="text-[10px] flex items-center gap-1">
                       <Crown size={10} weight="fill" />
                       Pro
@@ -596,7 +607,7 @@ export function ProfileContent({ userId, userEmail }: ProfileContentProps) {
       </Card>
 
       {/* Upgrade CTA for Free Users */}
-      {!profile.is_pro && (
+      {profile.subscription_tier === "free" && (
         <Card className="border-primary/50 bg-gradient-to-br from-primary/5 to-primary/10">
           <CardContent className="p-6">
             <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
@@ -606,10 +617,10 @@ export function ProfileContent({ userId, userEmail }: ProfileContentProps) {
               <div className="flex-1">
                 <h3 className="font-semibold text-lg">Upgrade to Pro</h3>
                 <p className="text-sm text-muted-foreground">
-                  Unlock unlimited bank connections, AI queries, data export, and more for just BHD 2.900/month.
+                  Unlock unlimited bank connections, AI queries, data export, and more for just $7.99/month.
                 </p>
               </div>
-              <Button className="gap-2 whitespace-nowrap">
+              <Button className="gap-2 whitespace-nowrap" onClick={() => window.location.href = "/dashboard/settings/subscription/plans"}>
                 <Crown size={16} weight="fill" />
                 Upgrade Now
               </Button>

@@ -73,8 +73,8 @@ export function PaymentsContent() {
                     Payment initiation is available on the Pro plan. Send money directly
                     from the app using Tarabut's secure payment infrastructure.
                   </p>
-                  <Button className="mt-4" size="sm">
-                    Upgrade to Pro - BHD 2.900/month
+                  <Button className="mt-4" size="sm" onClick={() => window.location.href = "/dashboard/settings/subscription/plans"}>
+                    Upgrade to Pro - $7.99/month
                   </Button>
                 </div>
               </div>

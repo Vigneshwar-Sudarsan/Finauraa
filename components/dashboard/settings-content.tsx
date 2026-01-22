@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { useTheme } from "next-themes";
 import { DashboardHeader } from "./dashboard-header";
@@ -44,11 +44,26 @@ export function SettingsContent() {
 
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const [isDeletingAccount, setIsDeletingAccount] = useState(false);
+  const [subscriptionTier, setSubscriptionTier] = useState<"free" | "pro" | "family">("free");
+
+  // Fetch subscription tier
+  const fetchSubscriptionTier = useCallback(async () => {
+    try {
+      const response = await fetch("/api/subscription");
+      if (response.ok) {
+        const data = await response.json();
+        setSubscriptionTier(data.subscription?.tier || "free");
+      }
+    } catch (error) {
+      console.error("Failed to fetch subscription:", error);
+    }
+  }, []);
 
   // Wait for component to mount to avoid hydration mismatch
   useEffect(() => {
     setMounted(true);
-  }, []);
+    fetchSubscriptionTier();
+  }, [fetchSubscriptionTier]);
 
   // Use resolvedTheme which handles "system" theme, default to true (dark) before mount
   const isDarkMode = mounted ? resolvedTheme === "dark" : true;
@@ -115,6 +130,18 @@ export function SettingsContent() {
     }
   };
 
+  // Get display name for subscription tier
+  const getTierDisplayName = (tier: "free" | "pro" | "family") => {
+    switch (tier) {
+      case "pro":
+        return "Pro";
+      case "family":
+        return "Family";
+      default:
+        return "Free";
+    }
+  };
+
   const accountSettings: SettingItem[] = [
     {
       icon: User,
@@ -129,7 +156,7 @@ export function SettingsContent() {
       description: "Manage your plan and billing",
       action: "link",
       href: "/dashboard/settings/subscription",
-      badge: "Free",
+      badge: getTierDisplayName(subscriptionTier),
     },
     {
       icon: Bank,

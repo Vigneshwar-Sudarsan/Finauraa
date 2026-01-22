@@ -58,6 +58,24 @@ export async function POST(request: NextRequest) {
         break;
       }
 
+      case "customer.subscription.paused": {
+        const subscription = event.data.object as Stripe.Subscription;
+        await handleSubscriptionPaused(subscription);
+        break;
+      }
+
+      case "customer.subscription.resumed": {
+        const subscription = event.data.object as Stripe.Subscription;
+        await handleSubscriptionResumed(subscription);
+        break;
+      }
+
+      case "customer.subscription.trial_will_end": {
+        const subscription = event.data.object as Stripe.Subscription;
+        await handleTrialWillEnd(subscription);
+        break;
+      }
+
       case "invoice.payment_succeeded": {
         const invoice = event.data.object as Stripe.Invoice;
         await handleInvoicePayment(invoice, "succeeded");
@@ -67,6 +85,18 @@ export async function POST(request: NextRequest) {
       case "invoice.payment_failed": {
         const invoice = event.data.object as Stripe.Invoice;
         await handleInvoicePayment(invoice, "failed");
+        break;
+      }
+
+      case "invoice.upcoming": {
+        const invoice = event.data.object as Stripe.Invoice;
+        await handleUpcomingInvoice(invoice);
+        break;
+      }
+
+      case "payment_intent.payment_failed": {
+        const paymentIntent = event.data.object as Stripe.PaymentIntent;
+        await handlePaymentFailed(paymentIntent);
         break;
       }
 
@@ -91,22 +121,39 @@ export async function POST(request: NextRequest) {
 async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
   const userId = session.metadata?.user_id;
   const customerId = session.customer as string;
+  const subscriptionId = session.subscription as string | null;
 
   if (!userId) {
     console.error("No user_id in checkout session metadata");
     return;
   }
 
-  // Store Stripe customer ID
+  // Determine tier from metadata
+  const plan = session.metadata?.plan as "pro" | "family" | undefined;
+  const tier = plan || "pro";
+
+  // Update profile with customer ID and subscription info
+  const updateData: Record<string, unknown> = {
+    stripe_customer_id: customerId,
+    updated_at: new Date().toISOString(),
+  };
+
+  // If we have a subscription, update subscription fields immediately
+  // This ensures user sees the correct tier even before subscription webhook fires
+  if (subscriptionId) {
+    updateData.stripe_subscription_id = subscriptionId;
+    updateData.subscription_tier = tier;
+    updateData.subscription_status = "active";
+    updateData.is_pro = true;
+    updateData.subscription_started_at = new Date().toISOString();
+  }
+
   await supabaseAdmin
     .from("profiles")
-    .update({
-      stripe_customer_id: customerId,
-      updated_at: new Date().toISOString(),
-    })
+    .update(updateData)
     .eq("id", userId);
 
-  console.log(`Checkout completed for user ${userId}, customer ${customerId}`);
+  console.log(`Checkout completed for user ${userId}, customer ${customerId}, tier: ${tier}`);
 }
 
 /**
@@ -139,13 +186,17 @@ async function handleSubscriptionUpdate(subscription: Stripe.Subscription) {
     trialing: "trialing",
     past_due: "past_due",
     canceled: "canceled",
-    incomplete: "active",
+    incomplete: "incomplete",
     incomplete_expired: "canceled",
     unpaid: "past_due",
-    paused: "canceled",
+    paused: "paused",
   };
 
-  const status = statusMap[subscription.status] || "active";
+  // Check if subscription is scheduled for cancellation
+  let status = statusMap[subscription.status] || "active";
+  if (subscription.cancel_at_period_end && subscription.status === "active") {
+    status = "canceling";
+  }
 
   // Update subscription in database
   const { error } = await supabaseAdmin
@@ -256,6 +307,148 @@ async function handleInvoicePayment(
   }
 
   console.log(`Invoice ${status} for user ${profile.id}: ${invoice.amount_paid / 100} ${invoice.currency}`);
+}
+
+/**
+ * Handle subscription paused
+ */
+async function handleSubscriptionPaused(subscription: Stripe.Subscription) {
+  const customerId = subscription.customer as string;
+
+  const { data: profile } = await supabaseAdmin
+    .from("profiles")
+    .select("id")
+    .eq("stripe_customer_id", customerId)
+    .single();
+
+  if (!profile) {
+    console.error(`No user found for customer ${customerId}`);
+    return;
+  }
+
+  await supabaseAdmin
+    .from("profiles")
+    .update({
+      subscription_status: "paused",
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", profile.id);
+
+  console.log(`Subscription paused for user ${profile.id}`);
+}
+
+/**
+ * Handle subscription resumed
+ */
+async function handleSubscriptionResumed(subscription: Stripe.Subscription) {
+  const customerId = subscription.customer as string;
+
+  const { data: profile } = await supabaseAdmin
+    .from("profiles")
+    .select("id")
+    .eq("stripe_customer_id", customerId)
+    .single();
+
+  if (!profile) {
+    console.error(`No user found for customer ${customerId}`);
+    return;
+  }
+
+  const subscriptionItem = subscription.items.data[0];
+  const priceId = subscriptionItem?.price.id;
+  const tier = mapPriceIdToTier(priceId);
+
+  await supabaseAdmin
+    .from("profiles")
+    .update({
+      subscription_tier: tier,
+      subscription_status: "active",
+      is_pro: tier !== "free",
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", profile.id);
+
+  console.log(`Subscription resumed for user ${profile.id}`);
+}
+
+/**
+ * Handle trial ending soon (3 days before)
+ * This can be used to send reminder emails
+ */
+async function handleTrialWillEnd(subscription: Stripe.Subscription) {
+  const customerId = subscription.customer as string;
+
+  const { data: profile } = await supabaseAdmin
+    .from("profiles")
+    .select("id, email")
+    .eq("stripe_customer_id", customerId)
+    .single();
+
+  if (!profile) {
+    console.error(`No user found for customer ${customerId}`);
+    return;
+  }
+
+  // Log the event - you can implement email notification here
+  console.log(`Trial ending soon for user ${profile.id}, trial_end: ${subscription.trial_end}`);
+
+  // TODO: Send email notification about trial ending
+  // You could use a service like Resend, SendGrid, etc.
+}
+
+/**
+ * Handle upcoming invoice (sent ~1 hour before invoice is created)
+ * Useful for sending payment reminders
+ */
+async function handleUpcomingInvoice(invoice: Stripe.Invoice) {
+  const customerId = invoice.customer as string;
+
+  const { data: profile } = await supabaseAdmin
+    .from("profiles")
+    .select("id")
+    .eq("stripe_customer_id", customerId)
+    .single();
+
+  if (!profile) {
+    console.error(`No user found for customer ${customerId}`);
+    return;
+  }
+
+  console.log(`Upcoming invoice for user ${profile.id}: ${invoice.amount_due / 100} ${invoice.currency}`);
+
+  // TODO: Send email notification about upcoming payment
+}
+
+/**
+ * Handle payment intent failed
+ * For more granular payment failure handling
+ */
+async function handlePaymentFailed(paymentIntent: Stripe.PaymentIntent) {
+  const customerId = paymentIntent.customer as string;
+
+  if (!customerId) {
+    console.error("No customer ID in payment intent");
+    return;
+  }
+
+  const { data: profile } = await supabaseAdmin
+    .from("profiles")
+    .select("id")
+    .eq("stripe_customer_id", customerId)
+    .single();
+
+  if (!profile) {
+    console.error(`No user found for customer ${customerId}`);
+    return;
+  }
+
+  // Record the failed payment attempt
+  const lastError = paymentIntent.last_payment_error;
+  console.error(
+    `Payment failed for user ${profile.id}: ${lastError?.message || "Unknown error"}`
+  );
+
+  // TODO: Send email notification about failed payment
 }
 
 /**

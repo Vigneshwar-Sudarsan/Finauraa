@@ -73,7 +73,7 @@ export function EnhancedAIConsentDialog({
                     Pro Feature Required
                   </p>
                   <p className="text-sm text-amber-800 dark:text-amber-200 mt-1">
-                    Enhanced AI is available exclusively for Pro subscribers (BHD 2.900/month).
+                    Enhanced AI is available exclusively for Pro subscribers ($7.99/month).
                     Upgrade to unlock this feature.
                   </p>
                 </div>
