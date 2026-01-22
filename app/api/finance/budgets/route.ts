@@ -1,9 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { requireBankConsent } from "@/lib/consent-middleware";
 
 /**
  * GET /api/finance/budgets
  * Fetches all budgets for the user with spent amounts calculated
+ * BOBF/PDPL: Requires active bank_access consent (accesses transaction data)
  */
 export async function GET() {
   try {
@@ -14,6 +16,12 @@ export async function GET() {
 
     if (!user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    // BOBF/PDPL: Verify active consent before data access
+    const consentCheck = await requireBankConsent(supabase, user.id, "/api/finance/budgets");
+    if (!consentCheck.allowed) {
+      return consentCheck.response;
     }
 
     // Get all active budgets for the user

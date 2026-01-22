@@ -2,16 +2,33 @@ import { NextResponse } from "next/server";
 import Stripe from "stripe";
 import { createClient } from "@/lib/supabase/server";
 import { createClient as createAdminClient } from "@supabase/supabase-js";
+import type { SupabaseClient } from "@supabase/supabase-js";
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
-  apiVersion: "2025-12-15.clover",
-});
+// Lazy initialization to avoid build-time errors
+let stripe: Stripe | null = null;
+let supabaseAdmin: SupabaseClient | null = null;
 
-// Use service role for database updates to bypass RLS
-const supabaseAdmin = createAdminClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
+function getStripe(): Stripe {
+  if (!stripe) {
+    if (!process.env.STRIPE_SECRET_KEY) {
+      throw new Error("STRIPE_SECRET_KEY is not configured");
+    }
+    stripe = new Stripe(process.env.STRIPE_SECRET_KEY, {
+      apiVersion: "2025-12-15.clover",
+    });
+  }
+  return stripe;
+}
+
+function getSupabaseAdmin(): SupabaseClient {
+  if (!supabaseAdmin) {
+    supabaseAdmin = createAdminClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!
+    );
+  }
+  return supabaseAdmin;
+}
 
 /**
  * POST /api/subscription/sync
@@ -50,7 +67,7 @@ export async function POST() {
 
     // If no customer ID, search by email
     if (!customerId) {
-      const customers = await stripe.customers.list({
+      const customers = await getStripe().customers.list({
         email: user.email,
         limit: 1,
       });
@@ -59,7 +76,7 @@ export async function POST() {
         customerId = customers.data[0].id;
 
         // Update profile with customer ID (use admin client to bypass RLS)
-        await supabaseAdmin
+        await getSupabaseAdmin()
           .from("profiles")
           .update({
             stripe_customer_id: customerId,
@@ -78,7 +95,7 @@ export async function POST() {
     }
 
     // Get subscriptions for this customer
-    const subscriptions = await stripe.subscriptions.list({
+    const subscriptions = await getStripe().subscriptions.list({
       customer: customerId,
       status: "all",
       limit: 1,
@@ -149,7 +166,7 @@ export async function POST() {
       : null;
 
     // Update profile with all subscription info (use admin client to bypass RLS)
-    const { error } = await supabaseAdmin
+    const { error } = await getSupabaseAdmin()
       .from("profiles")
       .update({
         stripe_customer_id: customerId,

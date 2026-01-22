@@ -2,21 +2,34 @@ import { NextRequest, NextResponse } from "next/server";
 import Stripe from "stripe";
 import { createClient } from "@/lib/supabase/server";
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
-  apiVersion: "2025-12-15.clover",
-});
+// Lazy initialization to avoid build-time errors
+let stripe: Stripe | null = null;
+
+function getStripe(): Stripe {
+  if (!stripe) {
+    if (!process.env.STRIPE_SECRET_KEY) {
+      throw new Error("STRIPE_SECRET_KEY is not configured");
+    }
+    stripe = new Stripe(process.env.STRIPE_SECRET_KEY, {
+      apiVersion: "2025-12-15.clover",
+    });
+  }
+  return stripe;
+}
 
 // Stripe price IDs for each plan (configure in Stripe Dashboard)
-const PRICE_IDS = {
-  pro: {
-    monthly: process.env.STRIPE_PRO_PRICE_ID_MONTHLY!,
-    yearly: process.env.STRIPE_PRO_PRICE_ID_YEARLY!,
-  },
-  family: {
-    monthly: process.env.STRIPE_FAMILY_PRICE_ID_MONTHLY!,
-    yearly: process.env.STRIPE_FAMILY_PRICE_ID_YEARLY!,
-  },
-};
+function getPriceIds() {
+  return {
+    pro: {
+      monthly: process.env.STRIPE_PRO_PRICE_ID_MONTHLY!,
+      yearly: process.env.STRIPE_PRO_PRICE_ID_YEARLY!,
+    },
+    family: {
+      monthly: process.env.STRIPE_FAMILY_PRICE_ID_MONTHLY!,
+      yearly: process.env.STRIPE_FAMILY_PRICE_ID_YEARLY!,
+    },
+  };
+}
 
 /**
  * POST /api/subscription/checkout
@@ -56,6 +69,7 @@ export async function POST(request: NextRequest) {
       .eq("id", user.id)
       .single();
 
+    const PRICE_IDS = getPriceIds();
     const priceId = PRICE_IDS[plan as "pro" | "family"][billing as "monthly" | "yearly"];
 
     if (!priceId) {
@@ -68,8 +82,9 @@ export async function POST(request: NextRequest) {
     // Get or create Stripe customer
     let customerId = profile?.stripe_customer_id;
 
+    const stripeClient = getStripe();
     if (!customerId) {
-      const customer = await stripe.customers.create({
+      const customer = await stripeClient.customers.create({
         email: profile?.email || user.email,
         name: profile?.full_name || undefined,
         metadata: {
@@ -86,7 +101,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Create checkout session
-    const session = await stripe.checkout.sessions.create({
+    const session = await stripeClient.checkout.sessions.create({
       customer: customerId,
       mode: "subscription",
       line_items: [

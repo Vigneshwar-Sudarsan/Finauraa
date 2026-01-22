@@ -2,21 +2,34 @@ import { NextRequest, NextResponse } from "next/server";
 import Stripe from "stripe";
 import { createClient } from "@/lib/supabase/server";
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
-  apiVersion: "2025-12-15.clover",
-});
+// Lazy initialization to avoid build-time errors
+let stripe: Stripe | null = null;
+
+function getStripe(): Stripe {
+  if (!stripe) {
+    if (!process.env.STRIPE_SECRET_KEY) {
+      throw new Error("STRIPE_SECRET_KEY is not configured");
+    }
+    stripe = new Stripe(process.env.STRIPE_SECRET_KEY, {
+      apiVersion: "2025-12-15.clover",
+    });
+  }
+  return stripe;
+}
 
 // Stripe price IDs for each plan
-const PRICE_IDS = {
-  pro: {
-    monthly: process.env.STRIPE_PRO_PRICE_ID_MONTHLY!,
-    yearly: process.env.STRIPE_PRO_PRICE_ID_YEARLY!,
-  },
-  family: {
-    monthly: process.env.STRIPE_FAMILY_PRICE_ID_MONTHLY!,
-    yearly: process.env.STRIPE_FAMILY_PRICE_ID_YEARLY!,
-  },
-};
+function getPriceIds() {
+  return {
+    pro: {
+      monthly: process.env.STRIPE_PRO_PRICE_ID_MONTHLY!,
+      yearly: process.env.STRIPE_PRO_PRICE_ID_YEARLY!,
+    },
+    family: {
+      monthly: process.env.STRIPE_FAMILY_PRICE_ID_MONTHLY!,
+      yearly: process.env.STRIPE_FAMILY_PRICE_ID_YEARLY!,
+    },
+  };
+}
 
 /**
  * POST /api/subscription/change-plan
@@ -87,7 +100,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Get new price ID
-    const newPriceId = PRICE_IDS[plan as "pro" | "family"][billing as "monthly" | "yearly"];
+    const newPriceId = getPriceIds()[plan as "pro" | "family"][billing as "monthly" | "yearly"];
 
     if (!newPriceId) {
       return NextResponse.json(
@@ -97,7 +110,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Get current subscription from Stripe
-    const currentSubscription = await stripe.subscriptions.retrieve(
+    const currentSubscription = await getStripe().subscriptions.retrieve(
       profile.stripe_subscription_id
     );
 
@@ -118,7 +131,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Update the subscription
-    const updatedSubscription = await stripe.subscriptions.update(
+    const updatedSubscription = await getStripe().subscriptions.update(
       profile.stripe_subscription_id,
       {
         items: [
@@ -252,7 +265,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Get new price ID
-    const newPriceId = PRICE_IDS[plan as "pro" | "family"][billing as "monthly" | "yearly"];
+    const newPriceId = getPriceIds()[plan as "pro" | "family"][billing as "monthly" | "yearly"];
 
     if (!newPriceId) {
       return NextResponse.json(
@@ -262,7 +275,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Get current subscription
-    const subscription = await stripe.subscriptions.retrieve(
+    const subscription = await getStripe().subscriptions.retrieve(
       profile.stripe_subscription_id
     );
 
@@ -276,7 +289,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Get proration preview using invoice preview
-    const upcomingInvoice = await stripe.invoices.createPreview({
+    const upcomingInvoice = await getStripe().invoices.createPreview({
       customer: subscription.customer as string,
       subscription: profile.stripe_subscription_id,
       subscription_details: {

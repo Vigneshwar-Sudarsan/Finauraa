@@ -1,10 +1,13 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createTarabutClient } from "@/lib/tarabut/client";
+import { requireBankConsent, logDataAccessSuccess } from "@/lib/consent-middleware";
+import { logBankEvent } from "@/lib/audit";
 
 /**
  * POST /api/finance/refresh
  * Refreshes all bank connections - accounts and transactions
+ * BOBF/PDPL: Requires active bank_access consent
  */
 export async function POST() {
   try {
@@ -15,6 +18,12 @@ export async function POST() {
 
     if (!user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    // BOBF/PDPL: Verify active consent before data access
+    const consentCheck = await requireBankConsent(supabase, user.id, "/api/finance/refresh");
+    if (!consentCheck.allowed) {
+      return consentCheck.response;
     }
 
     // Get all active bank connections
@@ -160,6 +169,14 @@ export async function POST() {
         console.error(`Error refreshing connection ${connection.id}:`, connectionError);
         errors.push(`${connection.bank_name}: Failed to refresh`);
       }
+    }
+
+    // Log successful sync for each connection
+    for (const connection of connections) {
+      await logBankEvent(user.id, "bank_synced", connection.id, {
+        accountsUpdated,
+        newTransactions: totalNewTransactions,
+      });
     }
 
     return NextResponse.json({

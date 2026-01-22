@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { requireBankConsent } from "@/lib/consent-middleware";
 
 interface RouteParams {
   params: Promise<{ id: string }>;
@@ -8,6 +9,7 @@ interface RouteParams {
 /**
  * GET /api/finance/savings-goals/[id]
  * Fetches a single savings goal
+ * BOBF/PDPL: Requires active bank_access consent
  */
 export async function GET(request: NextRequest, { params }: RouteParams) {
   try {
@@ -19,6 +21,12 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
 
     if (!user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    // BOBF/PDPL: Verify active consent before data access
+    const consentCheck = await requireBankConsent(supabase, user.id, `/api/finance/savings-goals/${id}`);
+    if (!consentCheck.allowed) {
+      return consentCheck.response;
     }
 
     const { data: goal, error } = await supabase

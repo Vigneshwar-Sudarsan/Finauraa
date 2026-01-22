@@ -1,9 +1,11 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { requireBankConsent, logDataAccessSuccess } from "@/lib/consent-middleware";
 
 /**
  * GET /api/finance/accounts
  * Fetches all bank accounts for the user with connection info
+ * BOBF/PDPL: Requires active bank_access consent
  */
 export async function GET() {
   try {
@@ -14,6 +16,12 @@ export async function GET() {
 
     if (!user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    // BOBF/PDPL: Verify active consent before data access
+    const consentCheck = await requireBankConsent(supabase, user.id, "/api/finance/accounts");
+    if (!consentCheck.allowed) {
+      return consentCheck.response;
     }
 
     // Fetch accounts with their bank connection info
@@ -77,6 +85,11 @@ export async function GET() {
       (sum, acc) => sum + (acc.balance || 0),
       0
     );
+
+    // Log successful data access
+    await logDataAccessSuccess(user.id, "bank_account", consentCheck.consentId, "/api/finance/accounts", {
+      accountCount: transformedAccounts.length,
+    });
 
     return NextResponse.json({
       accounts: transformedAccounts,

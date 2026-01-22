@@ -1,9 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { requireBankConsent, logDataAccessSuccess } from "@/lib/consent-middleware";
 
 /**
  * GET /api/finance/spending
  * Fetches spending analysis for a given period
+ * BOBF/PDPL: Requires active bank_access consent
  */
 export async function GET(request: NextRequest) {
   try {
@@ -14,6 +16,12 @@ export async function GET(request: NextRequest) {
 
     if (!user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    // BOBF/PDPL: Verify active consent before data access
+    const consentCheck = await requireBankConsent(supabase, user.id, "/api/finance/spending");
+    if (!consentCheck.allowed) {
+      return consentCheck.response;
     }
 
     // Get period from query params (default: 90 days)

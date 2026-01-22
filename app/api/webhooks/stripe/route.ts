@@ -1,16 +1,35 @@
 import { NextRequest, NextResponse } from "next/server";
 import Stripe from "stripe";
 import { createClient } from "@supabase/supabase-js";
+import type { SupabaseClient } from "@supabase/supabase-js";
+import { logPaymentEvent } from "@/lib/audit";
+import { sendPaymentFailedNotification, sendTrialEndingNotification } from "@/lib/email";
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
-  apiVersion: "2025-12-15.clover",
-});
+// Lazy initialization to avoid build-time errors
+let stripe: Stripe | null = null;
+let supabaseAdmin: SupabaseClient | null = null;
 
-// Use service role for webhook (no user context)
-const supabaseAdmin = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
+function getStripe(): Stripe {
+  if (!stripe) {
+    if (!process.env.STRIPE_SECRET_KEY) {
+      throw new Error("STRIPE_SECRET_KEY is not configured");
+    }
+    stripe = new Stripe(process.env.STRIPE_SECRET_KEY, {
+      apiVersion: "2025-12-15.clover",
+    });
+  }
+  return stripe;
+}
+
+function getSupabaseAdmin(): SupabaseClient {
+  if (!supabaseAdmin) {
+    supabaseAdmin = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!
+    );
+  }
+  return supabaseAdmin;
+}
 
 /**
  * POST /api/webhooks/stripe
@@ -27,7 +46,7 @@ export async function POST(request: NextRequest) {
   let event: Stripe.Event;
 
   try {
-    event = stripe.webhooks.constructEvent(
+    event = getStripe().webhooks.constructEvent(
       body,
       signature,
       process.env.STRIPE_WEBHOOK_SECRET!
@@ -148,7 +167,7 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
     updateData.subscription_started_at = new Date().toISOString();
   }
 
-  await supabaseAdmin
+  await getSupabaseAdmin()
     .from("profiles")
     .update(updateData)
     .eq("id", userId);
@@ -164,7 +183,7 @@ async function handleSubscriptionUpdate(subscription: Stripe.Subscription) {
   const customerId = subscription.customer as string;
 
   // Find user by Stripe customer ID
-  const { data: profile } = await supabaseAdmin
+  const { data: profile } = await getSupabaseAdmin()
     .from("profiles")
     .select("id")
     .eq("stripe_customer_id", customerId)
@@ -199,7 +218,7 @@ async function handleSubscriptionUpdate(subscription: Stripe.Subscription) {
   }
 
   // Update subscription in database
-  const { error } = await supabaseAdmin
+  const { error } = await getSupabaseAdmin()
     .from("profiles")
     .update({
       subscription_tier: tier,
@@ -222,6 +241,14 @@ async function handleSubscriptionUpdate(subscription: Stripe.Subscription) {
     throw error;
   }
 
+  // Log audit event for subscription update
+  await logPaymentEvent(
+    profile.id,
+    "subscription_updated",
+    subscription.id,
+    { tier, status, price_id: priceId }
+  );
+
   console.log(`Updated user ${profile.id} to tier: ${tier}, status: ${status}`);
 }
 
@@ -232,7 +259,7 @@ async function handleSubscriptionUpdate(subscription: Stripe.Subscription) {
 async function handleSubscriptionCanceled(subscription: Stripe.Subscription) {
   const customerId = subscription.customer as string;
 
-  const { data: profile } = await supabaseAdmin
+  const { data: profile } = await getSupabaseAdmin()
     .from("profiles")
     .select("id")
     .eq("stripe_customer_id", customerId)
@@ -244,7 +271,7 @@ async function handleSubscriptionCanceled(subscription: Stripe.Subscription) {
   }
 
   // Downgrade to free tier
-  await supabaseAdmin
+  await getSupabaseAdmin()
     .from("profiles")
     .update({
       subscription_tier: "free",
@@ -257,12 +284,20 @@ async function handleSubscriptionCanceled(subscription: Stripe.Subscription) {
     })
     .eq("id", profile.id);
 
+  // Log audit event
+  await logPaymentEvent(
+    profile.id,
+    "subscription_canceled",
+    subscription.id,
+    { ended_at: subscription.ended_at }
+  );
+
   console.log(`Subscription canceled for user ${profile.id}`);
 }
 
 /**
  * Handle invoice payment (succeeded or failed)
- * Records billing history
+ * Records billing history and audit log
  */
 async function handleInvoicePayment(
   invoice: Stripe.Invoice,
@@ -270,9 +305,9 @@ async function handleInvoicePayment(
 ) {
   const customerId = invoice.customer as string;
 
-  const { data: profile } = await supabaseAdmin
+  const { data: profile } = await getSupabaseAdmin()
     .from("profiles")
-    .select("id")
+    .select("id, email, full_name")
     .eq("stripe_customer_id", customerId)
     .single();
 
@@ -281,32 +316,65 @@ async function handleInvoicePayment(
     return;
   }
 
-  // Record in billing history
-  // In newer Stripe API, payment_intent is accessed via the payments array
+  // Get payment intent ID from invoice
   const paymentIntentId = invoice.payments?.data?.[0]?.payment?.payment_intent;
-  await supabaseAdmin.from("billing_history").insert({
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const invoiceSubscription = (invoice as any).subscription;
+  const subscriptionId = typeof invoiceSubscription === "string" ? invoiceSubscription : invoiceSubscription?.id;
+
+  // Record in billing history (using new schema)
+  const { data: billingRecord } = await getSupabaseAdmin().from("billing_history").insert({
     user_id: profile.id,
-    amount: (invoice.amount_paid || invoice.amount_due) / 100, // Convert from cents
-    currency: invoice.currency?.toUpperCase() || "USD",
+    stripe_invoice_id: invoice.id,
+    stripe_payment_intent_id: typeof paymentIntentId === "string" ? paymentIntentId : null,
+    stripe_subscription_id: subscriptionId || null,
+    amount: invoice.amount_paid || invoice.amount_due, // Keep in smallest unit (fils/cents)
+    currency: invoice.currency?.toLowerCase() || "bhd",
     status,
     description: invoice.lines.data[0]?.description || "Subscription payment",
     invoice_url: invoice.hosted_invoice_url,
-    stripe_payment_id: typeof paymentIntentId === "string" ? paymentIntentId : null,
-    created_at: new Date().toISOString(),
-  });
+    invoice_pdf_url: invoice.invoice_pdf,
+    period_start: invoice.period_start ? new Date(invoice.period_start * 1000).toISOString() : null,
+    period_end: invoice.period_end ? new Date(invoice.period_end * 1000).toISOString() : null,
+    failure_reason: status === "failed" ? (invoice.last_finalization_error?.message || "Payment failed") : null,
+    failure_code: status === "failed" ? invoice.last_finalization_error?.code : null,
+  }).select("id").single();
 
-  // If payment failed, update subscription status
+  // Log audit event
+  await logPaymentEvent(
+    profile.id,
+    status === "succeeded" ? "payment_succeeded" : "payment_failed",
+    billingRecord?.id || invoice.id,
+    {
+      amount: invoice.amount_paid || invoice.amount_due,
+      currency: invoice.currency,
+      invoice_id: invoice.id,
+    }
+  );
+
+  // If payment failed, update subscription status and send notification
   if (status === "failed") {
-    await supabaseAdmin
+    await getSupabaseAdmin()
       .from("profiles")
       .update({
         subscription_status: "past_due",
         updated_at: new Date().toISOString(),
       })
       .eq("id", profile.id);
+
+    // Send failed payment email notification
+    if (profile.email) {
+      await sendPaymentFailedNotification(
+        profile.email,
+        profile.full_name || "",
+        invoice.amount_due,
+        invoice.currency || "bhd",
+        invoice.last_finalization_error?.message
+      );
+    }
   }
 
-  console.log(`Invoice ${status} for user ${profile.id}: ${invoice.amount_paid / 100} ${invoice.currency}`);
+  console.log(`Invoice ${status} for user ${profile.id}: ${(invoice.amount_paid || 0) / 100} ${invoice.currency}`);
 }
 
 /**
@@ -315,7 +383,7 @@ async function handleInvoicePayment(
 async function handleSubscriptionPaused(subscription: Stripe.Subscription) {
   const customerId = subscription.customer as string;
 
-  const { data: profile } = await supabaseAdmin
+  const { data: profile } = await getSupabaseAdmin()
     .from("profiles")
     .select("id")
     .eq("stripe_customer_id", customerId)
@@ -326,7 +394,7 @@ async function handleSubscriptionPaused(subscription: Stripe.Subscription) {
     return;
   }
 
-  await supabaseAdmin
+  await getSupabaseAdmin()
     .from("profiles")
     .update({
       subscription_status: "paused",
@@ -343,7 +411,7 @@ async function handleSubscriptionPaused(subscription: Stripe.Subscription) {
 async function handleSubscriptionResumed(subscription: Stripe.Subscription) {
   const customerId = subscription.customer as string;
 
-  const { data: profile } = await supabaseAdmin
+  const { data: profile } = await getSupabaseAdmin()
     .from("profiles")
     .select("id")
     .eq("stripe_customer_id", customerId)
@@ -358,7 +426,7 @@ async function handleSubscriptionResumed(subscription: Stripe.Subscription) {
   const priceId = subscriptionItem?.price.id;
   const tier = mapPriceIdToTier(priceId);
 
-  await supabaseAdmin
+  await getSupabaseAdmin()
     .from("profiles")
     .update({
       subscription_tier: tier,
@@ -373,14 +441,14 @@ async function handleSubscriptionResumed(subscription: Stripe.Subscription) {
 
 /**
  * Handle trial ending soon (3 days before)
- * This can be used to send reminder emails
+ * Sends reminder email to user
  */
 async function handleTrialWillEnd(subscription: Stripe.Subscription) {
   const customerId = subscription.customer as string;
 
-  const { data: profile } = await supabaseAdmin
+  const { data: profile } = await getSupabaseAdmin()
     .from("profiles")
-    .select("id, email")
+    .select("id, email, full_name")
     .eq("stripe_customer_id", customerId)
     .single();
 
@@ -389,11 +457,17 @@ async function handleTrialWillEnd(subscription: Stripe.Subscription) {
     return;
   }
 
-  // Log the event - you can implement email notification here
-  console.log(`Trial ending soon for user ${profile.id}, trial_end: ${subscription.trial_end}`);
+  // Send trial ending notification email
+  if (profile.email && subscription.trial_end) {
+    const trialEndDate = new Date(subscription.trial_end * 1000).toISOString();
+    await sendTrialEndingNotification(
+      profile.email,
+      profile.full_name || "",
+      trialEndDate
+    );
+  }
 
-  // TODO: Send email notification about trial ending
-  // You could use a service like Resend, SendGrid, etc.
+  console.log(`Trial ending soon for user ${profile.id}, trial_end: ${subscription.trial_end}`);
 }
 
 /**
@@ -403,7 +477,7 @@ async function handleTrialWillEnd(subscription: Stripe.Subscription) {
 async function handleUpcomingInvoice(invoice: Stripe.Invoice) {
   const customerId = invoice.customer as string;
 
-  const { data: profile } = await supabaseAdmin
+  const { data: profile } = await getSupabaseAdmin()
     .from("profiles")
     .select("id")
     .eq("stripe_customer_id", customerId)
@@ -431,7 +505,7 @@ async function handlePaymentFailed(paymentIntent: Stripe.PaymentIntent) {
     return;
   }
 
-  const { data: profile } = await supabaseAdmin
+  const { data: profile } = await getSupabaseAdmin()
     .from("profiles")
     .select("id")
     .eq("stripe_customer_id", customerId)

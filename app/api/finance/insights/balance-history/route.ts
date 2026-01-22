@@ -1,10 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createTarabutClient } from "@/lib/tarabut/client";
+import { requireBankConsent } from "@/lib/consent-middleware";
 
 /**
  * GET /api/finance/insights/balance-history
  * Fetches balance history from Tarabut Insights API
+ * BOBF/PDPL: Requires active bank_access consent
  * Query params:
  *   - accountId: specific account (optional, uses v2 endpoint if not provided)
  */
@@ -17,6 +19,12 @@ export async function GET(request: NextRequest) {
 
     if (!user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    // BOBF/PDPL: Verify active consent before data access
+    const consentCheck = await requireBankConsent(supabase, user.id, "/api/finance/insights/balance-history");
+    if (!consentCheck.allowed) {
+      return consentCheck.response;
     }
 
     const searchParams = request.nextUrl.searchParams;

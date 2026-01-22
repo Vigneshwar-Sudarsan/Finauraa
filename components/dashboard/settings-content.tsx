@@ -23,6 +23,7 @@ import {
   SpinnerGap,
   Crown,
   Sparkle,
+  LockKey,
 } from "@phosphor-icons/react";
 
 interface SettingItem {
@@ -222,6 +223,16 @@ export function SettingsContent() {
     },
   ];
 
+  const privacySettings: SettingItem[] = [
+    {
+      icon: LockKey,
+      title: "Privacy & Data",
+      description: "Manage consents, data export, and deletion",
+      action: "link",
+      href: "/dashboard/settings/privacy",
+    },
+  ];
+
   const renderSettingItem = (item: SettingItem, index: number, totalItems: number) => {
     const Icon = item.icon;
 
@@ -335,6 +346,18 @@ export function SettingsContent() {
             <CardContent className="p-0">
               {securitySettings.map((item, index) =>
                 renderSettingItem(item, index, securitySettings.length)
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Privacy & Data Section */}
+          <Card>
+            <CardHeader className="pb-0">
+              <CardTitle className="text-base">Privacy & Data</CardTitle>
+            </CardHeader>
+            <CardContent className="p-0">
+              {privacySettings.map((item, index) =>
+                renderSettingItem(item, index, privacySettings.length)
               )}
             </CardContent>
           </Card>

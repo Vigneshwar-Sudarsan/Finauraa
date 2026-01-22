@@ -1,10 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { SubscriptionTier, getTierLimits } from "@/lib/features";
+import { requireBankConsent, logDataAccessSuccess } from "@/lib/consent-middleware";
 
 /**
  * GET /api/finance/transactions
  * Fetches transactions with optional filtering
+ * BOBF/PDPL: Requires active bank_access consent
  */
 export async function GET(request: NextRequest) {
   try {
@@ -15,6 +17,12 @@ export async function GET(request: NextRequest) {
 
     if (!user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    // BOBF/PDPL: Verify active consent before data access
+    const consentCheck = await requireBankConsent(supabase, user.id, "/api/finance/transactions");
+    if (!consentCheck.allowed) {
+      return consentCheck.response;
     }
 
     // Get user's subscription tier for transaction history limits
@@ -87,6 +95,12 @@ export async function GET(request: NextRequest) {
       .from("transactions")
       .select("id", { count: "exact", head: true })
       .eq("user_id", user.id);
+
+    // Log successful data access
+    await logDataAccessSuccess(user.id, "transaction", consentCheck.consentId, "/api/finance/transactions", {
+      transactionCount: transactions?.length || 0,
+      filters: { category, type, accountId },
+    });
 
     return NextResponse.json({
       transactions: transactions || [],

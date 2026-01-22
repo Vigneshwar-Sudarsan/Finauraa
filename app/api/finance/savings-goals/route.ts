@@ -1,10 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { SubscriptionTier, getTierLimits } from "@/lib/features";
+import { requireBankConsent } from "@/lib/consent-middleware";
 
 /**
  * GET /api/finance/savings-goals
  * Fetches all savings goals for the user with calculated progress
+ * BOBF/PDPL: Requires active bank_access consent
  */
 export async function GET() {
   try {
@@ -15,6 +17,12 @@ export async function GET() {
 
     if (!user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    // BOBF/PDPL: Verify active consent before data access
+    const consentCheck = await requireBankConsent(supabase, user.id, "/api/finance/savings-goals");
+    if (!consentCheck.allowed) {
+      return consentCheck.response;
     }
 
     const { data: goals, error } = await supabase

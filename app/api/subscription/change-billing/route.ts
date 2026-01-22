@@ -2,36 +2,57 @@ import { NextRequest, NextResponse } from "next/server";
 import Stripe from "stripe";
 import { createClient } from "@/lib/supabase/server";
 import { createClient as createAdminClient } from "@supabase/supabase-js";
+import type { SupabaseClient } from "@supabase/supabase-js";
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
-  apiVersion: "2025-12-15.clover",
-});
+// Lazy initialization to avoid build-time errors
+let stripe: Stripe | null = null;
+let supabaseAdmin: SupabaseClient | null = null;
 
-// Use service role for database updates to bypass RLS
-const supabaseAdmin = createAdminClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
+function getStripe(): Stripe {
+  if (!stripe) {
+    if (!process.env.STRIPE_SECRET_KEY) {
+      throw new Error("STRIPE_SECRET_KEY is not configured");
+    }
+    stripe = new Stripe(process.env.STRIPE_SECRET_KEY, {
+      apiVersion: "2025-12-15.clover",
+    });
+  }
+  return stripe;
+}
+
+function getSupabaseAdmin(): SupabaseClient {
+  if (!supabaseAdmin) {
+    supabaseAdmin = createAdminClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!
+    );
+  }
+  return supabaseAdmin;
+}
 
 // Stripe price IDs for each plan
-const PRICE_IDS = {
-  pro: {
-    monthly: process.env.STRIPE_PRO_PRICE_ID_MONTHLY!,
-    yearly: process.env.STRIPE_PRO_PRICE_ID_YEARLY!,
-  },
-  family: {
-    monthly: process.env.STRIPE_FAMILY_PRICE_ID_MONTHLY!,
-    yearly: process.env.STRIPE_FAMILY_PRICE_ID_YEARLY!,
-  },
-};
+function getPriceIds() {
+  return {
+    pro: {
+      monthly: process.env.STRIPE_PRO_PRICE_ID_MONTHLY!,
+      yearly: process.env.STRIPE_PRO_PRICE_ID_YEARLY!,
+    },
+    family: {
+      monthly: process.env.STRIPE_FAMILY_PRICE_ID_MONTHLY!,
+      yearly: process.env.STRIPE_FAMILY_PRICE_ID_YEARLY!,
+    },
+  };
+}
 
 // Price lookup to determine current billing cycle
-const PRICE_TO_BILLING: Record<string, { plan: string; billing: string }> = {
-  [process.env.STRIPE_PRO_PRICE_ID_MONTHLY!]: { plan: "pro", billing: "monthly" },
-  [process.env.STRIPE_PRO_PRICE_ID_YEARLY!]: { plan: "pro", billing: "yearly" },
-  [process.env.STRIPE_FAMILY_PRICE_ID_MONTHLY!]: { plan: "family", billing: "monthly" },
-  [process.env.STRIPE_FAMILY_PRICE_ID_YEARLY!]: { plan: "family", billing: "yearly" },
-};
+function getPriceToBilling(): Record<string, { plan: string; billing: string }> {
+  return {
+    [process.env.STRIPE_PRO_PRICE_ID_MONTHLY!]: { plan: "pro", billing: "monthly" },
+    [process.env.STRIPE_PRO_PRICE_ID_YEARLY!]: { plan: "pro", billing: "yearly" },
+    [process.env.STRIPE_FAMILY_PRICE_ID_MONTHLY!]: { plan: "family", billing: "monthly" },
+    [process.env.STRIPE_FAMILY_PRICE_ID_YEARLY!]: { plan: "family", billing: "yearly" },
+  };
+}
 
 /**
  * POST /api/subscription/change-billing
@@ -82,7 +103,8 @@ export async function POST(request: NextRequest) {
     }
 
     // Get current subscription from Stripe
-    const currentSubscription = await stripe.subscriptions.retrieve(
+    const stripeClient = getStripe();
+    const currentSubscription = await stripeClient.subscriptions.retrieve(
       profile.stripe_subscription_id
     );
 
@@ -96,7 +118,8 @@ export async function POST(request: NextRequest) {
 
     // Determine current billing cycle
     const currentPriceId = currentItem.price.id;
-    const currentBillingInfo = PRICE_TO_BILLING[currentPriceId];
+    const PRICE_TO_BILLING = getPriceToBilling();
+    const currentBillingInfo = getPriceToBilling()[currentPriceId];
 
     if (!currentBillingInfo) {
       return NextResponse.json(
@@ -115,7 +138,8 @@ export async function POST(request: NextRequest) {
 
     // Get the new price ID (same plan, different billing cycle)
     const plan = profile.subscription_tier as "pro" | "family";
-    const newPriceId = PRICE_IDS[plan][billing as "monthly" | "yearly"];
+    const PRICE_IDS = getPriceIds();
+    const newPriceId = getPriceIds()[plan][billing as "monthly" | "yearly"];
 
     if (!newPriceId) {
       return NextResponse.json(
@@ -127,7 +151,7 @@ export async function POST(request: NextRequest) {
     const isUpgradeToYearly = billing === "yearly";
 
     // Update the subscription
-    const updatedSubscription = await stripe.subscriptions.update(
+    const updatedSubscription = await stripeClient.subscriptions.update(
       profile.stripe_subscription_id,
       {
         items: [
@@ -154,7 +178,7 @@ export async function POST(request: NextRequest) {
     const subscriptionItem = updatedSubscription.items.data[0];
 
     // Update profile in database
-    await supabaseAdmin
+    await getSupabaseAdmin()
       .from("profiles")
       .update({
         subscription_status: "active",
@@ -264,7 +288,7 @@ export async function GET(request: NextRequest) {
     }
 
     const plan = profile.subscription_tier as "pro" | "family";
-    const newPriceId = PRICE_IDS[plan]?.[billing as "monthly" | "yearly"];
+    const newPriceId = getPriceIds()[plan]?.[billing as "monthly" | "yearly"];
 
     if (!newPriceId) {
       return NextResponse.json(
@@ -274,7 +298,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Get current subscription
-    const subscription = await stripe.subscriptions.retrieve(
+    const subscription = await getStripe().subscriptions.retrieve(
       profile.stripe_subscription_id
     );
 
@@ -288,7 +312,7 @@ export async function GET(request: NextRequest) {
 
     // Determine current billing
     const currentPriceId = currentItem.price.id;
-    const currentBillingInfo = PRICE_TO_BILLING[currentPriceId];
+    const currentBillingInfo = getPriceToBilling()[currentPriceId];
 
     if (currentBillingInfo?.billing === billing) {
       return NextResponse.json(
@@ -298,7 +322,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Get proration preview
-    const upcomingInvoice = await stripe.invoices.createPreview({
+    const upcomingInvoice = await getStripe().invoices.createPreview({
       customer: subscription.customer as string,
       subscription: profile.stripe_subscription_id,
       subscription_details: {

@@ -2,17 +2,34 @@ import { NextResponse } from "next/server";
 import Stripe from "stripe";
 import { createClient } from "@/lib/supabase/server";
 import { createClient as createAdminClient } from "@supabase/supabase-js";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { SubscriptionTier, getTierLimits } from "@/lib/features";
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
-  apiVersion: "2025-12-15.clover",
-});
+// Lazy initialization to avoid build-time errors
+let stripe: Stripe | null = null;
+let supabaseAdmin: SupabaseClient | null = null;
 
-// Use service role for database updates to bypass RLS
-const supabaseAdmin = createAdminClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
+function getStripe(): Stripe {
+  if (!stripe) {
+    if (!process.env.STRIPE_SECRET_KEY) {
+      throw new Error("STRIPE_SECRET_KEY is not configured");
+    }
+    stripe = new Stripe(process.env.STRIPE_SECRET_KEY, {
+      apiVersion: "2025-12-15.clover",
+    });
+  }
+  return stripe;
+}
+
+function getSupabaseAdmin(): SupabaseClient {
+  if (!supabaseAdmin) {
+    supabaseAdmin = createAdminClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!
+    );
+  }
+  return supabaseAdmin;
+}
 
 /**
  * GET /api/subscription
@@ -69,7 +86,7 @@ export async function GET() {
     // Fetch fresh subscription data from Stripe if available
     if (profile?.stripe_subscription_id) {
       try {
-        const stripeSubscription = await stripe.subscriptions.retrieve(
+        const stripeSubscription = await getStripe().subscriptions.retrieve(
           profile.stripe_subscription_id
         );
 
@@ -131,7 +148,7 @@ export async function GET() {
           tier !== profile.subscription_tier ||
           status !== profile.subscription_status
         ) {
-          await supabaseAdmin
+          await getSupabaseAdmin()
             .from("profiles")
             .update({
               subscription_tier: tier,
@@ -209,7 +226,7 @@ export async function GET() {
 
     if (profile?.stripe_customer_id) {
       try {
-        const stripePaymentMethods = await stripe.paymentMethods.list({
+        const stripePaymentMethods = await getStripe().paymentMethods.list({
           customer: profile.stripe_customer_id,
           type: "card",
         });
@@ -217,7 +234,7 @@ export async function GET() {
         // Get default payment method
         let defaultPaymentMethodId: string | null = null;
         try {
-          const customer = await stripe.customers.retrieve(profile.stripe_customer_id);
+          const customer = await getStripe().customers.retrieve(profile.stripe_customer_id);
           if (customer && !customer.deleted) {
             defaultPaymentMethodId = customer.invoice_settings?.default_payment_method as string | null;
           }

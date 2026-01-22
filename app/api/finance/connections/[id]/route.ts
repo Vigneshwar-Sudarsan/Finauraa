@@ -1,10 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createTarabutClient } from "@/lib/tarabut/client";
+import { requireBankConsent } from "@/lib/consent-middleware";
+import { logBankEvent } from "@/lib/audit";
 
 /**
  * GET /api/finance/connections/[id]
  * Get details of a specific connection
+ * BOBF/PDPL: Requires active bank_access consent
  */
 export async function GET(
   request: NextRequest,
@@ -19,6 +22,12 @@ export async function GET(
 
     if (!user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    // BOBF/PDPL: Verify active consent before data access
+    const consentCheck = await requireBankConsent(supabase, user.id, `/api/finance/connections/${id}`);
+    if (!consentCheck.allowed) {
+      return consentCheck.response;
     }
 
     const { data: connection, error } = await supabase
@@ -123,6 +132,12 @@ export async function DELETE(
         { status: 500 }
       );
     }
+
+    // Log bank disconnection
+    await logBankEvent(user.id, "bank_disconnected", id, {
+      bank_name: connection.bank_name,
+      bank_id: connection.bank_id,
+    });
 
     return NextResponse.json({ success: true, revoked: true });
   } catch (error) {

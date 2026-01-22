@@ -2,9 +2,20 @@ import { NextResponse } from "next/server";
 import Stripe from "stripe";
 import { createClient } from "@/lib/supabase/server";
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
-  apiVersion: "2025-12-15.clover",
-});
+// Lazy initialization to avoid build-time errors
+let stripe: Stripe | null = null;
+
+function getStripe(): Stripe {
+  if (!stripe) {
+    if (!process.env.STRIPE_SECRET_KEY) {
+      throw new Error("STRIPE_SECRET_KEY is not configured");
+    }
+    stripe = new Stripe(process.env.STRIPE_SECRET_KEY, {
+      apiVersion: "2025-12-15.clover",
+    });
+  }
+  return stripe;
+}
 
 /**
  * POST /api/subscription/cancel
@@ -47,7 +58,7 @@ export async function POST(request: Request) {
 
     if (immediate) {
       // Cancel immediately - user loses access right away
-      const subscription = await stripe.subscriptions.cancel(
+      const subscription = await getStripe().subscriptions.cancel(
         profile.stripe_subscription_id
       );
 
@@ -73,7 +84,7 @@ export async function POST(request: Request) {
       });
     } else {
       // Cancel at end of billing period - user keeps access until then
-      const subscription = await stripe.subscriptions.update(
+      const subscription = await getStripe().subscriptions.update(
         profile.stripe_subscription_id,
         { cancel_at_period_end: true }
       );
@@ -162,7 +173,7 @@ export async function DELETE() {
     }
 
     // Reactivate the subscription
-    const subscription = await stripe.subscriptions.update(
+    const subscription = await getStripe().subscriptions.update(
       profile.stripe_subscription_id,
       { cancel_at_period_end: false }
     );
