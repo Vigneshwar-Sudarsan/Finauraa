@@ -29,9 +29,22 @@ export async function GET(request: NextRequest) {
     const status = searchParams.get("status"); // active, revoked, expired, all
     const type = searchParams.get("type"); // bank_access, ai_data, etc.
 
+    // Select only needed columns for better performance
     let query = supabase
       .from("user_consents")
-      .select("*")
+      .select(`
+        id,
+        consent_type,
+        provider_id,
+        provider_name,
+        permissions_granted,
+        purpose,
+        scope,
+        consent_status,
+        consent_given_at,
+        consent_expires_at,
+        consent_version
+      `)
       .eq("user_id", user.id)
       .order("consent_given_at", { ascending: false });
 

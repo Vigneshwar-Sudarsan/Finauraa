@@ -31,9 +31,22 @@ export async function GET() {
       return NextResponse.json({ goals: [], noBanksConnected: true });
     }
 
+    // Select only needed columns for better performance
     const { data: goals, error } = await supabase
       .from("savings_goals")
-      .select("*")
+      .select(`
+        id,
+        name,
+        target_amount,
+        current_amount,
+        currency,
+        target_date,
+        category,
+        is_completed,
+        auto_contribute,
+        auto_contribute_percentage,
+        created_at
+      `)
       .eq("user_id", user.id)
       .order("created_at", { ascending: false });
 

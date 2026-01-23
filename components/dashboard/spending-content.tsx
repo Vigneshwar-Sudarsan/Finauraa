@@ -23,20 +23,8 @@ import { useBankConnection } from "@/hooks/use-bank-connection";
 import { useFeatureAccess } from "@/hooks/use-feature-access";
 import { cn, formatCurrency, formatCompactCurrency } from "@/lib/utils";
 import {
-  ShoppingCart,
-  Car,
-  Hamburger,
-  Lightning,
-  CreditCard,
-  House,
-  Heartbeat,
-  GameController,
-  Airplane,
-  DotsThree,
   TrendUp,
   TrendDown,
-  Money,
-  Briefcase,
   Bank,
   ChartPieSlice,
   ArrowUp,
@@ -48,6 +36,7 @@ import {
   Lock,
   User,
 } from "@phosphor-icons/react";
+import { getCategoryIcon, formatCategoryName } from "@/lib/constants/category-icons";
 import {
   AddTransactionSheet,
   SetSpendingLimitSheet,
@@ -103,46 +92,7 @@ interface BankConnection {
   }[];
 }
 
-// Category icons mapping
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const categoryIcons: Record<string, React.ComponentType<any>> = {
-  shopping: ShoppingCart,
-  groceries: ShoppingCart,
-  transport: Car,
-  transportation: Car,
-  food: Hamburger,
-  dining: Hamburger,
-  restaurants: Hamburger,
-  utilities: Lightning,
-  bills: Lightning,
-  subscriptions: CreditCard,
-  payments: CreditCard,
-  housing: House,
-  rent: House,
-  mortgages: House,
-  health: Heartbeat,
-  healthcare: Heartbeat,
-  entertainment: GameController,
-  travel: Airplane,
-  other: DotsThree,
-  "other expenses": DotsThree,
-  "other loans": CreditCard,
-  "salary & wages": Briefcase,
-  "retirement & pensions": Bank,
-  "other income": Money,
-};
-
-function getCategoryIcon(categoryName: string) {
-  const key = categoryName.toLowerCase();
-  return categoryIcons[key] || DotsThree;
-}
-
-function formatCategoryName(name: string) {
-  return name
-    .split(" ")
-    .map((word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
-    .join(" ");
-}
+// Category icons and formatting now imported from @/lib/constants/category-icons
 
 export function SpendingContent() {
   const router = useRouter();
@@ -237,9 +187,8 @@ export function SpendingContent() {
   }, []);
 
   useEffect(() => {
-    fetchSpendingData();
-    fetchBudgets();
-    fetchBanks();
+    // Parallelize all three API calls for better performance
+    Promise.all([fetchSpendingData(), fetchBudgets(), fetchBanks()]);
   }, [fetchSpendingData, fetchBudgets, fetchBanks]);
 
   const handleRefreshAll = () => {

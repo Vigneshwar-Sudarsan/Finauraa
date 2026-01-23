@@ -110,8 +110,8 @@ export function GoalsContent() {
   }, []);
 
   useEffect(() => {
-    fetchGoals();
-    fetchIncome();
+    // Parallelize both API calls for better performance
+    Promise.all([fetchGoals(), fetchIncome()]);
   }, [fetchGoals, fetchIncome]);
 
   const activeGoals = goals.filter((g) => !g.is_completed);

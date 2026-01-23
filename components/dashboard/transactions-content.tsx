@@ -20,29 +20,18 @@ import {
 } from "@/components/ui/item";
 import { cn, formatCurrency } from "@/lib/utils";
 import {
-  ShoppingCart,
-  Car,
-  Hamburger,
-  Lightning,
-  CreditCard,
-  House,
-  Heartbeat,
-  GameController,
-  Airplane,
-  DotsThree,
-  Money,
-  Briefcase,
-  Bank,
   Plus,
   Receipt,
   MagnifyingGlass,
   Funnel,
   Crown,
   Clock,
+  Bank,
 } from "@phosphor-icons/react";
 import Link from "next/link";
 import { AddTransactionSheet, TransactionFiltersSheet, type TransactionFilters } from "@/components/spending";
 import { format, isToday, isYesterday, isThisWeek, isThisMonth, parseISO } from "date-fns";
+import { getCategoryIcon, formatCategoryName } from "@/lib/constants/category-icons";
 
 interface Transaction {
   id: string;
@@ -70,49 +59,6 @@ interface BankConnection {
     account_type?: string;
     currency: string;
   }[];
-}
-
-// Category icons mapping
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const categoryIcons: Record<string, React.ComponentType<any>> = {
-  shopping: ShoppingCart,
-  groceries: ShoppingCart,
-  transport: Car,
-  transportation: Car,
-  food: Hamburger,
-  dining: Hamburger,
-  restaurants: Hamburger,
-  utilities: Lightning,
-  bills: Lightning,
-  subscriptions: CreditCard,
-  payments: CreditCard,
-  housing: House,
-  rent: House,
-  mortgages: House,
-  health: Heartbeat,
-  healthcare: Heartbeat,
-  entertainment: GameController,
-  travel: Airplane,
-  other: DotsThree,
-  "other expenses": DotsThree,
-  "other loans": CreditCard,
-  "salary & wages": Briefcase,
-  "retirement & pensions": Bank,
-  "other income": Money,
-  income: Money,
-  transfer: Bank,
-};
-
-function getCategoryIcon(categoryName: string) {
-  const key = categoryName.toLowerCase();
-  return categoryIcons[key] || DotsThree;
-}
-
-function formatCategoryName(name: string) {
-  return name
-    .split(" ")
-    .map((word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
-    .join(" ");
 }
 
 function getDateGroup(dateStr: string): string {

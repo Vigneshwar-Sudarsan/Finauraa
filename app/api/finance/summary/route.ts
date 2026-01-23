@@ -152,24 +152,45 @@ export async function GET() {
       .eq("user_id", user.id)
       .eq("is_active", true);
 
-    const budgetsWithSpent = await Promise.all(
-      (budgets || []).map(async (budget) => {
-        const { data: spent } = await supabase.rpc("calculate_budget_spent", {
-          p_user_id: user.id,
-          p_category: budget.category,
-          p_start_date: budget.start_date,
-          p_end_date: budget.end_date || new Date().toISOString().split("T")[0],
-        });
+    // Calculate spent amounts in a single query instead of N+1 RPC calls
+    let budgetsWithSpent: Array<{
+      id: string;
+      category: string;
+      limit: number;
+      spent: number;
+      currency: string;
+    }> = [];
 
-        return {
-          id: budget.id,
-          category: budget.category,
-          limit: budget.amount,
-          spent: spent || 0,
-          currency: budget.currency,
-        };
-      })
-    );
+    if (budgets && budgets.length > 0) {
+      const categories = budgets.map((b) => b.category);
+      const now = new Date();
+      const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+
+      // Fetch all spending for budget categories in a single query
+      const { data: budgetTransactions } = await supabase
+        .from("transactions")
+        .select("category, amount")
+        .eq("user_id", user.id)
+        .eq("transaction_type", "debit")
+        .in("category", categories)
+        .gte("transaction_date", startOfMonth.toISOString())
+        .is("deleted_at", null);
+
+      // Aggregate spending by category
+      const spendingByCategory: Record<string, number> = {};
+      (budgetTransactions || []).forEach((t) => {
+        const cat = t.category;
+        spendingByCategory[cat] = (spendingByCategory[cat] || 0) + Math.abs(t.amount);
+      });
+
+      budgetsWithSpent = budgets.map((budget) => ({
+        id: budget.id,
+        category: budget.category,
+        limit: budget.amount,
+        spent: spendingByCategory[budget.category] || 0,
+        currency: budget.currency,
+      }));
+    }
 
     return NextResponse.json({
       hasBankConnected: true,

@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { ArrowDownLeft, ArrowUpRight } from "@phosphor-icons/react";
 import { formatCurrency } from "@/lib/utils";
 import { formatTransactionDate } from "@/lib/date-utils";
+import { getCategoryLabel } from "@/lib/constants/category-icons";
 
 interface TransactionsListProps {
   data?: Record<string, unknown>;
@@ -36,20 +37,6 @@ interface TransactionsData {
     hasMore: boolean;
   };
 }
-
-// Minimal neutral category labels
-const CATEGORY_LABELS: Record<string, string> = {
-  groceries: "Groceries",
-  dining: "Dining",
-  transport: "Transport",
-  shopping: "Shopping",
-  bills: "Bills",
-  entertainment: "Entertainment",
-  health: "Health",
-  coffee: "Coffee",
-  fuel: "Fuel",
-  other: "Other",
-};
 
 export function TransactionsList({ data }: TransactionsListProps) {
   const [transactionsData, setTransactionsData] = useState<TransactionsData | null>(null);
@@ -130,7 +117,7 @@ export function TransactionsList({ data }: TransactionsListProps) {
         {transactions.map((tx) => {
           const isCredit = tx.transaction_type === "credit";
           const displayName = tx.merchant_name || tx.description || "Transaction";
-          const categoryLabel = CATEGORY_LABELS[tx.category?.toLowerCase()] ?? tx.category ?? "Other";
+          const categoryLabel = getCategoryLabel(tx.category || "other");
           const hasLogo = tx.merchant_logo || tx.category_icon;
 
           return (
