@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useMemo, useRef, useEffect } from "react";
-import { cn } from "@/lib/utils";
+import { cn, formatCurrency } from "@/lib/utils";
 import { CreditCard, Wallet, Bank, CaretRight } from "@phosphor-icons/react";
 
 interface Account {
@@ -65,14 +65,6 @@ export function AccountTabs({
   const [activeCategory, setActiveCategory] = useState<AccountCategory>("accounts");
   const [showScrollIndicator, setShowScrollIndicator] = useState(false);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
-
-  const formatCurrency = (amount: number, currency: string) => {
-    return new Intl.NumberFormat("en-BH", {
-      style: "currency",
-      currency: currency,
-      minimumFractionDigits: 2,
-    }).format(amount);
-  };
 
   // Group accounts by category
   const groupedAccounts = useMemo(() => {

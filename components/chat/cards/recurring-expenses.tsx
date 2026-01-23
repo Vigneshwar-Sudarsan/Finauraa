@@ -3,6 +3,8 @@
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Check, Repeat, Calendar } from "@phosphor-icons/react";
+import { formatCurrency } from "@/lib/utils";
+import { formatFutureDate, getDaysRemaining } from "@/lib/date-utils";
 
 interface RecurringExpensesProps {
   data?: Record<string, unknown>;
@@ -58,32 +60,7 @@ export function RecurringExpenses({ data, onAction, disabled }: RecurringExpense
     }
   }, [data]);
 
-  const formatCurrency = (amount: number) => {
-    const currency = expensesData?.currency ?? "BHD";
-    return new Intl.NumberFormat("en-BH", {
-      style: "currency",
-      currency: currency,
-      minimumFractionDigits: currency === "BHD" ? 3 : 2,
-      maximumFractionDigits: currency === "BHD" ? 3 : 2,
-    }).format(amount);
-  };
-
-  const formatDate = (dateStr: string) => {
-    const date = new Date(dateStr);
-    const today = new Date();
-    const diffDays = Math.ceil((date.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
-
-    if (diffDays === 0) return "Today";
-    if (diffDays === 1) return "Tomorrow";
-    if (diffDays < 7) return `In ${diffDays} days`;
-    return date.toLocaleDateString("en-US", { month: "short", day: "numeric" });
-  };
-
-  const getDaysUntil = (dateStr: string) => {
-    const date = new Date(dateStr);
-    const today = new Date();
-    return Math.ceil((date.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
-  };
+  const currency = expensesData?.currency ?? "BHD";
 
   if (isLoading) {
     return (
@@ -136,7 +113,7 @@ export function RecurringExpenses({ data, onAction, disabled }: RecurringExpense
 
   // Sort by next due date
   const sortedExpenses = [...expensesData.expenses].sort((a, b) => {
-    return getDaysUntil(a.nextDate) - getDaysUntil(b.nextDate);
+    return getDaysRemaining(a.nextDate) - getDaysRemaining(b.nextDate);
   });
 
   return (
@@ -155,7 +132,7 @@ export function RecurringExpenses({ data, onAction, disabled }: RecurringExpense
       {/* Expense List */}
       <div className="space-y-2">
         {sortedExpenses.slice(0, 6).map((expense) => {
-          const daysUntil = getDaysUntil(expense.nextDate);
+          const daysUntil = getDaysRemaining(expense.nextDate);
           const isUpcoming = daysUntil <= 7;
 
           return (
@@ -171,7 +148,7 @@ export function RecurringExpenses({ data, onAction, disabled }: RecurringExpense
                 <p className="text-sm font-medium truncate">{expense.name}</p>
                 <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
                   <Calendar className="h-3 w-3" />
-                  <span>{formatDate(expense.nextDate)}</span>
+                  <span>{formatFutureDate(expense.nextDate)}</span>
                   <span>•</span>
                   <span>{FREQUENCY_LABELS[expense.frequency]}</span>
                 </div>

@@ -2,6 +2,7 @@
 
 import { Button } from "@/components/ui/button";
 import { Target, Plus, ArrowRight } from "@phosphor-icons/react";
+import { formatCurrency } from "@/lib/utils";
 
 interface SavingsGoalSetupProps {
   data?: Record<string, unknown>;
@@ -17,15 +18,6 @@ export function SavingsGoalSetup({ data, onAction, disabled }: SavingsGoalSetupP
   const suggestedName = (data?.name as string) || "";
   const suggestedAmount = (data?.suggestedAmount as number) || 1000;
   const currency = (data?.currency as string) || "BHD";
-
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat("en-BH", {
-      style: "currency",
-      currency: currency,
-      minimumFractionDigits: currency === "BHD" ? 3 : 0,
-      maximumFractionDigits: currency === "BHD" ? 3 : 0,
-    }).format(amount);
-  };
 
   const handleOpenSheet = () => {
     onAction?.("open-savings-goal-sheet", {

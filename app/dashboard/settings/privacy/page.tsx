@@ -1,9 +1,28 @@
 "use client";
 
+import { Suspense } from "react";
 import { useRouter } from "next/navigation";
 import { PrivacyContent } from "@/components/dashboard/privacy-content";
 import { Button } from "@/components/ui/button";
 import { CaretLeft } from "@phosphor-icons/react";
+
+function PrivacyLoading() {
+  return (
+    <div className="flex-1 flex items-center justify-center">
+      <div className="flex items-center gap-2 text-muted-foreground">
+        <div className="size-2 bg-foreground/40 rounded-full animate-pulse" />
+        <div
+          className="size-2 bg-foreground/40 rounded-full animate-pulse"
+          style={{ animationDelay: "150ms" }}
+        />
+        <div
+          className="size-2 bg-foreground/40 rounded-full animate-pulse"
+          style={{ animationDelay: "300ms" }}
+        />
+      </div>
+    </div>
+  );
+}
 
 export default function PrivacyPage() {
   const router = useRouter();
@@ -25,7 +44,9 @@ export default function PrivacyPage() {
 
       {/* Main content */}
       <div className="flex-1 overflow-auto">
-        <PrivacyContent />
+        <Suspense fallback={<PrivacyLoading />}>
+          <PrivacyContent />
+        </Suspense>
       </div>
     </div>
   );

@@ -220,3 +220,60 @@ export function getDaysFromNow(days: number): Date {
   date.setDate(date.getDate() + days);
   return date;
 }
+
+/**
+ * Format a date for transaction display - uses "Today", "Yesterday", weekday for recent dates
+ *
+ * @example
+ * ```ts
+ * formatTransactionDate(today) // "Today"
+ * formatTransactionDate(yesterday) // "Yesterday"
+ * formatTransactionDate(threeDaysAgo) // "Mon"
+ * formatTransactionDate(twoWeeksAgo) // "Jan 5"
+ * ```
+ */
+export function formatTransactionDate(
+  date: Date | string | number,
+  locale: string = "en-US"
+): string {
+  const dateObj = date instanceof Date ? date : new Date(date);
+  const now = new Date();
+  const diffDays = Math.floor(
+    (now.getTime() - dateObj.getTime()) / (1000 * 60 * 60 * 24)
+  );
+
+  if (diffDays === 0) return "Today";
+  if (diffDays === 1) return "Yesterday";
+  if (diffDays < 7)
+    return dateObj.toLocaleDateString(locale, { weekday: "short" });
+
+  return dateObj.toLocaleDateString(locale, { month: "short", day: "numeric" });
+}
+
+/**
+ * Format a date for future events - uses "Today", "Tomorrow", "In X days" for near dates
+ *
+ * @example
+ * ```ts
+ * formatFutureDate(today) // "Today"
+ * formatFutureDate(tomorrow) // "Tomorrow"
+ * formatFutureDate(threeDaysFromNow) // "In 3 days"
+ * formatFutureDate(twoWeeksFromNow) // "Jan 30"
+ * ```
+ */
+export function formatFutureDate(
+  date: Date | string | number,
+  locale: string = "en-US"
+): string {
+  const dateObj = date instanceof Date ? date : new Date(date);
+  const now = new Date();
+  const diffDays = Math.ceil(
+    (dateObj.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)
+  );
+
+  if (diffDays === 0) return "Today";
+  if (diffDays === 1) return "Tomorrow";
+  if (diffDays < 7) return `In ${diffDays} days`;
+
+  return dateObj.toLocaleDateString(locale, { month: "short", day: "numeric" });
+}

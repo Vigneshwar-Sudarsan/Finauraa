@@ -3,6 +3,8 @@
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Check, TrendUp, TrendDown, Warning, Calendar } from "@phosphor-icons/react";
+import { formatCurrency } from "@/lib/utils";
+import { formatDate } from "@/lib/date-utils";
 
 interface CashFlowProps {
   data?: Record<string, unknown>;
@@ -57,20 +59,7 @@ export function CashFlow({ data, onAction, disabled }: CashFlowProps) {
     }
   }, [data]);
 
-  const formatCurrency = (amount: number) => {
-    const currency = cashFlow?.currency ?? "BHD";
-    return new Intl.NumberFormat("en-BH", {
-      style: "currency",
-      currency: currency,
-      minimumFractionDigits: currency === "BHD" ? 3 : 2,
-      maximumFractionDigits: currency === "BHD" ? 3 : 2,
-    }).format(amount);
-  };
-
-  const formatDate = (dateStr: string) => {
-    const date = new Date(dateStr);
-    return date.toLocaleDateString("en-US", { month: "short", day: "numeric" });
-  };
+  const currency = cashFlow?.currency ?? "BHD";
 
   if (isLoading) {
     return (
@@ -167,7 +156,7 @@ export function CashFlow({ data, onAction, disabled }: CashFlowProps) {
             <div className="text-xs">
               <p className="font-medium text-red-600 dark:text-red-400">Low Balance Warning</p>
               <p className="text-muted-foreground">
-                Balance may run low around {cashFlow.projectedLowDate && formatDate(cashFlow.projectedLowDate)}
+                Balance may run low around {cashFlow.projectedLowDate && formatDate(cashFlow.projectedLowDate, "monthDay")}
               </p>
             </div>
           </div>
@@ -187,7 +176,7 @@ export function CashFlow({ data, onAction, disabled }: CashFlowProps) {
                 <span className="text-muted-foreground truncate max-w-[60%]">{bill.name}</span>
                 <div className="text-right">
                   <span className="font-medium">{formatCurrency(bill.amount)}</span>
-                  <span className="text-xs text-muted-foreground ml-1.5">{formatDate(bill.dueDate)}</span>
+                  <span className="text-xs text-muted-foreground ml-1.5">{formatDate(bill.dueDate, "monthDay")}</span>
                 </div>
               </div>
             ))}

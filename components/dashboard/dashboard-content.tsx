@@ -10,6 +10,7 @@ import { DashboardHeader } from "./dashboard-header";
 import { EmptyState } from "@/components/ui/empty-state";
 import { useBankConnection } from "@/hooks/use-bank-connection";
 import { Bank } from "@phosphor-icons/react";
+import { formatCurrency } from "@/lib/utils";
 
 interface BankConnection {
   id: string;
@@ -85,14 +86,6 @@ export function DashboardContent() {
   );
 
   const currency = accounts[0]?.currency ?? "BHD";
-
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat("en-BH", {
-      style: "currency",
-      currency: currency,
-      minimumFractionDigits: 2,
-    }).format(amount);
-  };
 
   const handleBankSelect = (bankId: string | null) => {
     setSelectedBankId(bankId);

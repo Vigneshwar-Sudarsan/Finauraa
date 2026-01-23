@@ -3,7 +3,7 @@
 import { Card, CardContent } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Button } from "@/components/ui/button";
-import { cn } from "@/lib/utils";
+import { cn, formatCurrency } from "@/lib/utils";
 import {
   Plus,
   Target,
@@ -52,15 +52,6 @@ export function SavingsGoalsSection({
   const { getCategoryLabel } = useCategories();
   const activeGoals = goals.filter((g) => !g.is_completed);
   const completedGoals = goals.filter((g) => g.is_completed);
-
-  const formatCurrency = (amount: number, currency: string = defaultCurrency) => {
-    return new Intl.NumberFormat("en-BH", {
-      style: "currency",
-      currency: currency,
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 0,
-    }).format(amount);
-  };
 
   // Check if any goal has auto-contribute enabled and we have recent income
   const suggestedContributions = activeGoals

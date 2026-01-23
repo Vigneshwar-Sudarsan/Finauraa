@@ -6,6 +6,7 @@ import { Separator } from "@/components/ui/separator";
 import { DashboardHeader } from "./dashboard-header";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { formatCurrency } from "@/lib/utils";
 import {
   Item,
   ItemMedia,
@@ -44,14 +45,6 @@ interface BankConnection {
   bank_name: string;
   status: string;
   accounts: Account[];
-}
-
-function formatCurrency(amount: number, currency: string = "BHD") {
-  return new Intl.NumberFormat("en-BH", {
-    style: "currency",
-    currency: currency,
-    minimumFractionDigits: 2,
-  }).format(amount);
 }
 
 function getAccountIcon(accountType: string) {
@@ -172,7 +165,7 @@ export function AccountsContent() {
       {/* Main content */}
       {(isLoading || banks.length > 0) && (
       <div className="flex-1 overflow-auto">
-        <div className="p-4 md:p-6 space-y-6 max-w-4xl mx-auto">
+        <div className="p-4 md:p-6 space-y-6 max-w-4xl mx-auto pb-24">
           {/* Banks */}
           <BankSelector
             banks={banks}

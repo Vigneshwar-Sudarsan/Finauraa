@@ -3,7 +3,7 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
-import { cn } from "@/lib/utils";
+import { cn, formatCurrency, formatCompactCurrency } from "@/lib/utils";
 import {
   ShoppingCart,
   Car,
@@ -71,26 +71,6 @@ const categoryIcons: Record<string, React.ComponentType<any>> = {
 function getCategoryIcon(categoryName: string) {
   const key = categoryName.toLowerCase();
   return categoryIcons[key] || DotsThree;
-}
-
-function formatCurrency(amount: number, currency: string = "BHD") {
-  return new Intl.NumberFormat("en-BH", {
-    style: "currency",
-    currency: currency,
-    minimumFractionDigits: 2,
-  }).format(amount);
-}
-
-function formatCompactCurrency(amount: number, currency: string = "BHD") {
-  if (amount >= 1000) {
-    return new Intl.NumberFormat("en-BH", {
-      style: "currency",
-      currency: currency,
-      notation: "compact",
-      maximumFractionDigits: 1,
-    }).format(amount);
-  }
-  return formatCurrency(amount, currency);
 }
 
 export function SpendingLimitsSection({

@@ -39,7 +39,10 @@ export function DashboardBottomNav() {
 
   const isActive = (href: string) => {
     if (href === "/") return pathname === "/";
-    if (href === "/dashboard") return pathname === "/dashboard";
+    // Accounts should be active on both /dashboard and /dashboard/accounts
+    if (href === "/dashboard/accounts") {
+      return pathname === "/dashboard" || pathname.startsWith("/dashboard/accounts");
+    }
     return pathname.startsWith(href);
   };
 

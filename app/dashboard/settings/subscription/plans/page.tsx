@@ -46,7 +46,7 @@ export default function UpgradePlansPage() {
 
       {/* Main content */}
       <div className="flex-1 overflow-auto">
-        <div className="p-4 md:p-6 space-y-6 max-w-5xl mx-auto pb-24">
+        <div className="p-4 md:p-6 space-y-6 max-w-4xl mx-auto pb-24">
           <Suspense fallback={<PlansLoading />}>
             <UpgradePlansContent />
           </Suspense>

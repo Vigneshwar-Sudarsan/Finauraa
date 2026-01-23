@@ -17,7 +17,7 @@ import { Progress } from "@/components/ui/progress";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { useBankConnection } from "@/hooks/use-bank-connection";
-import { cn } from "@/lib/utils";
+import { cn, formatCurrency } from "@/lib/utils";
 import {
   Plus,
   Target,
@@ -118,15 +118,6 @@ export function GoalsContent() {
   const completedGoals = goals.filter((g) => g.is_completed);
 
   const defaultCurrency = goals[0]?.currency || "BHD";
-
-  const formatCurrency = (amount: number, currency: string = defaultCurrency) => {
-    return new Intl.NumberFormat("en-BH", {
-      style: "currency",
-      currency: currency,
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 0,
-    }).format(amount);
-  };
 
   // Suggested contributions (filter out dismissed ones)
   const suggestedContributions = activeGoals

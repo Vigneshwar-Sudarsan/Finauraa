@@ -39,3 +39,6 @@ export {
   ParagraphSkeleton,
   TableSkeleton,
 } from "./skeletons";
+
+// Loading button
+export { LoadingButton, type LoadingButtonProps } from "./loading-button";

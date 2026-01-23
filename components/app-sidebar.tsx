@@ -92,7 +92,10 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
 
   const isActive = (url: string) => {
     if (url === "/") return pathname === "/";
-    if (url === "/dashboard") return pathname === "/dashboard";
+    // Accounts should be active on both /dashboard and /dashboard/accounts
+    if (url === "/dashboard/accounts") {
+      return pathname === "/dashboard" || pathname.startsWith("/dashboard/accounts");
+    }
     return pathname.startsWith(url);
   };
 

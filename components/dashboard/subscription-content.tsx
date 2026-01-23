@@ -18,7 +18,8 @@ import {
   ItemGroup,
   ItemSeparator,
 } from "@/components/ui/item";
-import { cn } from "@/lib/utils";
+import { cn, formatCurrency } from "@/lib/utils";
+import { formatDate } from "@/lib/date-utils";
 import {
   Crown,
   Bank,
@@ -136,22 +137,6 @@ const planInfo = {
     description: "Everything unlimited + family",
   },
 };
-
-function formatCurrency(amount: number) {
-  return new Intl.NumberFormat("en-US", {
-    style: "currency",
-    currency: "USD",
-    minimumFractionDigits: 2,
-  }).format(amount);
-}
-
-function formatDate(dateString: string) {
-  return new Date(dateString).toLocaleDateString("en-US", {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-  });
-}
 
 export function SubscriptionContent() {
   const router = useRouter();

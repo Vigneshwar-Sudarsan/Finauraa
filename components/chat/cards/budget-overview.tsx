@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Check, Wallet, Warning, Plus } from "@phosphor-icons/react";
+import { formatCurrency } from "@/lib/utils";
 
 interface BudgetOverviewProps {
   data?: Record<string, unknown>;
@@ -106,15 +107,7 @@ export function BudgetOverview({ data, onAction, disabled }: BudgetOverviewProps
     }
   }, [data]);
 
-  const formatCurrency = (amount: number) => {
-    const currency = budgetData?.currency ?? "BHD";
-    return new Intl.NumberFormat("en-BH", {
-      style: "currency",
-      currency: currency,
-      minimumFractionDigits: currency === "BHD" ? 3 : 0,
-      maximumFractionDigits: currency === "BHD" ? 3 : 0,
-    }).format(amount);
-  };
+  const currency = budgetData?.currency ?? "BHD";
 
   const getStatusColor = (percentUsed: number, projectedOverspend: boolean) => {
     if (percentUsed > 100) return "text-red-600 dark:text-red-400";

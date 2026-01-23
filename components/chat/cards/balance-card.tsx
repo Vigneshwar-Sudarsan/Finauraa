@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { Money } from "@phosphor-icons/react";
+import { formatCurrency } from "@/lib/utils";
 
 interface BalanceCardProps {
   data?: Record<string, unknown>;
@@ -48,14 +49,6 @@ export function BalanceCard({ data }: BalanceCardProps) {
       fetchData();
     }
   }, [data]);
-
-  const formatCurrency = (amount: number, currency: string) => {
-    return new Intl.NumberFormat("en-BH", {
-      style: "currency",
-      currency: currency,
-      minimumFractionDigits: 3,
-    }).format(amount);
-  };
 
   if (isLoading) {
     return (

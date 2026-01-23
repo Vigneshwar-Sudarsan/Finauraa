@@ -3,6 +3,8 @@
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Check, Target, TrendUp, Warning, Plus } from "@phosphor-icons/react";
+import { formatCurrency } from "@/lib/utils";
+import { formatDate } from "@/lib/date-utils";
 
 interface SavingsGoalsProps {
   data?: Record<string, unknown>;
@@ -88,20 +90,11 @@ export function SavingsGoals({ data, onAction, disabled }: SavingsGoalsProps) {
     }
   }, [data]);
 
-  const formatCurrency = (amount: number) => {
-    const currency = goalsData?.currency ?? "BHD";
-    return new Intl.NumberFormat("en-BH", {
-      style: "currency",
-      currency: currency,
-      minimumFractionDigits: currency === "BHD" ? 3 : 0,
-      maximumFractionDigits: currency === "BHD" ? 3 : 0,
-    }).format(amount);
-  };
+  const currency = goalsData?.currency ?? "BHD";
 
-  const formatDate = (dateStr: string | null) => {
+  const formatGoalDate = (dateStr: string | null) => {
     if (!dateStr) return "No target date";
-    const date = new Date(dateStr);
-    return date.toLocaleDateString("en-US", { month: "short", year: "numeric" });
+    return formatDate(dateStr, "monthYear");
   };
 
   if (isLoading) {
@@ -211,7 +204,7 @@ export function SavingsGoals({ data, onAction, disabled }: SavingsGoalsProps) {
                 ) : (
                   <Warning className="h-3 w-3 text-yellow-600 dark:text-yellow-400" weight="bold" />
                 )}
-                <span className="text-muted-foreground">{formatDate(goal.projectedCompletionDate)}</span>
+                <span className="text-muted-foreground">{formatGoalDate(goal.projectedCompletionDate)}</span>
               </div>
             </div>
 

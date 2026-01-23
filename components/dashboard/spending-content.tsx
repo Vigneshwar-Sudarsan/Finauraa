@@ -21,7 +21,7 @@ import {
 import { EmptyState } from "@/components/ui/empty-state";
 import { useBankConnection } from "@/hooks/use-bank-connection";
 import { useFeatureAccess } from "@/hooks/use-feature-access";
-import { cn } from "@/lib/utils";
+import { cn, formatCurrency, formatCompactCurrency } from "@/lib/utils";
 import {
   ShoppingCart,
   Car,
@@ -135,26 +135,6 @@ const categoryIcons: Record<string, React.ComponentType<any>> = {
 function getCategoryIcon(categoryName: string) {
   const key = categoryName.toLowerCase();
   return categoryIcons[key] || DotsThree;
-}
-
-function formatCurrency(amount: number, currency: string = "BHD") {
-  return new Intl.NumberFormat("en-BH", {
-    style: "currency",
-    currency: currency,
-    minimumFractionDigits: 2,
-  }).format(amount);
-}
-
-function formatCompactCurrency(amount: number, currency: string = "BHD") {
-  if (amount >= 1000) {
-    return new Intl.NumberFormat("en-BH", {
-      style: "currency",
-      currency: currency,
-      notation: "compact",
-      maximumFractionDigits: 1,
-    }).format(amount);
-  }
-  return formatCurrency(amount, currency);
 }
 
 function formatCategoryName(name: string) {
@@ -306,7 +286,7 @@ export function SpendingContent() {
       <DashboardHeader title="Spending" />
 
       {/* Tab Navigation Row - Full width above content */}
-      <div className="px-4 md:px-6 pt-4 md:pt-6 max-w-6xl mx-auto w-full">
+      <div className="px-4 md:px-6 pt-4 md:pt-6 max-w-4xl mx-auto w-full">
         <div className="flex items-center justify-between gap-4">
           {/* Tabs - only render after mount to prevent hydration mismatch */}
           {mounted ? (
@@ -420,115 +400,192 @@ export function SpendingContent() {
       {/* Main Content */}
       {(isLoading || (data && !error && (data.totalSpending > 0 || data.totalIncome > 0))) && (
       <div className="flex-1 overflow-auto pb-24 sm:pb-0">
-        <div className="p-4 md:p-6 space-y-6 max-w-6xl mx-auto">
+        <div className="p-4 md:p-6 space-y-6 max-w-4xl mx-auto">
 
           {/* Loading State */}
           {isLoading && (
-            <>
-              {/* Hero Card Skeleton */}
-              <Card className="overflow-hidden">
-                <CardContent className="p-0">
-                  <div className="bg-gradient-to-br from-primary/5 via-primary/10 to-primary/5 p-6">
-                    <div className="flex items-center justify-between">
-                      <div className="space-y-3">
-                        <div className="h-3 w-20 bg-muted rounded animate-pulse" />
-                        <div className="h-9 w-36 bg-muted rounded animate-pulse" />
-                        <div className="h-3 w-28 bg-muted rounded animate-pulse" />
-                      </div>
-                      <div className="size-28 rounded-full bg-muted animate-pulse" />
-                    </div>
-                  </div>
-                  <div className="p-4 grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <div className="h-3 w-16 bg-muted rounded animate-pulse" />
-                      <div className="h-6 w-24 bg-muted rounded animate-pulse" />
-                    </div>
-                    <div className="space-y-2 text-right">
-                      <div className="h-3 w-16 bg-muted rounded animate-pulse ml-auto" />
-                      <div className="h-6 w-24 bg-muted rounded animate-pulse ml-auto" />
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-
-              {/* Two Column Layout Skeleton */}
-              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                {/* Left Column */}
-                <div className="lg:col-span-2 space-y-6">
-                  {/* Categories Section Skeleton */}
-                  <Card>
-                    <CardHeader className="pb-2">
+            <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
+              {/* Left Column */}
+              <div className="lg:col-span-3 space-y-6">
+                {/* Hero Card Skeleton */}
+                <Card className="overflow-hidden">
+                  <CardContent className="p-0">
+                    <div className="bg-gradient-to-br from-primary/5 via-primary/10 to-primary/5 p-6">
                       <div className="flex items-center justify-between">
-                        <div className="h-5 w-44 bg-muted rounded animate-pulse" />
-                        <div className="h-4 w-24 bg-muted rounded animate-pulse" />
+                        <div className="space-y-3">
+                          <div className="h-3 w-24 bg-muted rounded animate-pulse" />
+                          <div className="h-9 w-36 bg-muted rounded animate-pulse" />
+                          <div className="h-6 w-28 bg-muted rounded-full animate-pulse" />
+                        </div>
+                        <div className="size-28 rounded-full bg-muted animate-pulse" />
                       </div>
-                    </CardHeader>
-                    <CardContent className="p-0">
-                      <ItemGroup>
-                        {[1, 2, 3, 4].map((i) => (
-                          <div key={i}>
-                            {i > 1 && <ItemSeparator />}
-                            <Item variant="default" size="sm">
-                              <ItemMedia variant="icon">
-                                <div className="size-10 rounded-xl bg-muted animate-pulse" />
-                              </ItemMedia>
-                              <ItemContent>
-                                <div className="h-4 w-24 bg-muted rounded animate-pulse" />
-                                <div className="h-3 w-32 bg-muted rounded animate-pulse mt-1" />
-                              </ItemContent>
-                              <ItemActions>
-                                <div className="text-right space-y-1">
-                                  <div className="h-4 w-20 bg-muted rounded animate-pulse" />
-                                  <div className="h-3 w-16 bg-muted rounded animate-pulse ml-auto" />
-                                </div>
-                              </ItemActions>
-                            </Item>
-                          </div>
-                        ))}
-                      </ItemGroup>
-                    </CardContent>
-                  </Card>
-                </div>
+                    </div>
+                    <div className="grid grid-cols-2 divide-x">
+                      <div className="p-4 space-y-2">
+                        <div className="flex items-center gap-2">
+                          <div className="size-6 rounded-full bg-muted animate-pulse" />
+                          <div className="h-3 w-14 bg-muted rounded animate-pulse" />
+                        </div>
+                        <div className="h-6 w-24 bg-muted rounded animate-pulse" />
+                      </div>
+                      <div className="p-4 space-y-2">
+                        <div className="flex items-center gap-2">
+                          <div className="size-6 rounded-full bg-muted animate-pulse" />
+                          <div className="h-3 w-16 bg-muted rounded animate-pulse" />
+                        </div>
+                        <div className="h-6 w-24 bg-muted rounded animate-pulse" />
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
 
-                {/* Right Column */}
-                <div className="space-y-6">
-                  {/* Income Sources Skeleton */}
-                  <Card>
-                    <CardHeader className="pb-2">
-                      <div className="h-5 w-28 bg-muted rounded animate-pulse" />
-                    </CardHeader>
-                    <CardContent className="p-0">
-                      <ItemGroup>
-                        {[1, 2].map((i) => (
-                          <div key={i}>
-                            {i > 1 && <ItemSeparator />}
-                            <Item variant="default" size="sm">
-                              <ItemMedia variant="icon">
-                                <div className="size-10 rounded-xl bg-muted animate-pulse" />
-                              </ItemMedia>
-                              <ItemContent>
+                {/* Categories Section Skeleton */}
+                <Card>
+                  <CardHeader className="pb-2">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <div className="size-5 bg-muted rounded animate-pulse" />
+                        <div className="h-5 w-40 bg-muted rounded animate-pulse" />
+                      </div>
+                      <div className="h-4 w-24 bg-muted rounded animate-pulse" />
+                    </div>
+                  </CardHeader>
+                  <CardContent className="p-0">
+                    <ItemGroup>
+                      {[1, 2, 3, 4].map((i) => (
+                        <div key={i}>
+                          {i > 1 && <ItemSeparator />}
+                          <Item variant="default" size="sm">
+                            <ItemMedia variant="icon">
+                              <div className="size-10 rounded-xl bg-muted animate-pulse" />
+                            </ItemMedia>
+                            <ItemContent>
+                              <div className="h-4 w-24 bg-muted rounded animate-pulse" />
+                              <div className="h-3 w-32 bg-muted rounded animate-pulse mt-1" />
+                            </ItemContent>
+                            <ItemActions>
+                              <div className="text-right space-y-1">
                                 <div className="h-4 w-20 bg-muted rounded animate-pulse" />
-                                <div className="h-3 w-16 bg-muted rounded animate-pulse mt-1" />
-                              </ItemContent>
-                              <ItemActions>
-                                <div className="h-4 w-16 bg-muted rounded animate-pulse" />
-                              </ItemActions>
-                            </Item>
-                          </div>
-                        ))}
-                      </ItemGroup>
-                    </CardContent>
-                  </Card>
-                </div>
+                                <div className="h-3 w-16 bg-muted rounded animate-pulse ml-auto" />
+                              </div>
+                            </ItemActions>
+                          </Item>
+                        </div>
+                      ))}
+                    </ItemGroup>
+                  </CardContent>
+                </Card>
               </div>
-            </>
+
+              {/* Right Column */}
+              <div className="lg:col-span-2 space-y-6">
+                {/* Spending Limits Skeleton */}
+                <Card>
+                  <CardHeader className="pb-2">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <div className="size-5 bg-muted rounded animate-pulse" />
+                        <div className="h-5 w-28 bg-muted rounded animate-pulse" />
+                      </div>
+                      <div className="h-8 w-16 bg-muted rounded animate-pulse" />
+                    </div>
+                  </CardHeader>
+                  <CardContent className="p-0">
+                    <ItemGroup>
+                      {[1, 2].map((i) => (
+                        <div key={i}>
+                          {i > 1 && <ItemSeparator />}
+                          <Item variant="default" size="sm">
+                            <ItemMedia variant="icon">
+                              <div className="size-10 rounded-xl bg-muted animate-pulse" />
+                            </ItemMedia>
+                            <ItemContent>
+                              <div className="h-4 w-20 bg-muted rounded animate-pulse" />
+                              <div className="h-3 w-32 bg-muted rounded animate-pulse mt-1" />
+                            </ItemContent>
+                            <ItemActions>
+                              <div className="text-right space-y-1">
+                                <div className="h-4 w-16 bg-muted rounded animate-pulse" />
+                                <div className="h-1.5 w-16 bg-muted rounded-full animate-pulse" />
+                              </div>
+                            </ItemActions>
+                          </Item>
+                        </div>
+                      ))}
+                    </ItemGroup>
+                  </CardContent>
+                </Card>
+
+                {/* Income Sources Skeleton */}
+                <Card>
+                  <CardHeader className="pb-2">
+                    <div className="flex items-center gap-2">
+                      <div className="size-5 bg-muted rounded animate-pulse" />
+                      <div className="h-5 w-28 bg-muted rounded animate-pulse" />
+                    </div>
+                  </CardHeader>
+                  <CardContent className="p-0">
+                    <ItemGroup>
+                      {[1, 2].map((i) => (
+                        <div key={i}>
+                          {i > 1 && <ItemSeparator />}
+                          <Item variant="default" size="sm">
+                            <ItemMedia variant="icon">
+                              <div className="size-10 rounded-xl bg-muted animate-pulse" />
+                            </ItemMedia>
+                            <ItemContent>
+                              <div className="h-4 w-24 bg-muted rounded animate-pulse" />
+                              <div className="h-3 w-16 bg-muted rounded animate-pulse mt-1" />
+                            </ItemContent>
+                            <ItemActions>
+                              <div className="h-4 w-16 bg-muted rounded animate-pulse" />
+                            </ItemActions>
+                          </Item>
+                        </div>
+                      ))}
+                    </ItemGroup>
+                  </CardContent>
+                </Card>
+
+                {/* Top Merchants Skeleton */}
+                <Card>
+                  <CardHeader className="pb-2">
+                    <div className="flex items-center gap-2">
+                      <div className="size-5 bg-muted rounded animate-pulse" />
+                      <div className="h-5 w-28 bg-muted rounded animate-pulse" />
+                    </div>
+                  </CardHeader>
+                  <CardContent className="p-0">
+                    <ItemGroup>
+                      {[1, 2, 3].map((i) => (
+                        <div key={i}>
+                          {i > 1 && <ItemSeparator />}
+                          <Item variant="default" size="sm">
+                            <ItemMedia variant="icon">
+                              <div className="size-10 rounded-xl bg-muted animate-pulse" />
+                            </ItemMedia>
+                            <ItemContent>
+                              <div className="h-4 w-28 bg-muted rounded animate-pulse" />
+                              <div className="h-3 w-14 bg-muted rounded animate-pulse mt-1" />
+                            </ItemContent>
+                            <ItemActions>
+                              <div className="h-4 w-16 bg-muted rounded animate-pulse" />
+                            </ItemActions>
+                          </Item>
+                        </div>
+                      ))}
+                    </ItemGroup>
+                  </CardContent>
+                </Card>
+              </div>
+            </div>
           )}
 
           {/* Data Loaded */}
           {data && !isLoading && (data.totalSpending > 0 || data.totalIncome > 0) && (
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-              {/* Left Column - Main Content (2/3 on desktop) */}
-              <div className="lg:col-span-2 space-y-6">
+            <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
+              {/* Left Column - Main Content (60% on desktop) */}
+              <div className="lg:col-span-3 space-y-6">
                 {/* Hero Card - Financial Overview */}
                 <Card className="overflow-hidden">
                   <CardContent className="p-0">
@@ -770,8 +827,8 @@ export function SpendingContent() {
 
               </div>
 
-              {/* Right Column - Sidebar Content (1/3 on desktop) */}
-              <div className="space-y-6">
+              {/* Right Column - Sidebar Content (40% on desktop) */}
+              <div className="lg:col-span-2 space-y-6">
                 {/* Spending Limits */}
                 <SpendingLimitsSection
                   budgets={budgets}

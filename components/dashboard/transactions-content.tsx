@@ -18,7 +18,7 @@ import {
   ItemGroup,
   ItemSeparator,
 } from "@/components/ui/item";
-import { cn } from "@/lib/utils";
+import { cn, formatCurrency } from "@/lib/utils";
 import {
   ShoppingCart,
   Car,
@@ -106,14 +106,6 @@ const categoryIcons: Record<string, React.ComponentType<any>> = {
 function getCategoryIcon(categoryName: string) {
   const key = categoryName.toLowerCase();
   return categoryIcons[key] || DotsThree;
-}
-
-function formatCurrency(amount: number, currency: string = "BHD") {
-  return new Intl.NumberFormat("en-BH", {
-    style: "currency",
-    currency: currency,
-    minimumFractionDigits: 2,
-  }).format(amount);
 }
 
 function formatCategoryName(name: string) {
