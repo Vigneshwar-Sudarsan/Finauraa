@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { SubscriptionTier, getTierLimits } from "@/lib/features";
+import { getTierLimits } from "@/lib/features";
+import { getUserSubscription } from "@/lib/features-server";
 import { requireBankConsent } from "@/lib/consent-middleware";
 
 /**
@@ -96,13 +97,9 @@ export async function POST(request: NextRequest) {
     }
 
     // Check subscription tier and savings goal limits
-    const { data: profile } = await supabase
-      .from("profiles")
-      .select("subscription_tier, is_pro")
-      .eq("id", user.id)
-      .single();
-
-    const tier: SubscriptionTier = profile?.subscription_tier || (profile?.is_pro ? "pro" : "free");
+    // getUserSubscription handles family membership - family members inherit Pro features
+    const subscription = await getUserSubscription();
+    const tier = subscription?.tier || "free";
     const tierLimits = getTierLimits(tier);
     const goalLimit = tierLimits.savingsGoals;
 
@@ -114,6 +111,7 @@ export async function POST(request: NextRequest) {
         .eq("user_id", user.id);
 
       if ((existingGoals || 0) >= goalLimit) {
+        // Family members and Pro users have unlimited goals, so only free tier sees upgrade message
         const upgradeMessage = tier === "free"
           ? "Upgrade to Pro for unlimited savings goals."
           : "You've reached the maximum savings goals for your plan.";

@@ -10,6 +10,7 @@ import { useBankConnection } from "@/hooks/use-bank-connection";
 import { Message, MessageContent } from "@/lib/types";
 import { generateId } from "@/lib/utils";
 import { Sparkle } from "@phosphor-icons/react";
+import { SavingsGoalSheet } from "@/components/spending";
 
 // Skeleton loader for initial bank check
 function WelcomeSkeleton() {
@@ -60,14 +61,15 @@ const WELCOME_MESSAGE_WITH_BANK: Message = {
   id: "welcome",
   role: "assistant",
   content:
-    "Welcome back! Your bank is connected.\nI can help you track spending, set budgets, and manage your money.\nWhat would you like to know?",
+    "Welcome back! I'm your personal finance assistant.\nI can track your spending, manage budgets, monitor savings goals, and give you personalized financial advice.\nWhat would you like to focus on today?",
   richContent: [
     {
       type: "action-buttons",
       data: {
         actions: [
-          { label: "Show Balance", action: "show-accounts" },
-          { label: "Analyze Spending", action: "analyze-spending" },
+          { label: "Financial Health", action: "show-financial-health" },
+          { label: "Spending Analysis", action: "analyze-spending" },
+          { label: "Savings Goals", action: "view-savings-goals" },
         ],
       },
     },
@@ -101,6 +103,13 @@ export function ChatContainer() {
   // Conversation state
   const [conversationId, setConversationId] = useState<string | null>(null);
   const [historyOpen, setHistoryOpen] = useState(false);
+
+  // Savings Goal Sheet state
+  const [savingsGoalSheetOpen, setSavingsGoalSheetOpen] = useState(false);
+  const [savingsGoalSheetData, setSavingsGoalSheetData] = useState<{
+    name?: string;
+    suggestedAmount?: number;
+  } | null>(null);
 
   // Bank connection with consent dialog
   const { connectBank, isConnecting: isConnectingBank, ConsentDialog } = useBankConnection({
@@ -787,6 +796,184 @@ export function ChatContainer() {
         }, currentConvId);
         break;
 
+      // === NEW FINANCE MANAGER ACTIONS ===
+
+      case "create-budget":
+        // Create a new budget with optional suggested amount
+        const budgetCategory = (data?.category as string) || "general";
+        const suggestedAmount = (data?.suggestedAmount as number) || 200;
+        await addAndSaveMessage({
+          role: "assistant",
+          content: `Let's set up a budget for ${budgetCategory}. Based on your spending patterns, I'd suggest starting with ${suggestedAmount} BHD/month.`,
+          richContent: [
+            {
+              type: "budget-card",
+              data: {
+                category: budgetCategory.toLowerCase(),
+                isSetup: true,
+                suggestedAmount: suggestedAmount,
+                currency: "BHD",
+              },
+            },
+          ],
+        }, currentConvId);
+        break;
+
+      case "edit-budget":
+        // Edit an existing budget
+        const editCategory = (data?.category as string) || "general";
+        await addAndSaveMessage({
+          role: "assistant",
+          content: `Let's update your ${editCategory} budget:`,
+          richContent: [
+            {
+              type: "budget-card",
+              data: {
+                category: editCategory.toLowerCase(),
+                isSetup: true,
+                currency: "BHD",
+              },
+            },
+          ],
+        }, currentConvId);
+        break;
+
+      case "budget-overview":
+        // Show all budgets
+        await addAndSaveMessage({
+          role: "assistant",
+          content: "Here's an overview of all your budgets:",
+          richContent: [
+            {
+              type: "budget-overview",
+            },
+          ],
+        }, currentConvId);
+        break;
+
+      case "create-savings-goal":
+        // Open savings goal drawer
+        const goalName = (data?.name as string) || "";
+        const goalAmount = (data?.suggestedAmount as number) || 1000;
+        setSavingsGoalSheetData({
+          name: goalName,
+          suggestedAmount: goalAmount,
+        });
+        setSavingsGoalSheetOpen(true);
+        break;
+
+      case "open-savings-goal-sheet":
+        // Open the savings goal drawer (triggered from preview card)
+        setSavingsGoalSheetData({
+          name: (data?.name as string) || "",
+          suggestedAmount: (data?.suggestedAmount as number) || 1000,
+        });
+        setSavingsGoalSheetOpen(true);
+        break;
+
+      case "view-savings-goals":
+        // Show all savings goals
+        await addAndSaveMessage({
+          role: "assistant",
+          content: "Here's your savings goals progress:",
+          richContent: [
+            {
+              type: "savings-goals",
+            },
+          ],
+        }, currentConvId);
+        break;
+
+      case "savings-goal-created":
+        // Goal was successfully created via the setup form
+        const createdGoalName = (data?.name as string) || "your goal";
+        await addAndSaveMessage({
+          role: "assistant",
+          content: `Great! I've successfully created "${createdGoalName}" for you. Here's your updated savings goals:`,
+          richContent: [
+            {
+              type: "savings-goals",
+            },
+          ],
+        }, currentConvId);
+        break;
+
+      case "show-financial-health":
+        // Show financial health score
+        await addAndSaveMessage({
+          role: "assistant",
+          content: "Here's your financial health assessment:",
+          richContent: [
+            {
+              type: "financial-health",
+            },
+          ],
+        }, currentConvId);
+        break;
+
+      case "show-cash-flow":
+        // Show cash flow analysis and predictions
+        await addAndSaveMessage({
+          role: "assistant",
+          content: "Here's your cash flow analysis:",
+          richContent: [
+            {
+              type: "cash-flow",
+            },
+          ],
+        }, currentConvId);
+        break;
+
+      case "view-recurring":
+        // Show recurring expenses
+        await addAndSaveMessage({
+          role: "assistant",
+          content: "Here are your recurring expenses and upcoming bills:",
+          richContent: [
+            {
+              type: "recurring-expenses",
+            },
+          ],
+        }, currentConvId);
+        break;
+
+      case "export-data":
+        // Export financial data
+        await addAndSaveMessage({
+          role: "assistant",
+          content: "I can help you export your financial data. What format would you prefer?",
+          richContent: [
+            {
+              type: "action-buttons",
+              data: {
+                actions: [
+                  { label: "CSV Export", action: "export-csv" },
+                  { label: "PDF Report", action: "export-pdf" },
+                ],
+              },
+            },
+          ],
+        }, currentConvId);
+        break;
+
+      case "export-csv":
+        // Trigger CSV export
+        window.open("/api/finance/export?format=csv", "_blank");
+        await addAndSaveMessage({
+          role: "assistant",
+          content: "Your CSV export has started downloading. It includes your transactions, budgets, and savings goals.",
+        }, currentConvId);
+        break;
+
+      case "export-pdf":
+        // Trigger PDF export
+        window.open("/api/finance/export?format=pdf", "_blank");
+        await addAndSaveMessage({
+          role: "assistant",
+          content: "Your PDF report is being generated. It includes a summary of your financial health, spending analysis, and progress on goals.",
+        }, currentConvId);
+        break;
+
       default:
         // If action looks like a user message, send it to the AI
         if (action && !action.includes("-") && action.length > 10) {
@@ -875,6 +1062,19 @@ export function ChatContainer() {
         onOpenChange={setHistoryOpen}
         onSelectConversation={handleSelectConversation}
         currentConversationId={conversationId}
+      />
+
+      {/* Savings Goal Sheet */}
+      <SavingsGoalSheet
+        open={savingsGoalSheetOpen}
+        onOpenChange={setSavingsGoalSheetOpen}
+        onSuccess={() => {
+          // When goal is created from sheet, show success message in chat
+          handleAction("savings-goal-created", { name: savingsGoalSheetData?.name || "your goal" });
+          setSavingsGoalSheetData(null);
+        }}
+        existingGoal={null}
+        defaultCurrency="BHD"
       />
 
       {/* Bank Consent Dialog */}

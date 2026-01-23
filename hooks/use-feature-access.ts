@@ -9,6 +9,7 @@ import {
   checkFeatureAccess,
   checkUsageLimit,
   isFeatureAvailable,
+  hasFamilyFeatures,
 } from "@/lib/features";
 
 interface SubscriptionState {
@@ -40,12 +41,13 @@ interface FeatureAccessHook {
   canAccess: (feature: keyof TierLimits) => boolean;
   checkFeature: (feature: keyof TierLimits) => FeatureCheck;
   checkLimit: (
-    feature: "bankConnections" | "aiQueriesPerMonth" | "savingsGoals" | "familyMembers",
+    feature: "bankConnections" | "aiQueriesPerMonth" | "savingsGoals" | "spendingLimits" | "familyMembers",
     currentUsage?: number
   ) => FeatureCheck;
   isPro: boolean;
   isFamily: boolean;
   isFree: boolean;
+  canAccessFamilyFeatures: boolean; // True for both Pro and Family tiers
 
   // Refresh
   refresh: () => Promise<void>;
@@ -125,7 +127,7 @@ export function useFeatureAccess(): FeatureAccessHook {
 
   const checkLimit = useCallback(
     (
-      feature: "bankConnections" | "aiQueriesPerMonth" | "savingsGoals" | "familyMembers",
+      feature: "bankConnections" | "aiQueriesPerMonth" | "savingsGoals" | "spendingLimits" | "familyMembers",
       currentUsage?: number
     ): FeatureCheck => {
       // Map feature names to usage keys
@@ -133,6 +135,7 @@ export function useFeatureAccess(): FeatureAccessHook {
         bankConnections: "bankConnections",
         aiQueriesPerMonth: "aiQueries",
         savingsGoals: "savingsGoals",
+        spendingLimits: "savingsGoals", // Reusing for now
         familyMembers: "familyMembers",
       };
 
@@ -157,6 +160,7 @@ export function useFeatureAccess(): FeatureAccessHook {
     isPro: subscription.tier === "pro",
     isFamily: subscription.tier === "family",
     isFree: subscription.tier === "free",
+    canAccessFamilyFeatures: hasFamilyFeatures(subscription.tier),
     refresh: fetchSubscription,
   };
 }

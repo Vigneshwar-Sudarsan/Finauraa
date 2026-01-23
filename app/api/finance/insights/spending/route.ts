@@ -61,12 +61,18 @@ export async function GET() {
     // Fetch transaction insights from Tarabut
     const insights = await tarabut.getTransactionInsightsSummary(tokenResponse.accessToken);
 
+    // Handle case where Tarabut API returns incomplete data
+    if (!insights || !insights.categories) {
+      // Fall through to local data fallback
+      throw new Error("Incomplete data from Tarabut API");
+    }
+
     return NextResponse.json({
-      totalSpending: insights.totalSpending,
-      totalIncome: insights.totalIncome,
-      currency: insights.currency,
+      totalSpending: insights.totalSpending || 0,
+      totalIncome: insights.totalIncome || 0,
+      currency: insights.currency || "BHD",
       period: insights.period,
-      categories: insights.categories.map((cat) => ({
+      categories: (insights.categories || []).map((cat) => ({
         id: cat.categoryId,
         name: cat.categoryName,
         amount: cat.amount,
@@ -76,9 +82,10 @@ export async function GET() {
       topMerchants: insights.topMerchants || [],
     });
   } catch (error) {
-    console.error("Failed to fetch spending insights:", error);
+    // Log at info level - this is expected when Tarabut returns incomplete data
+    console.info("Using local data fallback for spending insights:", error instanceof Error ? error.message : "Unknown error");
 
-    // Fallback to local data if Tarabut API fails
+    // Fallback to local data if Tarabut API fails or returns incomplete data
     try {
       const supabase = await createClient();
       const {

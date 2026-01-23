@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import {
   Crown,
@@ -30,6 +31,8 @@ import {
 import { toast } from "sonner";
 
 // Plan features configuration (prices in USD)
+// Note: Family plan has been merged into Pro - all family features are now in Pro
+// The 'family' key is kept for backwards compatibility with existing family tier subscribers
 const planFeatures = {
   free: {
     name: "Free",
@@ -37,11 +40,12 @@ const planFeatures = {
     period: "forever",
     description: "Perfect for trying out",
     features: [
-      { text: "1 bank connection", included: true },
+      { text: "3 bank connections", included: true },
       { text: "30 days transaction history", included: true },
       { text: "5 AI queries per month", included: true },
       { text: "Basic spending insights", included: true },
-      { text: "1 savings goal", included: true },
+      { text: "3 savings goals", included: true },
+      { text: "2 spending limits", included: true },
       { text: "Manual sync only", included: true },
       { text: "Data export", included: false },
       { text: "Family sharing", included: false },
@@ -51,40 +55,47 @@ const planFeatures = {
     name: "Pro",
     price: 7.99,
     period: "month",
-    description: "For singles & couples",
+    description: "Everything unlimited + family",
     popular: true,
     annualPrice: 79.99,
     features: [
-      { text: "5 bank connections", included: true },
+      { text: "Unlimited bank connections", included: true },
       { text: "Unlimited transaction history", included: true },
-      { text: "100 AI queries per month", included: true },
+      { text: "Unlimited AI queries", included: true },
       { text: "Advanced spending insights", included: true },
       { text: "Unlimited savings goals", included: true },
+      { text: "Unlimited spending limits", included: true },
       { text: "Daily auto sync", included: true },
       { text: "CSV & PDF export", included: true },
       { text: "Budget alerts & notifications", included: true },
+      { text: "Up to 5 family members", included: true },
+      { text: "Family spending dashboard", included: true },
+      { text: "Shared goals & budgets", included: true },
       { text: "Priority support", included: true },
-      { text: "Family sharing", included: false },
     ],
   },
+  // Family tier kept for backwards compatibility - displays same as Pro
   family: {
-    name: "Family",
-    price: 15.99,
+    name: "Pro",
+    price: 7.99,
     period: "month",
-    description: "For the whole family",
-    annualPrice: 159.99,
+    description: "Everything unlimited + family",
+    popular: false,
+    annualPrice: 79.99,
     features: [
-      { text: "15 bank connections (shared)", included: true },
+      { text: "Unlimited bank connections", included: true },
       { text: "Unlimited transaction history", included: true },
-      { text: "200 AI queries per month (shared)", included: true },
+      { text: "Unlimited AI queries", included: true },
       { text: "Advanced spending insights", included: true },
       { text: "Unlimited savings goals", included: true },
+      { text: "Unlimited spending limits", included: true },
       { text: "Daily auto sync", included: true },
       { text: "CSV & PDF export", included: true },
       { text: "Budget alerts & notifications", included: true },
-      { text: "Priority support", included: true },
-      { text: "Up to 7 family members", included: true },
+      { text: "Up to 5 family members", included: true },
       { text: "Family spending dashboard", included: true },
+      { text: "Shared goals & budgets", included: true },
+      { text: "Priority support", included: true },
     ],
   },
 };
@@ -100,6 +111,7 @@ function formatCurrency(amount: number) {
 export function UpgradePlansContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  // Note: "family" tier kept for backwards compatibility with existing subscribers
   const [currentTier, setCurrentTier] = useState<"free" | "pro" | "family">("free");
   const [currentBillingCycle, setCurrentBillingCycle] = useState<"monthly" | "yearly">("monthly");
   const [subscriptionStatus, setSubscriptionStatus] = useState<string>("active");
@@ -168,7 +180,8 @@ export function UpgradePlansContent() {
     if (isSamePlan && !isBillingChange) return;
 
     // Check if this is a downgrade
-    const tierOrder = { free: 0, pro: 1, family: 2 };
+    // Note: family tier kept at same level as pro for backwards compatibility
+    const tierOrder = { free: 0, pro: 1, family: 1 };
     const isDowngrade = tierOrder[plan as keyof typeof tierOrder] < tierOrder[currentTier];
 
     // If downgrading, show confirmation dialog
@@ -310,12 +323,61 @@ export function UpgradePlansContent() {
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center py-12">
-        <div className="flex items-center gap-2 text-muted-foreground">
-          <SpinnerGap size={20} className="animate-spin" />
-          <span>Loading...</span>
+      <>
+        {/* Page Title Skeleton */}
+        <div className="text-center">
+          <Skeleton className="size-12 rounded-full mx-auto mb-4" />
+          <Skeleton className="h-8 w-48 mx-auto mb-2" />
+          <Skeleton className="h-4 w-72 mx-auto" />
         </div>
-      </div>
+
+        {/* Billing Period Toggle Skeleton */}
+        <div className="flex items-center justify-center gap-3">
+          <Skeleton className="h-4 w-16" />
+          <Skeleton className="h-6 w-11 rounded-full" />
+          <Skeleton className="h-4 w-24" />
+        </div>
+
+        {/* Plans Grid Skeleton */}
+        <div className="grid gap-6 md:grid-cols-2 max-w-3xl mx-auto">
+          {[1, 2].map((i) => (
+            <Card key={i} className="flex flex-col">
+              <CardHeader className="pb-4 pt-6">
+                <div className="flex items-center justify-between">
+                  <Skeleton className="h-6 w-20" />
+                  {i === 2 && <Skeleton className="h-5 w-24" />}
+                </div>
+                <div className="flex items-baseline gap-1 mt-2">
+                  <Skeleton className="h-9 w-24" />
+                  <Skeleton className="h-4 w-12" />
+                </div>
+                <Skeleton className="h-4 w-32 mt-2" />
+              </CardHeader>
+              <CardContent className="flex-1 flex flex-col">
+                <ul className="space-y-3 flex-1">
+                  {[1, 2, 3, 4, 5, 6].map((j) => (
+                    <li key={j} className="flex items-start gap-2">
+                      <Skeleton className="size-4 rounded-full mt-0.5 shrink-0" />
+                      <Skeleton className="h-4 w-full max-w-[180px]" />
+                    </li>
+                  ))}
+                </ul>
+                <Skeleton className="h-11 w-full mt-6" />
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+
+        {/* Bottom Note Skeleton */}
+        <Card className="bg-muted/30">
+          <CardContent className="p-6">
+            <div className="text-center">
+              <Skeleton className="h-4 w-3/4 mx-auto mb-1" />
+              <Skeleton className="h-4 w-1/2 mx-auto" />
+            </div>
+          </CardContent>
+        </Card>
+      </>
     );
   }
 
@@ -430,12 +492,16 @@ export function UpgradePlansContent() {
         </Label>
       </div>
 
-      {/* Plans Grid */}
-      <div className="grid gap-6 md:grid-cols-3">
-        {(Object.entries(planFeatures) as [keyof typeof planFeatures, typeof planFeatures.free][]).map(([key, plan]) => {
-          const isCurrentPlan = currentTier === key;
+      {/* Plans Grid - only show free and pro, not family (backwards compat only) */}
+      <div className="grid gap-6 md:grid-cols-2 max-w-3xl mx-auto">
+        {(Object.entries(planFeatures) as [keyof typeof planFeatures, typeof planFeatures.free][])
+          .filter(([key]) => key !== "family") // Don't show family plan - it's merged into Pro
+          .map(([key, plan]) => {
+          // For existing family subscribers, show them as if they're on Pro
+          const isCurrentPlan = currentTier === key || (key === "pro" && currentTier === "family");
           const isPlanPopular = key === "pro";
-          const tierOrder = { free: 0, pro: 1, family: 2 };
+          // Note: family tier kept at same level as pro for backwards compatibility
+    const tierOrder = { free: 0, pro: 1, family: 1 };
           const isDowngrade = tierOrder[key as keyof typeof tierOrder] < tierOrder[currentTier];
           const hasPaidPlan = plan.price > 0;
           const annualPrice = "annualPrice" in plan ? (plan as typeof planFeatures.pro).annualPrice : 0;

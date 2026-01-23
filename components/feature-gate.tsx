@@ -162,32 +162,12 @@ export function LimitGate({
   );
 }
 
-interface UpgradeBadgeProps {
-  /** The tier required for this feature */
-  tier?: "pro" | "family";
-  /** Optional: Custom label */
-  label?: string;
-  /** Optional: Additional classes */
-  className?: string;
-}
-
-/**
- * Small badge to indicate a feature requires upgrade
- *
- * @example
- * ```tsx
- * <MenuItem>
- *   Export Data <UpgradeBadge tier="pro" />
- * </MenuItem>
- * ```
- */
-export function UpgradeBadge({ tier = "pro", label, className }: UpgradeBadgeProps) {
-  return (
-    <span
-      className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs font-medium bg-primary/10 text-primary ${className}`}
-    >
-      <Crown size={12} weight="fill" />
-      {label || tier.charAt(0).toUpperCase() + tier.slice(1)}
-    </span>
-  );
-}
+// Re-export from tier-badge for backwards compatibility
+// New code should import directly from @/components/ui/tier-badge
+export {
+  TierBadge,
+  StatusBadge,
+  SavingsBadge,
+  FeatureBadge,
+  FeatureBadge as UpgradeBadge, // Alias for backwards compatibility
+} from "@/components/ui/tier-badge";

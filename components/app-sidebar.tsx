@@ -3,7 +3,6 @@
 import { useRouter, usePathname } from "next/navigation";
 import {
   Sparkle,
-  House,
   Wallet,
   PaperPlaneTilt,
   ChartPie,

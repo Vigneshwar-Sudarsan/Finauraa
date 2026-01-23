@@ -5,6 +5,7 @@ import {
   Sheet,
   SheetContent,
   SheetDescription,
+  SheetFooter,
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
@@ -12,13 +13,6 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Separator } from "@/components/ui/separator";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import {
   AlertDialog,
   AlertDialogContent,
@@ -29,7 +23,6 @@ import {
 } from "@/components/ui/alert-dialog";
 import {
   Crown,
-  ShieldCheck,
   User,
   Clock,
   EnvelopeSimple,
@@ -37,9 +30,8 @@ import {
   Trash,
   SpinnerGap,
   Warning,
-  X,
 } from "@phosphor-icons/react";
-import { FamilyMember, FamilyMemberRole } from "@/lib/types";
+import { FamilyMember } from "@/lib/types";
 
 interface MemberDetailsSheetProps {
   member: FamilyMember | null;
@@ -56,41 +48,9 @@ export function MemberDetailsSheet({
   currentUserRole,
   onUpdate,
 }: MemberDetailsSheetProps) {
-  const [role, setRole] = useState<FamilyMemberRole | "">(member?.role || "");
-  const [updatingRole, setUpdatingRole] = useState(false);
   const [removing, setRemoving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showRemoveConfirm, setShowRemoveConfirm] = useState(false);
-
-  const handleRoleChange = async (newRole: FamilyMemberRole) => {
-    if (!member || newRole === member.role) return;
-
-    setUpdatingRole(true);
-    setError(null);
-
-    try {
-      const response = await fetch(`/api/family/members/${member.id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ role: newRole }),
-      });
-
-      const result = await response.json();
-
-      if (!response.ok) {
-        setError(result.error || "Failed to update role");
-        return;
-      }
-
-      setRole(newRole);
-      onUpdate();
-    } catch (err) {
-      setError("Failed to update role");
-      console.error(err);
-    } finally {
-      setUpdatingRole(false);
-    }
-  };
 
   const handleRemove = async () => {
     if (!member) return;
@@ -125,8 +85,6 @@ export function MemberDetailsSheet({
     switch (memberRole) {
       case "owner":
         return <Crown size={16} className="text-amber-500" />;
-      case "admin":
-        return <ShieldCheck size={16} className="text-blue-500" />;
       default:
         return <User size={16} className="text-muted-foreground" />;
     }
@@ -153,13 +111,13 @@ export function MemberDetailsSheet({
     return "?";
   };
 
-  const canEditRole = isOwner && member?.role !== "owner";
-  const canRemove = (isOwner || currentUserRole === "admin") && member?.role !== "owner";
+  // Only the primary user (owner) can remove members
+  const canRemove = isOwner && member?.role !== "owner";
 
   return (
     <>
       <Sheet open={!!member} onOpenChange={(open) => !open && onClose()}>
-        <SheetContent>
+        <SheetContent className="overflow-y-auto">
           <SheetHeader>
             <SheetTitle>Member Details</SheetTitle>
             <SheetDescription>
@@ -168,7 +126,7 @@ export function MemberDetailsSheet({
           </SheetHeader>
 
           {member && (
-            <div className="mt-6 space-y-6">
+            <div className="px-4 pb-4 space-y-6">
               {/* Member Profile */}
               <div className="flex items-center gap-4">
                 <Avatar className="h-16 w-16">
@@ -241,57 +199,27 @@ export function MemberDetailsSheet({
                 )}
               </div>
 
-              {/* Role Management */}
-              {canEditRole && member.status === "active" && (
-                <>
-                  <Separator />
-                  <div className="space-y-2">
-                    <label className="text-sm font-medium">Role</label>
-                    <Select
-                      value={role || member.role}
-                      onValueChange={(value) => handleRoleChange(value as FamilyMemberRole)}
-                      disabled={updatingRole}
-                    >
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="member">Member</SelectItem>
-                        <SelectItem value="admin">Admin</SelectItem>
-                      </SelectContent>
-                    </Select>
-                    {updatingRole && (
-                      <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                        <SpinnerGap size={14} className="animate-spin" />
-                        Updating role...
-                      </div>
-                    )}
-                  </div>
-                </>
-              )}
-
               {error && (
                 <div className="flex items-center gap-2 text-sm text-destructive bg-destructive/10 p-3 rounded-lg">
                   <Warning size={16} />
                   {error}
                 </div>
               )}
-
-              {/* Remove Member */}
-              {canRemove && (
-                <>
-                  <Separator />
-                  <Button
-                    variant="destructive"
-                    className="w-full"
-                    onClick={() => setShowRemoveConfirm(true)}
-                  >
-                    <Trash size={16} className="mr-2" />
-                    {member.status === "pending" ? "Cancel Invitation" : "Remove Member"}
-                  </Button>
-                </>
-              )}
             </div>
+          )}
+
+          {/* Remove Member */}
+          {canRemove && member && (
+            <SheetFooter className="border-t">
+              <Button
+                variant="destructive"
+                className="w-full"
+                onClick={() => setShowRemoveConfirm(true)}
+              >
+                <Trash size={16} className="mr-2" />
+                {member.status === "pending" ? "Cancel Invitation" : "Remove Member"}
+              </Button>
+            </SheetFooter>
           )}
         </SheetContent>
       </Sheet>

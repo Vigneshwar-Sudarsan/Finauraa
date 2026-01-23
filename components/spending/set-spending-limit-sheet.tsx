@@ -26,8 +26,8 @@ import {
   FieldDescription,
 } from "@/components/ui/field";
 import { SpinnerGap, Trash } from "@phosphor-icons/react";
-import { EXPENSE_CATEGORIES, getCategoryLabel } from "@/lib/constants/categories";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { useCategories } from "@/hooks/use-categories";
 
 interface Budget {
   id: string;
@@ -47,6 +47,7 @@ interface SetSpendingLimitSheetProps {
   existingBudget?: Budget | null;
   selectedCategory?: string;
   defaultCurrency?: string;
+  isFamily?: boolean;
 }
 
 export function SetSpendingLimitSheet({
@@ -56,8 +57,10 @@ export function SetSpendingLimitSheet({
   existingBudget,
   selectedCategory,
   defaultCurrency = "BHD",
+  isFamily = false,
 }: SetSpendingLimitSheetProps) {
   const isMobile = useIsMobile();
+  const { expenseCategories, getCategoryLabel } = useCategories();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -104,7 +107,9 @@ export function SetSpendingLimitSheet({
     setIsSubmitting(true);
 
     try {
-      const response = await fetch("/api/finance/budgets", {
+      // Use the isFamily prop to determine which endpoint to use
+      const endpoint = isFamily ? "/api/finance/family/budgets" : "/api/finance/budgets";
+      const response = await fetch(endpoint, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -112,12 +117,13 @@ export function SetSpendingLimitSheet({
           amount: parsedAmount,
           currency: defaultCurrency,
           period: "monthly",
+          ...(isFamily && { scope: "family" }),
         }),
       });
 
       if (!response.ok) {
         const data = await response.json();
-        throw new Error(data.error || "Failed to set budget");
+        throw new Error(data.error || `Failed to set ${isFamily ? "family " : ""}budget`);
       }
 
       resetForm();
@@ -137,13 +143,16 @@ export function SetSpendingLimitSheet({
     setError(null);
 
     try {
-      const response = await fetch(`/api/finance/budgets/${existingBudget.id}`, {
+      const endpoint = isFamily
+        ? `/api/finance/family/budgets/${existingBudget.id}`
+        : `/api/finance/budgets/${existingBudget.id}`;
+      const response = await fetch(endpoint, {
         method: "DELETE",
       });
 
       if (!response.ok) {
         const data = await response.json();
-        throw new Error(data.error || "Failed to remove budget");
+        throw new Error(data.error || `Failed to remove ${isFamily ? "family " : ""}budget`);
       }
 
       resetForm();
@@ -175,12 +184,14 @@ export function SetSpendingLimitSheet({
         <div className="border-b shrink-0">
           <DrawerHeader className={`pb-4 pt-4 ${!isMobile ? "text-left" : ""}`}>
             <DrawerTitle className={isMobile ? "text-center text-xl" : "text-xl"}>
-              {isEditing ? "Edit Spending Limit" : "Set Spending Limit"}
+              {isEditing
+                ? `Edit ${isFamily ? "Family " : ""}Spending Limit`
+                : `Set ${isFamily ? "Family " : ""}Spending Limit`}
             </DrawerTitle>
             <DrawerDescription className={`${isMobile ? "text-center" : ""} text-muted-foreground`}>
               {isEditing
-                ? `Update your monthly budget for ${getCategoryLabel(existingBudget.category, "expense")}`
-                : "Set a monthly spending limit for a category"}
+                ? `Update ${isFamily ? "your family's" : "your"} monthly budget for ${getCategoryLabel(existingBudget.category)}`
+                : `Set a monthly spending limit for ${isFamily ? "your family" : "a category"}`}
             </DrawerDescription>
           </DrawerHeader>
         </div>
@@ -193,7 +204,7 @@ export function SetSpendingLimitSheet({
                 <FieldLabel htmlFor="category">Category</FieldLabel>
                 {isEditing ? (
                   <div className="h-9 flex items-center px-2.5 bg-muted rounded-md text-sm">
-                    {getCategoryLabel(category, "expense")}
+                    {getCategoryLabel(category)}
                   </div>
                 ) : (
                   <Select value={category} onValueChange={setCategory}>
@@ -201,15 +212,16 @@ export function SetSpendingLimitSheet({
                       <SelectValue placeholder="Select category" />
                     </SelectTrigger>
                     <SelectContent>
-                      {EXPENSE_CATEGORIES.map((cat) => (
-                        <SelectItem key={cat.value} value={cat.value}>
-                          {cat.label}
+                      {expenseCategories.map((cat) => (
+                        <SelectItem key={cat.id} value={cat.id}>
+                          {cat.name}
                         </SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
                 )}
               </Field>
+
 
               {/* Budget Amount */}
               <Field>
@@ -228,7 +240,7 @@ export function SetSpendingLimitSheet({
                 />
                 {isEditing && currentSpent > 0 && (
                   <FieldDescription>
-                    You've spent {defaultCurrency} {currentSpent.toFixed(2)} ({percentage}%) this month
+                    {isFamily ? "Family has" : "You've"} spent {defaultCurrency} {currentSpent.toFixed(2)} ({percentage}%) this month
                   </FieldDescription>
                 )}
               </Field>

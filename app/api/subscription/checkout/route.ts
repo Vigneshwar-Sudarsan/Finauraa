@@ -17,16 +17,12 @@ function getStripe(): Stripe {
   return stripe;
 }
 
-// Stripe price IDs for each plan (configure in Stripe Dashboard)
+// Stripe price IDs for Pro plan (configure in Stripe Dashboard)
 function getPriceIds() {
   return {
     pro: {
       monthly: process.env.STRIPE_PRO_PRICE_ID_MONTHLY!,
       yearly: process.env.STRIPE_PRO_PRICE_ID_YEARLY!,
-    },
-    family: {
-      monthly: process.env.STRIPE_FAMILY_PRICE_ID_MONTHLY!,
-      yearly: process.env.STRIPE_FAMILY_PRICE_ID_YEARLY!,
     },
   };
 }
@@ -48,7 +44,7 @@ export async function POST(request: NextRequest) {
 
     const { plan, billing = "monthly" } = await request.json();
 
-    if (!plan || !["pro", "family"].includes(plan)) {
+    if (!plan || plan !== "pro") {
       return NextResponse.json(
         { error: "Invalid plan selected" },
         { status: 400 }
@@ -70,7 +66,7 @@ export async function POST(request: NextRequest) {
       .single();
 
     const PRICE_IDS = getPriceIds();
-    const priceId = PRICE_IDS[plan as "pro" | "family"][billing as "monthly" | "yearly"];
+    const priceId = PRICE_IDS.pro[billing as "monthly" | "yearly"];
 
     if (!priceId) {
       return NextResponse.json(

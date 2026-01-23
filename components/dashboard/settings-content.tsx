@@ -8,6 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
+import { Skeleton } from "@/components/ui/skeleton";
 import { createClient } from "@/lib/supabase/client";
 import {
   User,
@@ -50,6 +51,8 @@ export function SettingsContent() {
   const [subscriptionTier, setSubscriptionTier] = useState<"free" | "pro" | "family" | null>(null);
   const [isLoadingSubscription, setIsLoadingSubscription] = useState(true);
   const [familyMemberCount, setFamilyMemberCount] = useState<number | null>(null);
+  const [isFamilyMember, setIsFamilyMember] = useState(false);
+  const [hasFamilyGroup, setHasFamilyGroup] = useState(false);
 
   // Fetch subscription tier
   const fetchSubscriptionTier = useCallback(async () => {
@@ -60,9 +63,12 @@ export function SettingsContent() {
         const data = await response.json();
         const tier = data.subscription?.tier || "free";
         setSubscriptionTier(tier);
+        setIsFamilyMember(data.subscription?.isFamilyMember || false);
 
-        // Fetch family group info if user has family tier
-        if (tier === "family") {
+        // Check if user is part of a family group (either as owner or member)
+        // Family tier owners and family members both have access to family features
+        if (tier === "family" || data.subscription?.isFamilyMember) {
+          setHasFamilyGroup(true);
           fetchFamilyInfo();
         }
       } else {
@@ -163,15 +169,17 @@ export function SettingsContent() {
   };
 
   // Get display name for subscription tier
+  // Both pro and family tiers display as "Pro" since family plan was merged into Pro
+  // Family members also see "Pro" since they inherit Pro features
   const getTierDisplayName = (tier: "free" | "pro" | "family" | null) => {
     if (tier === null) return null; // Loading state
     switch (tier) {
       case "pro":
-        return "Pro";
       case "family":
-        return "Family";
+        return "Pro";
       default:
-        return "Free";
+        // If user is a family member with free tier, they still get Pro features
+        return isFamilyMember ? "Pro" : "Free";
     }
   };
 
@@ -192,13 +200,13 @@ export function SettingsContent() {
       badge: getTierDisplayName(subscriptionTier),
       badgeLoading: isLoadingSubscription,
     },
-    // Family settings - only show for family tier
-    ...(subscriptionTier === "family"
+    // Family settings - show for family tier owners AND family members
+    ...(hasFamilyGroup
       ? [
           {
             icon: Users,
             title: "Family Group",
-            description: "Manage your family members",
+            description: isFamilyMember ? "View your family group" : "Manage your family members",
             action: "link" as const,
             href: "/dashboard/settings/family",
             badge: familyMemberCount !== null ? `${familyMemberCount}/7` : null,
@@ -330,6 +338,167 @@ export function SettingsContent() {
       </div>
     );
   };
+
+  // Show skeleton while mounting or loading subscription
+  if (!mounted || isLoadingSubscription) {
+    return (
+      <div className="flex flex-col h-full">
+        <DashboardHeader title="Settings" />
+        <div className="flex-1 overflow-auto">
+          <div className="p-4 md:p-6 space-y-6 max-w-4xl mx-auto">
+            {/* Account Section Skeleton */}
+            <Card>
+              <CardHeader className="pb-0">
+                <Skeleton className="h-5 w-20" />
+              </CardHeader>
+              <CardContent className="p-0">
+                {[1, 2, 3].map((i) => (
+                  <div key={i}>
+                    {i > 1 && <Separator />}
+                    <div className="flex items-center justify-between p-4">
+                      <div className="flex items-center gap-3">
+                        <Skeleton className="size-5 rounded" />
+                        <div>
+                          <Skeleton className="h-4 w-24 mb-1" />
+                          <Skeleton className="h-3 w-40" />
+                        </div>
+                      </div>
+                      <Skeleton className="size-4" />
+                    </div>
+                  </div>
+                ))}
+              </CardContent>
+            </Card>
+
+            {/* Preferences Section Skeleton */}
+            <Card>
+              <CardHeader className="pb-0">
+                <Skeleton className="h-5 w-24" />
+              </CardHeader>
+              <CardContent className="p-0">
+                {[1, 2, 3].map((i) => (
+                  <div key={i}>
+                    {i > 1 && <Separator />}
+                    <div className="flex items-center justify-between p-4">
+                      <div className="flex items-center gap-3">
+                        <Skeleton className="size-5 rounded" />
+                        <div>
+                          <Skeleton className="h-4 w-28 mb-1" />
+                          <Skeleton className="h-3 w-48" />
+                        </div>
+                      </div>
+                      {i === 2 ? (
+                        <Skeleton className="h-6 w-11 rounded-full" />
+                      ) : (
+                        <Skeleton className="size-4" />
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </CardContent>
+            </Card>
+
+            {/* AI Settings Skeleton */}
+            <Card>
+              <CardHeader className="pb-0">
+                <Skeleton className="h-5 w-24" />
+              </CardHeader>
+              <CardContent className="p-0">
+                <div className="flex items-center justify-between p-4">
+                  <div className="flex items-center gap-3">
+                    <Skeleton className="size-5 rounded" />
+                    <div>
+                      <Skeleton className="h-4 w-32 mb-1" />
+                      <Skeleton className="h-3 w-56" />
+                    </div>
+                  </div>
+                  <Skeleton className="size-4" />
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Security Skeleton */}
+            <Card>
+              <CardHeader className="pb-0">
+                <Skeleton className="h-5 w-20" />
+              </CardHeader>
+              <CardContent className="p-0">
+                <div className="flex items-center justify-between p-4">
+                  <div className="flex items-center gap-3">
+                    <Skeleton className="size-5 rounded" />
+                    <div>
+                      <Skeleton className="h-4 w-20 mb-1" />
+                      <Skeleton className="h-3 w-40" />
+                    </div>
+                  </div>
+                  <Skeleton className="size-4" />
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Privacy Skeleton */}
+            <Card>
+              <CardHeader className="pb-0">
+                <Skeleton className="h-5 w-28" />
+              </CardHeader>
+              <CardContent className="p-0">
+                <div className="flex items-center justify-between p-4">
+                  <div className="flex items-center gap-3">
+                    <Skeleton className="size-5 rounded" />
+                    <div>
+                      <Skeleton className="h-4 w-28 mb-1" />
+                      <Skeleton className="h-3 w-52" />
+                    </div>
+                  </div>
+                  <Skeleton className="size-4" />
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Danger Zone Skeleton */}
+            <Card className="border-destructive/50">
+              <CardHeader className="pb-0">
+                <Skeleton className="h-5 w-24" />
+              </CardHeader>
+              <CardContent className="p-0">
+                {[1, 2].map((i) => (
+                  <div key={i}>
+                    {i > 1 && <Separator />}
+                    <div className="flex items-center justify-between p-4">
+                      <div className="flex items-center gap-3">
+                        <Skeleton className="size-5 rounded" />
+                        <div>
+                          <Skeleton className="h-4 w-32 mb-1" />
+                          <Skeleton className="h-3 w-40" />
+                        </div>
+                      </div>
+                      <Skeleton className="size-4" />
+                    </div>
+                  </div>
+                ))}
+              </CardContent>
+            </Card>
+
+            {/* Log Out Skeleton */}
+            <Card>
+              <CardContent className="p-0">
+                <div className="flex items-center justify-between p-4">
+                  <div className="flex items-center gap-3">
+                    <Skeleton className="size-5 rounded" />
+                    <div>
+                      <Skeleton className="h-4 w-16 mb-1" />
+                      <Skeleton className="h-3 w-36" />
+                    </div>
+                  </div>
+                  <Skeleton className="size-4" />
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col h-full">

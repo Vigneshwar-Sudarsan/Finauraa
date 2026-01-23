@@ -34,8 +34,8 @@ import {
   FieldError,
 } from "@/components/ui/field";
 import { SpinnerGap, ArrowDown, ArrowUp, CalendarBlank } from "@phosphor-icons/react";
-import { EXPENSE_CATEGORIES, INCOME_CATEGORIES } from "@/lib/constants/categories";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { useCategories } from "@/hooks/use-categories";
 
 interface Account {
   id: string;
@@ -56,6 +56,7 @@ interface AddTransactionSheetProps {
   onSuccess?: () => void;
   banks?: BankConnection[];
   defaultCurrency?: string;
+  isFamily?: boolean; // Scope is determined by the active tab (My = personal, Family = family)
 }
 
 export function AddTransactionSheet({
@@ -64,8 +65,10 @@ export function AddTransactionSheet({
   onSuccess,
   banks = [],
   defaultCurrency = "BHD",
+  isFamily = false,
 }: AddTransactionSheetProps) {
   const isMobile = useIsMobile();
+  const { expenseCategories, incomeCategories } = useCategories();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -77,7 +80,7 @@ export function AddTransactionSheet({
   const [transactionDate, setTransactionDate] = useState<Date>(new Date());
   const [accountId, setAccountId] = useState<string>("cash");
 
-  const categories = transactionType === "expense" ? EXPENSE_CATEGORIES : INCOME_CATEGORIES;
+  const categories = transactionType === "expense" ? expenseCategories : incomeCategories;
 
   // Flatten accounts from all banks for the selector
   const allAccounts = banks.flatMap((bank) =>
@@ -122,12 +125,13 @@ export function AddTransactionSheet({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           amount: parsedAmount,
-          transaction_type: transactionType,
+          transaction_type: transactionType === "expense" ? "debit" : "credit",
           category,
           description: description.trim() || null,
           transaction_date: format(transactionDate, "yyyy-MM-dd"),
           account_id: accountId === "cash" ? null : accountId,
           currency: defaultCurrency,
+          transaction_scope: isFamily ? "family" : "personal",
         }),
       });
 
@@ -228,13 +232,14 @@ export function AddTransactionSheet({
                   </SelectTrigger>
                   <SelectContent>
                     {categories.map((cat) => (
-                      <SelectItem key={cat.value} value={cat.value}>
-                        {cat.label}
+                      <SelectItem key={cat.id} value={cat.id}>
+                        {cat.name}
                       </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
               </Field>
+
 
               {/* Description */}
               <Field>

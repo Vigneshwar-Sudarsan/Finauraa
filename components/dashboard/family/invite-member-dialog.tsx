@@ -12,15 +12,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { SpinnerGap, EnvelopeSimple, Check, Warning } from "@phosphor-icons/react";
-import { FamilyMemberRole } from "@/lib/types";
 
 interface InviteMemberDialogProps {
   open: boolean;
@@ -30,7 +22,6 @@ interface InviteMemberDialogProps {
 
 export function InviteMemberDialog({ open, onOpenChange, onSuccess }: InviteMemberDialogProps) {
   const [email, setEmail] = useState("");
-  const [role, setRole] = useState<FamilyMemberRole>("member");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
@@ -44,7 +35,7 @@ export function InviteMemberDialog({ open, onOpenChange, onSuccess }: InviteMemb
       const response = await fetch("/api/family/members/invite", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: email.toLowerCase().trim(), role }),
+        body: JSON.stringify({ email: email.toLowerCase().trim() }),
       });
 
       const result = await response.json();
@@ -69,7 +60,6 @@ export function InviteMemberDialog({ open, onOpenChange, onSuccess }: InviteMemb
 
   const handleClose = () => {
     setEmail("");
-    setRole("member");
     setError(null);
     setSuccess(false);
     onOpenChange(false);
@@ -114,23 +104,9 @@ export function InviteMemberDialog({ open, onOpenChange, onSuccess }: InviteMemb
                 </div>
               </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="role">Role</Label>
-                <Select value={role} onValueChange={(value) => setRole(value as FamilyMemberRole)}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select a role" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="member">Member</SelectItem>
-                    <SelectItem value="admin">Admin</SelectItem>
-                  </SelectContent>
-                </Select>
-                <p className="text-xs text-muted-foreground">
-                  {role === "admin"
-                    ? "Can invite and manage members"
-                    : "Can view and use their own dashboard"}
-                </p>
-              </div>
+              <p className="text-xs text-muted-foreground">
+                They will be able to view and use their own dashboard
+              </p>
 
               {error && (
                 <div className="flex items-center gap-2 text-sm text-destructive bg-destructive/10 p-3 rounded-lg">

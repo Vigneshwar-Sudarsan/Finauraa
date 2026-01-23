@@ -12,7 +12,7 @@ import {
   Check,
   TrendUp,
 } from "@phosphor-icons/react";
-import { getCategoryLabel } from "@/lib/constants/categories";
+import { useCategories } from "@/hooks/use-categories";
 
 interface SavingsGoal {
   id: string;
@@ -49,6 +49,7 @@ export function SavingsGoalsSection({
   recentIncome,
   defaultCurrency = "BHD",
 }: SavingsGoalsSectionProps) {
+  const { getCategoryLabel } = useCategories();
   const activeGoals = goals.filter((g) => !g.is_completed);
   const completedGoals = goals.filter((g) => g.is_completed);
 

@@ -34,8 +34,8 @@ import {
 } from "@/components/ui/field";
 import { SpinnerGap, Trash, CalendarBlank } from "@phosphor-icons/react";
 import { Switch } from "@/components/ui/switch";
-import { SAVINGS_GOAL_CATEGORIES } from "@/lib/constants/categories";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { useCategories } from "@/hooks/use-categories";
 import { cn } from "@/lib/utils";
 
 interface SavingsGoal {
@@ -67,6 +67,7 @@ export function SavingsGoalSheet({
   defaultCurrency = "BHD",
 }: SavingsGoalSheetProps) {
   const isMobile = useIsMobile();
+  const { savingsCategories } = useCategories();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -331,9 +332,9 @@ export function SavingsGoalSheet({
                       <SelectValue placeholder="Select category" />
                     </SelectTrigger>
                     <SelectContent>
-                      {SAVINGS_GOAL_CATEGORIES.map((cat) => (
-                        <SelectItem key={cat.value} value={cat.value}>
-                          {cat.label}
+                      {savingsCategories.map((cat) => (
+                        <SelectItem key={cat.id} value={cat.id}>
+                          {cat.name}
                         </SelectItem>
                       ))}
                     </SelectContent>

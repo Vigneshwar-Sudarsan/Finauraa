@@ -31,7 +31,7 @@ import {
   SavingsGoalSheet,
   ContributeToGoalSheet,
 } from "@/components/spending";
-import { getCategoryLabel } from "@/lib/constants/categories";
+import { useCategories } from "@/hooks/use-categories";
 
 interface SavingsGoal {
   id: string;
@@ -55,6 +55,9 @@ export function GoalsContent() {
   const [error, setError] = useState<string | null>(null);
   const [needsConsent, setNeedsConsent] = useState(false);
   const [recentIncome, setRecentIncome] = useState(0);
+
+  // Categories hook
+  const { getCategoryLabel } = useCategories();
 
   // Bank connection with consent dialog
   const { connectBank, isConnecting, ConsentDialog } = useBankConnection();

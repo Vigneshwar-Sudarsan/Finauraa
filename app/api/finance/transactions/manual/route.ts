@@ -38,6 +38,7 @@ export async function POST(request: NextRequest) {
       transaction_date,
       currency = "BHD",
       account_id, // Optional - can link to existing account
+      transaction_scope = "auto", // personal, family, or auto
     } = body;
 
     // Validate required fields
@@ -86,6 +87,10 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // Validate transaction_scope if provided
+    const validScopes = ["personal", "family", "auto"];
+    const scope = validScopes.includes(transaction_scope) ? transaction_scope : "auto";
+
     // Create the manual transaction
     const { data: transaction, error } = await supabase
       .from("transactions")
@@ -101,6 +106,7 @@ export async function POST(request: NextRequest) {
         transaction_date: new Date(transaction_date).toISOString(),
         booking_date: new Date(transaction_date).toISOString(),
         is_manual: true,
+        transaction_scope: scope,
       })
       .select()
       .single();

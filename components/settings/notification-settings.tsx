@@ -5,8 +5,8 @@ import { useRouter } from "next/navigation";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
 import { Separator } from "@/components/ui/separator";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { FeatureBadge } from "@/components/ui/tier-badge";
 import {
   Bell,
   EnvelopeSimple,
@@ -17,9 +17,7 @@ import {
   TrendUp,
   Target,
   CalendarCheck,
-  Crown,
   Info,
-  Lock,
 } from "@phosphor-icons/react";
 import { useFeatureAccess } from "@/hooks/use-feature-access";
 import { NOTIFICATION_FEATURES, TierLimits } from "@/lib/features";
@@ -168,19 +166,7 @@ export function NotificationSettings({ userId }: NotificationSettingsProps) {
               <div className="flex items-center gap-2">
                 <p className="font-medium text-sm">{pref.title}</p>
                 {pref.requiredFeature && (
-                  <Badge variant="secondary" className="text-[10px] flex items-center gap-1">
-                    {isLocked ? (
-                      <>
-                        <Lock size={10} weight="fill" />
-                        Pro & Family
-                      </>
-                    ) : (
-                      <>
-                        <Crown size={10} weight="fill" />
-                        {tier === "family" ? "Family" : "Pro"}
-                      </>
-                    )}
-                  </Badge>
+                  <FeatureBadge showIcon size="sm" />
                 )}
               </div>
               <p className="text-xs text-muted-foreground">{pref.description}</p>

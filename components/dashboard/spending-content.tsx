@@ -1,10 +1,13 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { useRouter } from "next/navigation";
 import { DashboardHeader } from "./dashboard-header";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Button } from "@/components/ui/button";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { Badge } from "@/components/ui/badge";
 import {
   Item,
   ItemMedia,
@@ -17,6 +20,7 @@ import {
 } from "@/components/ui/item";
 import { EmptyState } from "@/components/ui/empty-state";
 import { useBankConnection } from "@/hooks/use-bank-connection";
+import { useFeatureAccess } from "@/hooks/use-feature-access";
 import { cn } from "@/lib/utils";
 import {
   ShoppingCart,
@@ -40,11 +44,16 @@ import {
   Storefront,
   Plus,
   Gauge,
+  Users,
+  Lock,
+  User,
 } from "@phosphor-icons/react";
 import {
   AddTransactionSheet,
   SetSpendingLimitSheet,
+  SpendingLimitsSection,
 } from "@/components/spending";
+import { FamilySpendingContent } from "./family-spending-content";
 
 interface SpendingCategory {
   id: string;
@@ -156,6 +165,7 @@ function formatCategoryName(name: string) {
 }
 
 export function SpendingContent() {
+  const router = useRouter();
   const [data, setData] = useState<SpendingData | null>(null);
   const [budgets, setBudgets] = useState<Budget[]>([]);
   const [banks, setBanks] = useState<BankConnection[]>([]);
@@ -163,6 +173,16 @@ export function SpendingContent() {
   const [isLoadingBudgets, setIsLoadingBudgets] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [needsConsent, setNeedsConsent] = useState(false);
+  const [activeTab, setActiveTab] = useState<"my" | "family">("my");
+  const [mounted, setMounted] = useState(false);
+
+  // Prevent hydration mismatch by only rendering dynamic content after mount
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  // Feature access for Pro/Family features
+  const { canAccessFamilyFeatures, isLoading: featureLoading } = useFeatureAccess();
 
   // Bank connection with consent dialog
   const { connectBank, isConnecting, ConsentDialog } = useBankConnection();
@@ -172,6 +192,17 @@ export function SpendingContent() {
   const [setLimitOpen, setSetLimitOpen] = useState(false);
   const [selectedBudget, setSelectedBudget] = useState<Budget | null>(null);
   const [selectedCategory, setSelectedCategory] = useState<string | undefined>();
+  const [familyRefreshTrigger, setFamilyRefreshTrigger] = useState(0);
+
+  // Handle tab change - redirect to upgrade if not Pro
+  const handleTabChange = (value: string) => {
+    // Don't redirect while feature access is still loading
+    if (value === "family" && !featureLoading && !canAccessFamilyFeatures) {
+      router.push("/dashboard/settings/subscription/plans");
+      return;
+    }
+    setActiveTab(value as "my" | "family");
+  };
 
   const fetchSpendingData = useCallback(async () => {
     try {
@@ -232,8 +263,13 @@ export function SpendingContent() {
   }, [fetchSpendingData, fetchBudgets, fetchBanks]);
 
   const handleRefreshAll = () => {
-    fetchSpendingData();
-    fetchBudgets();
+    if (activeTab === "family") {
+      // Trigger family spending refresh
+      setFamilyRefreshTrigger((prev) => prev + 1);
+    } else {
+      fetchSpendingData();
+      fetchBudgets();
+    }
   };
 
   // Budget helpers
@@ -269,8 +305,72 @@ export function SpendingContent() {
     <div className="flex flex-col h-full">
       <DashboardHeader title="Spending" />
 
-      {/* Error State - Needs Bank Connection */}
-      {error && !isLoading && needsConsent && (
+      {/* Tab Navigation Row - Full width above content */}
+      <div className="px-4 md:px-6 pt-4 md:pt-6 max-w-6xl mx-auto w-full">
+        <div className="flex items-center justify-between gap-4">
+          {/* Tabs - only render after mount to prevent hydration mismatch */}
+          {mounted ? (
+            <Tabs value={activeTab} onValueChange={handleTabChange}>
+              <TabsList>
+                <TabsTrigger value="my" className="gap-1.5">
+                  <User size={14} weight={activeTab === "my" ? "fill" : "regular"} />
+                  My
+                </TabsTrigger>
+                <TabsTrigger
+                  value="family"
+                  className={cn(
+                    "gap-1.5",
+                    !canAccessFamilyFeatures && !featureLoading && "opacity-70"
+                  )}
+                >
+                  {canAccessFamilyFeatures || featureLoading ? (
+                    <Users size={14} weight={activeTab === "family" ? "fill" : "regular"} />
+                  ) : (
+                    <Lock size={14} />
+                  )}
+                  Family
+                </TabsTrigger>
+              </TabsList>
+            </Tabs>
+          ) : (
+            /* Static placeholder during SSR to prevent hydration mismatch */
+            <div className="w-[140px] h-9 bg-muted rounded-lg" />
+          )}
+
+          {/* Add Transaction Button */}
+          <Button
+            size="sm"
+            onClick={() => setAddTransactionOpen(true)}
+            className="hidden sm:flex"
+          >
+            <Plus size={16} />
+            Add Transaction
+          </Button>
+        </div>
+      </div>
+
+      {/* Family Tab Content */}
+      {activeTab === "family" && (
+        featureLoading ? (
+          <div className="flex-1 flex items-center justify-center">
+            <div className="flex items-center gap-2 text-muted-foreground">
+              <div className="size-2 bg-foreground/40 rounded-full animate-pulse" />
+              <div className="size-2 bg-foreground/40 rounded-full animate-pulse" style={{ animationDelay: "150ms" }} />
+              <div className="size-2 bg-foreground/40 rounded-full animate-pulse" style={{ animationDelay: "300ms" }} />
+            </div>
+          </div>
+        ) : canAccessFamilyFeatures ? (
+          <div className="flex-1 overflow-auto pb-24 sm:pb-0">
+            <FamilySpendingContent refreshTrigger={familyRefreshTrigger} />
+          </div>
+        ) : null
+      )}
+
+      {/* My Tab Content */}
+      {activeTab === "my" && (
+        <>
+          {/* Error State - Needs Bank Connection */}
+          {error && !isLoading && needsConsent && (
         <div className="flex-1 flex items-center justify-center">
           <EmptyState
             icon={<Bank size={28} className="text-muted-foreground" />}
@@ -429,18 +529,6 @@ export function SpendingContent() {
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
               {/* Left Column - Main Content (2/3 on desktop) */}
               <div className="lg:col-span-2 space-y-6">
-                {/* Desktop Add Button */}
-                <div className="flex justify-end">
-                  <Button
-                    size="sm"
-                    onClick={() => setAddTransactionOpen(true)}
-                    className="hidden sm:flex"
-                  >
-                    <Plus size={16} />
-                    Add Transaction
-                  </Button>
-                </div>
-
                 {/* Hero Card - Financial Overview */}
                 <Card className="overflow-hidden">
                   <CardContent className="p-0">
@@ -684,6 +772,24 @@ export function SpendingContent() {
 
               {/* Right Column - Sidebar Content (1/3 on desktop) */}
               <div className="space-y-6">
+                {/* Spending Limits */}
+                <SpendingLimitsSection
+                  budgets={budgets}
+                  currency={data.currency}
+                  isLoading={isLoadingBudgets}
+                  variant="personal"
+                  onAddLimit={() => {
+                    setSelectedBudget(null);
+                    setSelectedCategory(undefined);
+                    setSetLimitOpen(true);
+                  }}
+                  onEditLimit={(budget) => {
+                    setSelectedBudget(budget);
+                    setSelectedCategory(undefined);
+                    setSetLimitOpen(true);
+                  }}
+                />
+
                 {/* Income Sources */}
                 {data.totalIncome > 0 && data.incomeSources && data.incomeSources.length > 0 && (
                   <Card>
@@ -777,6 +883,8 @@ export function SpendingContent() {
         </div>
       </div>
       )}
+        </>
+      )}
 
       {/* Mobile FAB */}
       <Button
@@ -794,6 +902,7 @@ export function SpendingContent() {
         onSuccess={handleRefreshAll}
         banks={banks}
         defaultCurrency={data?.currency || "BHD"}
+        isFamily={activeTab === "family"}
       />
 
       <SetSpendingLimitSheet
@@ -806,6 +915,7 @@ export function SpendingContent() {
         existingBudget={selectedBudget}
         selectedCategory={selectedCategory}
         defaultCurrency={data?.currency || "BHD"}
+        isFamily={activeTab === "family"}
       />
 
       {/* Bank Consent Dialog */}

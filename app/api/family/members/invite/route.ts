@@ -1,8 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { checkRateLimit } from "@/lib/ratelimit";
-import { inviteFamilyMemberSchema } from "@/lib/validations/family";
-import { validateRequestBody, formatZodError } from "@/lib/validations/consent";
 import { sendFamilyInvitationEmail } from "@/lib/email";
 import crypto from "crypto";
 
@@ -28,55 +26,34 @@ export async function POST(request: NextRequest) {
     const rateLimitResponse = await checkRateLimit("familyInvite", user.id);
     if (rateLimitResponse) return rateLimitResponse;
 
-    // Check if user owns a group or is admin
+    // Only the primary user (owner) can invite new members
     const { data: ownedGroup } = await supabase
       .from("family_groups")
       .select("id, name")
       .eq("owner_id", user.id)
       .single();
 
-    let groupId = ownedGroup?.id;
-    let groupName = ownedGroup?.name;
-    let userRole = ownedGroup ? "owner" : null;
-
-    // If not owner, check if admin
     if (!ownedGroup) {
-      const { data: membership } = await supabase
-        .from("family_members")
-        .select("group_id, role")
-        .eq("user_id", user.id)
-        .eq("status", "active")
-        .single();
-
-      if (membership?.role === "admin") {
-        groupId = membership.group_id;
-        userRole = "admin";
-
-        // Fetch group name
-        const { data: group } = await supabase
-          .from("family_groups")
-          .select("name")
-          .eq("id", groupId)
-          .single();
-        groupName = group?.name;
-      }
-    }
-
-    if (!groupId) {
       return NextResponse.json(
-        { error: "You must be an owner or admin to invite members" },
+        { error: "Only the primary account holder can invite family members" },
         { status: 403 }
       );
     }
 
+    const groupId = ownedGroup.id;
+    const groupName = ownedGroup.name;
+
     // Validate request body
     const body = await request.json();
-    const validation = validateRequestBody(inviteFamilyMemberSchema, body);
-    if (!validation.success) {
-      return NextResponse.json(formatZodError(validation.error), { status: 400 });
+
+    // Validate email format
+    const email = body.email?.toLowerCase().trim();
+    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      return NextResponse.json({ error: "Please enter a valid email address" }, { status: 400 });
     }
 
-    const { email, role } = validation.data;
+    // All invited members get the "member" role - only the primary user (owner) can manage
+    const role = "member";
 
     // Check member limit
     const { count } = await supabase
@@ -130,7 +107,16 @@ export async function POST(request: NextRequest) {
     const expiresAt = new Date();
     expiresAt.setDate(expiresAt.getDate() + INVITATION_EXPIRY_DAYS);
 
-    // Create pending member entry
+    // Get inviter name for storing with invitation
+    const { data: inviterData } = await supabase
+      .from("profiles")
+      .select("full_name, email")
+      .eq("id", user.id)
+      .single();
+
+    const inviterName = inviterData?.full_name || inviterData?.email || "A family member";
+
+    // Create pending member entry with cached inviter/group names for public display
     const { data: member, error: memberError } = await supabase
       .from("family_members")
       .insert({
@@ -144,6 +130,8 @@ export async function POST(request: NextRequest) {
         status: "pending",
         invitation_token: invitationToken,
         invitation_expires_at: expiresAt.toISOString(),
+        inviter_name: inviterName,
+        group_name: groupName,
       })
       .select()
       .single();
@@ -151,30 +139,55 @@ export async function POST(request: NextRequest) {
     if (memberError) {
       console.error("Failed to create invitation:", memberError);
       return NextResponse.json(
-        { error: "Failed to send invitation" },
+        { error: `Failed to create invitation: ${memberError.message}` },
         { status: 500 }
       );
     }
 
-    // Get inviter name for email
-    const { data: inviterData } = await supabase
+    // Check if invited user already has an account - create in-app notification
+    const { data: invitedUserProfile } = await supabase
       .from("profiles")
-      .select("full_name, email")
-      .eq("id", user.id)
+      .select("id")
+      .eq("email", email)
       .single();
 
-    const inviterName = inviterData?.full_name || inviterData?.email || "A family member";
+    if (invitedUserProfile) {
+      // Create in-app notification for existing user
+      await supabase.from("notifications").insert({
+        user_id: invitedUserProfile.id,
+        type: "family_invitation",
+        title: "Family Group Invitation",
+        message: `${inviterName} has invited you to join ${groupName || "their family group"}`,
+        data: {
+          invitation_token: invitationToken,
+          group_id: groupId,
+          group_name: groupName,
+          inviter_name: inviterName,
+          expires_at: expiresAt.toISOString(),
+        },
+      });
+    }
 
     // Send invitation email
     const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://www.finauraa.com";
     const acceptUrl = `${appUrl}/family/invite/${invitationToken}`;
 
-    await sendFamilyInvitationEmail(
+    console.log("Sending family invitation email to:", email);
+    console.log("Accept URL:", acceptUrl);
+
+    const emailResult = await sendFamilyInvitationEmail(
       email,
       inviterName,
       groupName || "Family Group",
       acceptUrl
     );
+
+    console.log("Email send result:", emailResult);
+
+    if (!emailResult.success) {
+      console.error("Failed to send invitation email:", emailResult.error);
+      // Still return success as the invitation was created, but note the email issue
+    }
 
     return NextResponse.json({
       member: {
@@ -190,7 +203,7 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     console.error("Invitation error:", error);
     return NextResponse.json(
-      { error: "Failed to send invitation" },
+      { error: error instanceof Error ? error.message : "Failed to send invitation" },
       { status: 500 }
     );
   }

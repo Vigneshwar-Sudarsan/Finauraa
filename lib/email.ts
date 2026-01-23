@@ -391,7 +391,7 @@ export async function sendFamilyInvitationEmail(
       </p>
     </div>
 
-    <p style="font-size: 16px;">As part of a Family Plan, you'll get access to:</p>
+    <p style="font-size: 16px;">As part of this family group, you'll get access to:</p>
     <ul style="font-size: 14px; color: #666;">
       <li>Your own private financial dashboard</li>
       <li>AI-powered spending insights</li>
@@ -471,7 +471,7 @@ export async function sendMemberJoinedNotification(
       </p>
     </div>
 
-    <p style="font-size: 16px;">They now have access to their own personal financial dashboard within your family plan.</p>
+    <p style="font-size: 16px;">They now have access to their own personal financial dashboard within your family group.</p>
 
     <div style="text-align: center; margin: 30px 0;">
       <a href="${APP_URL}/dashboard/settings/family" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 14px 28px; text-decoration: none; border-radius: 8px; font-weight: 600; display: inline-block;">Manage Family Group</a>
@@ -548,12 +548,12 @@ export async function sendMemberRemovedNotification(
 
     <p style="font-size: 16px;">What this means:</p>
     <ul style="font-size: 14px; color: #666;">
-      <li>You no longer have access to the family plan benefits</li>
+      <li>You no longer have access to the family group benefits</li>
       <li>Your personal data and transaction history remain intact</li>
       <li>You can still use Finauraa with a free account</li>
     </ul>
 
-    <p style="font-size: 16px;">Want to continue with premium features? You can upgrade to your own Pro or Family plan.</p>
+    <p style="font-size: 16px;">Want to continue with premium features? You can upgrade to your own Pro plan.</p>
 
     <div style="text-align: center; margin: 30px 0;">
       <a href="${APP_URL}/dashboard/settings/subscription" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 14px 28px; text-decoration: none; border-radius: 8px; font-weight: 600; display: inline-block;">View Plans</a>

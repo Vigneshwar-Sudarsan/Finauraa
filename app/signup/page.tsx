@@ -1,14 +1,14 @@
 "use client";
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useState, Suspense } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Sparkle, SpinnerGap, CheckCircle } from "@phosphor-icons/react";
 
-export default function SignupPage() {
+function SignupForm() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -16,6 +16,7 @@ export default function SignupPage() {
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
   const router = useRouter();
+  const searchParams = useSearchParams();
 
   const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -33,12 +34,18 @@ export default function SignupPage() {
 
     setLoading(true);
 
+    // Preserve redirect URL for after email confirmation
+    const redirectUrl = searchParams.get("redirect");
+    const callbackUrl = redirectUrl
+      ? `${window.location.origin}/auth/callback?redirect=${encodeURIComponent(redirectUrl)}`
+      : `${window.location.origin}/auth/callback`;
+
     const supabase = createClient();
     const { error } = await supabase.auth.signUp({
       email,
       password,
       options: {
-        emailRedirectTo: `${window.location.origin}/auth/callback`,
+        emailRedirectTo: callbackUrl,
       },
     });
 
@@ -144,5 +151,17 @@ export default function SignupPage() {
         </p>
       </div>
     </div>
+  );
+}
+
+export default function SignupPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-dvh flex items-center justify-center">
+        <SpinnerGap size={32} className="animate-spin text-muted-foreground" />
+      </div>
+    }>
+      <SignupForm />
+    </Suspense>
   );
 }

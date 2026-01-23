@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { SubscriptionTier, getTierLimits } from "@/lib/features";
+import { getTierLimits } from "@/lib/features";
+import { getUserSubscription } from "@/lib/features-server";
 import { requireBankConsent, logDataAccessSuccess } from "@/lib/consent-middleware";
 
 /**
@@ -44,14 +45,9 @@ export async function GET(request: NextRequest) {
       });
     }
 
-    // Get user's subscription tier for transaction history limits
-    const { data: profile } = await supabase
-      .from("profiles")
-      .select("subscription_tier, is_pro")
-      .eq("id", user.id)
-      .single();
-
-    const tier: SubscriptionTier = profile?.subscription_tier || (profile?.is_pro ? "pro" : "free");
+    // Get user's effective subscription tier (includes family membership check)
+    const subscription = await getUserSubscription();
+    const tier = subscription?.tier || "free";
     const tierLimits = getTierLimits(tier);
     const historyDaysLimit = tierLimits.transactionHistoryDays; // null = unlimited
 

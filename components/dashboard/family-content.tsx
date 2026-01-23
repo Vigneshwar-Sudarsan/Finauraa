@@ -11,7 +11,6 @@ import {
   Users,
   UserPlus,
   Crown,
-  ShieldCheck,
   User,
   Clock,
   PencilSimple,
@@ -33,7 +32,6 @@ import { InviteMemberDialog } from "./family/invite-member-dialog";
 import { EditGroupNameDialog } from "./family/edit-group-name-dialog";
 import { DeleteGroupDialog } from "./family/delete-group-dialog";
 import { LeaveGroupDialog } from "./family/leave-group-dialog";
-import { TransferOwnershipDialog } from "./family/transfer-ownership-dialog";
 import { MemberDetailsSheet } from "./family/member-details-sheet";
 
 const MAX_FAMILY_MEMBERS = 7;
@@ -57,7 +55,6 @@ export function FamilyContent() {
   const [editNameDialogOpen, setEditNameDialogOpen] = useState(false);
   const [deleteGroupDialogOpen, setDeleteGroupDialogOpen] = useState(false);
   const [leaveGroupDialogOpen, setLeaveGroupDialogOpen] = useState(false);
-  const [transferOwnershipDialogOpen, setTransferOwnershipDialogOpen] = useState(false);
   const [selectedMember, setSelectedMember] = useState<FamilyMember | null>(null);
 
   const fetchFamilyGroup = useCallback(async () => {
@@ -119,8 +116,6 @@ export function FamilyContent() {
     switch (role) {
       case "owner":
         return <Crown size={14} className="text-amber-500" />;
-      case "admin":
-        return <ShieldCheck size={14} className="text-blue-500" />;
       default:
         return <User size={14} className="text-muted-foreground" />;
     }
@@ -129,9 +124,7 @@ export function FamilyContent() {
   const getRoleBadge = (role: string) => {
     switch (role) {
       case "owner":
-        return <Badge variant="outline" className="bg-amber-500/10 text-amber-600 border-amber-500/30">Owner</Badge>;
-      case "admin":
-        return <Badge variant="outline" className="bg-blue-500/10 text-blue-600 border-blue-500/30">Admin</Badge>;
+        return <Badge variant="outline" className="bg-amber-500/10 text-amber-600 border-amber-500/30">Primary</Badge>;
       default:
         return <Badge variant="outline">Member</Badge>;
     }
@@ -223,7 +216,8 @@ export function FamilyContent() {
   const { group, userRole, isOwner } = data;
   const activeMembers = group.members.filter(m => m.status === "active");
   const pendingMembers = group.members.filter(m => m.status === "pending");
-  const canInvite = (isOwner || userRole === "admin") && (group.member_count + group.pending_count) < MAX_FAMILY_MEMBERS;
+  // Only the primary user (owner) can invite new members
+  const canInvite = isOwner && (group.member_count + group.pending_count) < MAX_FAMILY_MEMBERS;
 
   return (
     <div className="space-y-6">
@@ -247,21 +241,17 @@ export function FamilyContent() {
                     <DotsThree size={20} weight="bold" />
                   </Button>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent align="end">
-                  <DropdownMenuItem onClick={() => setEditNameDialogOpen(true)}>
-                    <PencilSimple size={16} className="mr-2" />
+                <DropdownMenuContent align="end" className="min-w-[160px]">
+                  <DropdownMenuItem onClick={() => setEditNameDialogOpen(true)} className="whitespace-nowrap">
+                    <PencilSimple size={16} className="mr-2 shrink-0" />
                     Edit Group Name
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => setTransferOwnershipDialogOpen(true)}>
-                    <Crown size={16} className="mr-2" />
-                    Transfer Ownership
                   </DropdownMenuItem>
                   <DropdownMenuSeparator />
                   <DropdownMenuItem
-                    className="text-destructive focus:text-destructive"
+                    className="text-destructive focus:text-destructive whitespace-nowrap"
                     onClick={() => setDeleteGroupDialogOpen(true)}
                   >
-                    <Trash size={16} className="mr-2" />
+                    <Trash size={16} className="mr-2 shrink-0" />
                     Delete Group
                   </DropdownMenuItem>
                 </DropdownMenuContent>
@@ -416,13 +406,6 @@ export function FamilyContent() {
         open={leaveGroupDialogOpen}
         onOpenChange={setLeaveGroupDialogOpen}
         groupName={group.name}
-      />
-
-      <TransferOwnershipDialog
-        open={transferOwnershipDialogOpen}
-        onOpenChange={setTransferOwnershipDialogOpen}
-        members={activeMembers.filter(m => m.role !== "owner")}
-        onSuccess={fetchFamilyGroup}
       />
 
       <MemberDetailsSheet

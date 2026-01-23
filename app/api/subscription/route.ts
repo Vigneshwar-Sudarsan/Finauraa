@@ -57,7 +57,8 @@ export async function GET() {
         trial_ends_at,
         is_pro,
         stripe_customer_id,
-        stripe_subscription_id
+        stripe_subscription_id,
+        family_group_id
       `)
       .eq("id", user.id)
       .single();
@@ -66,8 +67,43 @@ export async function GET() {
       console.error("Failed to fetch profile:", profileError);
     }
 
+    // Check if user is a family member (has family_group_id but not a family tier themselves)
+    // Family members inherit the family tier's features
+    let isFamilyMember = false;
+    let familyOwnerTier: SubscriptionTier | null = null;
+
+    if (profile?.family_group_id) {
+      // Use admin client to bypass RLS for family group lookups
+      // This is safe because we only read the owner's subscription_tier
+      const adminClient = getSupabaseAdmin();
+
+      // Check if this user is a member (not owner) of a family group
+      const { data: familyGroup } = await adminClient
+        .from("family_groups")
+        .select("owner_id")
+        .eq("id", profile.family_group_id)
+        .single();
+
+      if (familyGroup && familyGroup.owner_id !== user.id) {
+        // User is a family member, get the owner's subscription tier
+        const { data: ownerProfile } = await adminClient
+          .from("profiles")
+          .select("subscription_tier")
+          .eq("id", familyGroup.owner_id)
+          .single();
+
+        if (ownerProfile?.subscription_tier === "family") {
+          isFamilyMember = true;
+          familyOwnerTier = "family";
+        }
+      }
+    }
+
     // Try to get fresh data from Stripe if user has a Stripe subscription
-    let tier: SubscriptionTier = profile?.subscription_tier || (profile?.is_pro ? "pro" : "free");
+    // If user is a family member, they inherit the family tier
+    let tier: SubscriptionTier = isFamilyMember && familyOwnerTier
+      ? familyOwnerTier
+      : (profile?.subscription_tier || (profile?.is_pro ? "pro" : "free"));
     let status = profile?.subscription_status || "active";
     let startedAt = profile?.subscription_started_at;
     let endsAt = profile?.subscription_ends_at;
@@ -75,36 +111,32 @@ export async function GET() {
     let billingCycle: "monthly" | "yearly" = "monthly";
     let subscriptionPaymentMethodId: string | null = null;
 
-    // Price ID to billing cycle mapping
+    // Price ID to billing cycle mapping (Pro plan only now)
     const priceToBilling: Record<string, "monthly" | "yearly"> = {
       [process.env.STRIPE_PRO_PRICE_ID_MONTHLY!]: "monthly",
       [process.env.STRIPE_PRO_PRICE_ID_YEARLY!]: "yearly",
-      [process.env.STRIPE_FAMILY_PRICE_ID_MONTHLY!]: "monthly",
-      [process.env.STRIPE_FAMILY_PRICE_ID_YEARLY!]: "yearly",
     };
 
     // Fetch fresh subscription data from Stripe if available
-    if (profile?.stripe_subscription_id) {
+    // Skip for family members as they inherit from the group owner
+    if (profile?.stripe_subscription_id && !isFamilyMember) {
       try {
         const stripeSubscription = await getStripe().subscriptions.retrieve(
           profile.stripe_subscription_id
         );
 
         // Map Stripe price to tier
+        // Note: Family plan has been merged into Pro. Existing family subscribers
+        // retain their tier in the database for backwards compatibility.
         const priceId = stripeSubscription.items.data[0]?.price.id;
         const proPriceIds = [
           process.env.STRIPE_PRO_PRICE_ID_MONTHLY,
           process.env.STRIPE_PRO_PRICE_ID_YEARLY,
         ].filter(Boolean);
-        const familyPriceIds = [
-          process.env.STRIPE_FAMILY_PRICE_ID_MONTHLY,
-          process.env.STRIPE_FAMILY_PRICE_ID_YEARLY,
-        ].filter(Boolean);
 
+        // All paid subscriptions now map to Pro tier
         if (proPriceIds.includes(priceId)) {
           tier = "pro";
-        } else if (familyPriceIds.includes(priceId)) {
-          tier = "family";
         }
 
         // Determine billing cycle from price ID
@@ -265,6 +297,7 @@ export async function GET() {
         startedAt,
         endsAt,
         trialEndsAt,
+        isFamilyMember, // True if user inherits tier from family group owner
       },
       usage: {
         bankConnections: {

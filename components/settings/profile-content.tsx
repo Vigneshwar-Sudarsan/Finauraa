@@ -6,9 +6,9 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { TierBadge, FeatureBadge } from "@/components/ui/tier-badge";
 import {
   User,
   Envelope,
@@ -450,10 +450,7 @@ export function ProfileContent({ userId, userEmail }: ProfileContentProps) {
             <div className="space-y-1">
               <Label className="text-xs text-muted-foreground uppercase tracking-wide">Plan</Label>
               <div className="flex items-center gap-2">
-                <Crown size={16} className={profile.subscription_tier !== "free" ? "text-yellow-500" : "text-muted-foreground"} weight={profile.subscription_tier !== "free" ? "fill" : "regular"} />
-                <Badge variant={profile.subscription_tier !== "free" ? "default" : "secondary"}>
-                  {profile.subscription_tier === "family" ? "Family" : profile.subscription_tier === "pro" ? "Pro" : "Free"}
-                </Badge>
+                <TierBadge tier={profile.subscription_tier || "free"} showIcon size="md" />
               </div>
             </div>
 
@@ -559,10 +556,7 @@ export function ProfileContent({ userId, userEmail }: ProfileContentProps) {
                 <div className="flex items-center gap-2">
                   <p className="font-medium text-sm">Export Your Data</p>
                   {profile.subscription_tier === "free" && (
-                    <Badge variant="secondary" className="text-[10px] flex items-center gap-1">
-                      <Crown size={10} weight="fill" />
-                      Pro
-                    </Badge>
+                    <FeatureBadge showIcon size="sm" />
                   )}
                 </div>
                 <p className="text-xs text-muted-foreground">Download all your financial data as JSON</p>

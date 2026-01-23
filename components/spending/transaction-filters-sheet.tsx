@@ -24,7 +24,7 @@ import {
   FieldGroup,
 } from "@/components/ui/field";
 import { useIsMobile } from "@/hooks/use-mobile";
-import { EXPENSE_CATEGORIES, INCOME_CATEGORIES } from "@/lib/constants/categories";
+import { useCategories } from "@/hooks/use-categories";
 
 interface BankConnection {
   id: string;
@@ -54,11 +54,6 @@ interface TransactionFiltersSheetProps {
   banks: BankConnection[];
 }
 
-const ALL_CATEGORIES = [
-  ...EXPENSE_CATEGORIES.map((c) => ({ ...c, type: "expense" as const })),
-  ...INCOME_CATEGORIES.map((c) => ({ ...c, type: "income" as const })),
-];
-
 export function TransactionFiltersSheet({
   open,
   onOpenChange,
@@ -67,6 +62,7 @@ export function TransactionFiltersSheet({
   banks,
 }: TransactionFiltersSheetProps) {
   const isMobile = useIsMobile();
+  const { allCategories } = useCategories();
 
   // Local state for editing
   const [localFilters, setLocalFilters] = useState<TransactionFilters>(filters);
@@ -183,9 +179,9 @@ export function TransactionFiltersSheet({
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">All Categories</SelectItem>
-                  {ALL_CATEGORIES.map((cat) => (
-                    <SelectItem key={cat.value} value={cat.value}>
-                      {cat.label}
+                  {allCategories.map((cat) => (
+                    <SelectItem key={cat.id} value={cat.id}>
+                      {cat.name}
                     </SelectItem>
                   ))}
                 </SelectContent>

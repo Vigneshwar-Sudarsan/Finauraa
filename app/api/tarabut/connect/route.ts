@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createTarabutClient } from "@/lib/tarabut/client";
-import { SubscriptionTier, getTierLimits } from "@/lib/features";
+import { getTierLimits } from "@/lib/features";
+import { getUserSubscription } from "@/lib/features-server";
 import { logAuditEvent } from "@/lib/audit";
 import { headers } from "next/headers";
 
@@ -35,15 +36,17 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Get user profile with subscription tier
+    // Get user profile for name/email
     const { data: profile } = await supabase
       .from("profiles")
-      .select("full_name, email, subscription_tier, is_pro")
+      .select("full_name, email")
       .eq("id", user.id)
       .single();
 
     // Check bank connection limits based on subscription
-    const tier: SubscriptionTier = profile?.subscription_tier || (profile?.is_pro ? "pro" : "free");
+    // getUserSubscription handles family membership - family members inherit Pro features
+    const subscription = await getUserSubscription();
+    const tier = subscription?.tier || "free";
     const tierLimits = getTierLimits(tier);
     const bankLimit = tierLimits.bankConnections;
 
@@ -55,19 +58,17 @@ export async function POST(request: NextRequest) {
       .eq("status", "active");
 
     if ((existingConnections || 0) >= bankLimit) {
-      const tierName = tier.charAt(0).toUpperCase() + tier.slice(1);
+      // Family members and Pro users have the same limit, so only free tier can upgrade
       const upgradeMessage = tier === "free"
-        ? "Upgrade to Pro for up to 5 bank connections."
-        : tier === "pro"
-          ? "Upgrade to Family for up to 15 bank connections."
-          : "You've reached the maximum bank connections.";
+        ? "Upgrade to Pro for more bank connections."
+        : "You've reached the maximum bank connections for your plan.";
 
       return NextResponse.json(
         {
           error: `Bank connection limit reached (${bankLimit}). ${upgradeMessage}`,
           limit: bankLimit,
           used: existingConnections,
-          upgradeRequired: tier !== "family",
+          upgradeRequired: tier === "free",
         },
         { status: 403 }
       );
