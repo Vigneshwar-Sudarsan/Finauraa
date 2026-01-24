@@ -87,11 +87,14 @@ export async function GET() {
     const consentedMembers = members.filter((m) => m.spending_consent_given);
 
     // Fetch profiles separately to avoid RLS join issues
+    // Include all consented member IDs plus the owner (owner might not be in family_members)
     const consentedUserIds = consentedMembers.map((m) => m.user_id);
+    const allUserIdsToFetch = [...new Set([...consentedUserIds, familyGroup.owner_id])];
+
     const { data: memberProfiles } = await supabase
       .from("profiles")
       .select("id, full_name, email")
-      .in("id", consentedUserIds);
+      .in("id", allUserIdsToFetch);
 
     if (consentedMembers.length === 0) {
       return NextResponse.json({
@@ -155,10 +158,21 @@ export async function GET() {
       (memberProfiles || []).map((p) => [p.id, p])
     );
     const memberLookup: Record<string, { name: string; role: string }> = {};
+
+    // Add owner to lookup first
+    const ownerProfile = profilesMap.get(familyGroup.owner_id);
+    if (ownerProfile) {
+      memberLookup[familyGroup.owner_id] = {
+        name: ownerProfile.full_name || ownerProfile.email?.split("@")[0] || "Owner",
+        role: "owner",
+      };
+    }
+
+    // Add consented members to lookup
     consentedMembers.forEach((m) => {
       const memberProfile = profilesMap.get(m.user_id);
       memberLookup[m.user_id] = {
-        name: memberProfile?.full_name || memberProfile?.email?.split("@")[0] || "Unknown",
+        name: memberProfile?.full_name || memberProfile?.email?.split("@")[0] || "Member",
         role: m.role,
       };
     });

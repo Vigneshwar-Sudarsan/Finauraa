@@ -797,7 +797,7 @@ export async function getFinanceManagerContext(userId: string): Promise<FinanceM
       recurringExpenses: [],
       financialHealth: {
         score: 0,
-        grade: "F",
+        auraLevel: "Critical",
         factors: {
           savingsRate: { score: 0, value: 0, status: "critical" },
           budgetAdherence: { score: 0, value: 0, status: "critical" },

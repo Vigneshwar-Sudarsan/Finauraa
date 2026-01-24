@@ -29,12 +29,14 @@ export async function GET() {
       return NextResponse.json({ budgets: [], noBanksConnected: true });
     }
 
-    // Get all active budgets for the user - select only needed columns
+    // Get all active personal budgets for the user - select only needed columns
+    // Filter by scope = 'personal' to exclude family budgets
     const { data: budgets, error: budgetsError } = await supabase
       .from("budgets")
       .select("id, category, amount, currency, period, is_active, start_date, end_date, created_at")
       .eq("user_id", user.id)
       .eq("is_active", true)
+      .eq("scope", "personal")
       .order("created_at", { ascending: false });
 
     if (budgetsError) {
@@ -122,13 +124,14 @@ export async function POST(request: NextRequest) {
     // Normalize category to lowercase
     const normalizedCategory = category.toLowerCase();
 
-    // Check if budget already exists for this category
+    // Check if personal budget already exists for this category
     const { data: existingBudget } = await supabase
       .from("budgets")
       .select("id")
       .eq("user_id", user.id)
       .eq("category", normalizedCategory)
       .eq("is_active", true)
+      .eq("scope", "personal")
       .single();
 
     let result;
@@ -168,6 +171,7 @@ export async function POST(request: NextRequest) {
           currency,
           period: "monthly",
           is_active: true,
+          scope: "personal",
           start_date: startOfMonth.toISOString().split('T')[0],
         })
         .select()

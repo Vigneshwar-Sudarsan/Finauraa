@@ -9,6 +9,12 @@ import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
   Item,
   ItemMedia,
   ItemContent,
@@ -34,9 +40,7 @@ import {
   Storefront,
   Plus,
   Gauge,
-  Users,
   Lock,
-  User,
 } from "@phosphor-icons/react";
 import { getCategoryIcon, formatCategoryName } from "@/lib/constants/category-icons";
 import {
@@ -183,20 +187,17 @@ export function SpendingContent() {
           {mounted ? (
             <Tabs value={activeTab} onValueChange={handleTabChange}>
               <TabsList>
-                <TabsTrigger value="my" className="gap-1.5">
-                  <User size={14} weight={activeTab === "my" ? "fill" : "regular"} />
-                  My
+                <TabsTrigger value="my">
+                  My Spending
                 </TabsTrigger>
                 <TabsTrigger
                   value="family"
+                  disabled={!canAccessFamilyFeatures && !featureLoading}
                   className={cn(
-                    "gap-1.5",
-                    !canAccessFamilyFeatures && !featureLoading && "opacity-70"
+                    !canAccessFamilyFeatures && !featureLoading && "opacity-50"
                   )}
                 >
-                  {canAccessFamilyFeatures || featureLoading ? (
-                    <Users size={14} weight={activeTab === "family" ? "fill" : "regular"} />
-                  ) : (
+                  {!canAccessFamilyFeatures && !featureLoading && (
                     <Lock size={14} />
                   )}
                   Family
@@ -205,18 +206,31 @@ export function SpendingContent() {
             </Tabs>
           ) : (
             /* Static placeholder during SSR to prevent hydration mismatch */
-            <div className="w-[140px] h-9 bg-muted rounded-lg" />
+            <div className="w-[180px] h-9 bg-muted rounded-lg" />
           )}
 
-          {/* Add Transaction Button */}
-          <Button
-            size="sm"
-            onClick={() => setAddTransactionOpen(true)}
-            className="hidden sm:flex"
-          >
-            <Plus size={16} />
-            Add Transaction
-          </Button>
+          {/* Header Action Buttons */}
+          <div className="hidden sm:flex items-center gap-2">
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => {
+                setSelectedBudget(null);
+                setSelectedCategory(undefined);
+                setSetLimitOpen(true);
+              }}
+            >
+              <Gauge size={16} />
+              Set Limit
+            </Button>
+            <Button
+              size="sm"
+              onClick={() => setAddTransactionOpen(true)}
+            >
+              <Plus size={16} />
+              Add Transaction
+            </Button>
+          </div>
         </div>
       </div>
 
@@ -855,14 +869,31 @@ export function SpendingContent() {
         </>
       )}
 
-      {/* Mobile FAB */}
-      <Button
-        size="icon"
-        onClick={() => setAddTransactionOpen(true)}
-        className="fixed bottom-20 right-4 size-14 rounded-full shadow-lg sm:hidden z-50"
-      >
-        <Plus size={24} weight="bold" />
-      </Button>
+      {/* Mobile FAB with Dropdown */}
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button
+            size="icon"
+            className="fixed bottom-20 right-4 size-14 rounded-full shadow-lg sm:hidden z-50"
+          >
+            <Plus size={24} weight="bold" />
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end" side="top" className="mb-2 min-w-0 w-auto">
+          <DropdownMenuItem onClick={() => setAddTransactionOpen(true)} className="gap-2">
+            <Plus size={16} className="shrink-0" />
+            <span>Add Transaction</span>
+          </DropdownMenuItem>
+          <DropdownMenuItem onClick={() => {
+            setSelectedBudget(null);
+            setSelectedCategory(undefined);
+            setSetLimitOpen(true);
+          }} className="gap-2">
+            <Gauge size={16} className="shrink-0" />
+            <span>Set Limit</span>
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
 
       {/* Sheet Modals */}
       <AddTransactionSheet
@@ -877,10 +908,7 @@ export function SpendingContent() {
       <SetSpendingLimitSheet
         open={setLimitOpen}
         onOpenChange={setSetLimitOpen}
-        onSuccess={() => {
-          mutateBudgets();
-          mutate();
-        }}
+        onSuccess={handleRefreshAll}
         existingBudget={selectedBudget}
         selectedCategory={selectedCategory}
         defaultCurrency={data?.currency || "BHD"}

@@ -756,11 +756,6 @@ export function FamilySpendingContent({ refreshTrigger }: FamilySpendingContentP
             currency={data.currency}
             isLoading={isLoadingBudgets}
             variant="family"
-            onAddLimit={() => {
-              setSelectedBudget(null);
-              setSelectedCategory(undefined);
-              setSetLimitOpen(true);
-            }}
             onEditLimit={(budget) => {
               const familyBudget = budgets.find(b => b.id === budget.id);
               setSelectedBudget(familyBudget || null);
@@ -786,7 +781,7 @@ export function FamilySpendingContent({ refreshTrigger }: FamilySpendingContentP
                       <Item variant="default" size="sm">
                         <ItemMedia variant="icon">
                           <div className={cn(
-                            "size-10 rounded-xl flex items-center justify-center text-sm font-medium",
+                            "size-10 rounded-full flex items-center justify-center text-sm font-medium",
                             index === 0 ? "bg-blue-500/10 text-blue-600" : "bg-muted text-muted-foreground"
                           )}>
                             {member.name.charAt(0).toUpperCase()}
