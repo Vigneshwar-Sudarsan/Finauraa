@@ -1,32 +1,55 @@
 "use client";
 
-import { useState, Suspense } from "react";
+import { useState, useEffect, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Sparkle, SpinnerGap, CheckCircle } from "@phosphor-icons/react";
+import { Sparkle, SpinnerGap, CheckCircle, Warning } from "@phosphor-icons/react";
 
-function SignupForm() {
-  const [fullName, setFullName] = useState("");
-  const [email, setEmail] = useState("");
+function ResetPasswordForm() {
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
+  const [isValidSession, setIsValidSession] = useState<boolean | null>(null);
   const router = useRouter();
   const searchParams = useSearchParams();
 
-  const handleSignup = async (e: React.FormEvent) => {
+  useEffect(() => {
+    // Check if we have a valid session from the reset password email
+    const checkSession = async () => {
+      const supabase = createClient();
+      const { data: { session } } = await supabase.auth.getSession();
+
+      // If there's a code in the URL, exchange it for a session
+      const code = searchParams.get("code");
+      if (code) {
+        const { error } = await supabase.auth.exchangeCodeForSession(code);
+        if (error) {
+          setIsValidSession(false);
+          return;
+        }
+        setIsValidSession(true);
+        return;
+      }
+
+      // Check if user already has a valid session from the reset flow
+      if (session) {
+        setIsValidSession(true);
+      } else {
+        setIsValidSession(false);
+      }
+    };
+
+    checkSession();
+  }, [searchParams]);
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
-
-    if (!fullName.trim()) {
-      setError("Please enter your name");
-      return;
-    }
 
     if (password !== confirmPassword) {
       setError("Passwords do not match");
@@ -40,22 +63,9 @@ function SignupForm() {
 
     setLoading(true);
 
-    // Preserve redirect URL for after email confirmation
-    const redirectUrl = searchParams.get("redirect");
-    const callbackUrl = redirectUrl
-      ? `${window.location.origin}/auth/callback?redirect=${encodeURIComponent(redirectUrl)}`
-      : `${window.location.origin}/auth/callback`;
-
     const supabase = createClient();
-    const { error } = await supabase.auth.signUp({
-      email,
-      password,
-      options: {
-        emailRedirectTo: callbackUrl,
-        data: {
-          full_name: fullName.trim(),
-        },
-      },
+    const { error } = await supabase.auth.updateUser({
+      password: password,
     });
 
     if (error) {
@@ -68,6 +78,46 @@ function SignupForm() {
     setLoading(false);
   };
 
+  // Loading state while checking session
+  if (isValidSession === null) {
+    return (
+      <div className="min-h-dvh flex items-center justify-center">
+        <SpinnerGap size={32} className="animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
+  // Invalid or expired link
+  if (!isValidSession) {
+    return (
+      <div className="min-h-dvh flex flex-col items-center justify-center bg-background px-4 relative overflow-hidden">
+        {/* Glow Effects */}
+        <div className="absolute inset-0 overflow-hidden pointer-events-none">
+          <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-red-500/20 rounded-full blur-[128px] -translate-x-1/2 -translate-y-1/2" />
+          <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-red-500/15 rounded-full blur-[128px] translate-x-1/2 translate-y-1/2" />
+        </div>
+
+        <div className="w-full max-w-sm space-y-6 text-center relative z-10">
+          <div className="flex flex-col items-center gap-4">
+            <div className="size-12 rounded-full bg-red-500/10 flex items-center justify-center">
+              <Warning size={24} weight="fill" className="text-red-500" />
+            </div>
+            <h1 className="text-xl font-semibold">Invalid or expired link</h1>
+            <p className="text-sm text-muted-foreground">
+              This password reset link has expired or is invalid. Please request a new one.
+            </p>
+          </div>
+          <Button className="w-full h-11" asChild>
+            <Link href="/forgot-password">
+              Request new link
+            </Link>
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
+  // Success state
   if (success) {
     return (
       <div className="min-h-dvh flex flex-col items-center justify-center bg-background px-4 relative overflow-hidden">
@@ -82,14 +132,13 @@ function SignupForm() {
             <div className="size-12 rounded-full bg-green-500/10 flex items-center justify-center">
               <CheckCircle size={24} weight="fill" className="text-green-500" />
             </div>
-            <h1 className="text-xl font-semibold">Check your email</h1>
+            <h1 className="text-xl font-semibold">Password updated</h1>
             <p className="text-sm text-muted-foreground">
-              We&apos;ve sent you a confirmation link to <strong>{email}</strong>.
-              Click the link to activate your account.
+              Your password has been successfully updated. You can now sign in with your new password.
             </p>
           </div>
-          <Button variant="outline" className="w-full h-11" onClick={() => router.push("/login")}>
-            Back to login
+          <Button className="w-full h-11" onClick={() => router.push("/login")}>
+            Sign in
           </Button>
         </div>
       </div>
@@ -97,64 +146,44 @@ function SignupForm() {
   }
 
   return (
-    <div className="min-h-dvh flex flex-col bg-background px-4 relative overflow-hidden">
+    <div className="min-h-dvh flex flex-col items-center justify-center bg-background px-4 relative overflow-hidden">
       {/* Glow Effects */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
         <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-primary/20 rounded-full blur-[128px] -translate-x-1/2 -translate-y-1/2" />
         <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-primary/15 rounded-full blur-[128px] translate-x-1/2 translate-y-1/2" />
       </div>
 
-      {/* Spacer for desktop centering, grows on mobile to push content down */}
-      <div className="flex-1 md:flex-none" />
-
-      <div className="w-full max-w-sm mx-auto space-y-6 relative z-10 py-8 md:my-auto">
+      <div className="w-full max-w-sm space-y-6 relative z-10">
         {/* Logo */}
         <div className="flex flex-col items-center gap-2">
           <div className="size-12 rounded-xl bg-foreground flex items-center justify-center shadow-lg">
             <Sparkle size={24} weight="fill" className="text-background" />
           </div>
           <h1 className="text-xl font-semibold">finauraa</h1>
-          <p className="text-sm text-muted-foreground">Create your account</p>
+          <p className="text-sm text-muted-foreground">Create new password</p>
         </div>
 
         {/* Form */}
-        <form onSubmit={handleSignup} className="space-y-4">
+        <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-3">
             <Input
-              type="text"
-              placeholder="Full name"
-              value={fullName}
-              onChange={(e) => setFullName(e.target.value)}
-              required
-              disabled={loading}
-              autoComplete="name"
-              className="h-11"
-            />
-            <Input
-              type="email"
-              placeholder="Email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              required
-              disabled={loading}
-              className="h-11"
-            />
-            <Input
               type="password"
-              placeholder="Password"
+              placeholder="New password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               required
               disabled={loading}
+              autoComplete="new-password"
               className="h-11"
             />
             <Input
               type="password"
-              placeholder="Confirm password"
+              placeholder="Confirm new password"
               value={confirmPassword}
               onChange={(e) => setConfirmPassword(e.target.value)}
               required
               disabled={loading}
+              autoComplete="new-password"
               className="h-11"
             />
           </div>
@@ -167,34 +196,26 @@ function SignupForm() {
             {loading ? (
               <>
                 <SpinnerGap size={16} className="animate-spin" />
-                Creating account...
+                Updating password...
               </>
             ) : (
-              "Create account"
+              "Update password"
             )}
           </Button>
         </form>
-
-        {/* Login link */}
-        <p className="text-center text-sm text-muted-foreground pb-safe">
-          Already have an account?{" "}
-          <Link href="/login" className="text-foreground font-medium hover:underline">
-            Sign in
-          </Link>
-        </p>
       </div>
     </div>
   );
 }
 
-export default function SignupPage() {
+export default function ResetPasswordPage() {
   return (
     <Suspense fallback={
       <div className="min-h-dvh flex items-center justify-center">
         <SpinnerGap size={32} className="animate-spin text-muted-foreground" />
       </div>
     }>
-      <SignupForm />
+      <ResetPasswordForm />
     </Suspense>
   );
 }

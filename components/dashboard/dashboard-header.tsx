@@ -11,10 +11,11 @@ import { NotificationsDropdown } from "./notifications-dropdown";
 
 interface DashboardHeaderProps {
   title: string;
+  subtitle?: ReactNode;
   actions?: ReactNode;
 }
 
-export function DashboardHeader({ title, actions }: DashboardHeaderProps) {
+export function DashboardHeader({ title, subtitle, actions }: DashboardHeaderProps) {
   const { isPro, isFamily, isLoading } = useFeatureAccess();
 
   return (
@@ -25,7 +26,10 @@ export function DashboardHeader({ title, actions }: DashboardHeaderProps) {
       <div className="flex items-center gap-2">
         <SidebarTrigger className="-ml-1" />
         <Separator orientation="vertical" className="!self-center h-4" />
-        <h1 className="font-semibold">{title}</h1>
+        <div className="flex flex-col">
+          <h1 className="font-semibold leading-tight">{title}</h1>
+          {subtitle && <div className="leading-tight">{subtitle}</div>}
+        </div>
       </div>
       <div className="flex items-center gap-2">
         {actions}

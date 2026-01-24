@@ -5,6 +5,7 @@ import {
   SidebarProvider,
   SidebarInset,
 } from "@/components/ui/sidebar";
+import { FeatureGuideProvider } from "@/components/chat/feature-guide";
 
 // Force dynamic rendering - this page uses Supabase which requires env vars
 export const dynamic = "force-dynamic";
@@ -23,15 +24,17 @@ function ChatLoading() {
 
 export default function Home() {
   return (
-    <SidebarProvider defaultOpen={false}>
-      <AppSidebar className="hidden md:flex" />
-      <SidebarInset>
-        <main className="h-dvh w-full flex flex-col">
-          <Suspense fallback={<ChatLoading />}>
-            <ChatContainer />
-          </Suspense>
-        </main>
-      </SidebarInset>
-    </SidebarProvider>
+    <FeatureGuideProvider>
+      <SidebarProvider defaultOpen={false}>
+        <AppSidebar className="hidden md:flex" />
+        <SidebarInset>
+          <main className="h-dvh w-full flex flex-col">
+            <Suspense fallback={<ChatLoading />}>
+              <ChatContainer />
+            </Suspense>
+          </main>
+        </SidebarInset>
+      </SidebarProvider>
+    </FeatureGuideProvider>
   );
 }

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import { ArrowUp, Plus, Waveform, Bank } from "@phosphor-icons/react";
+import { ArrowUp, Plus, Bank } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/button";
 import {
   Popover,
@@ -9,6 +9,7 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
+import { GuideSpot } from "./feature-guide";
 
 interface ChatInputProps {
   onSend: (message: string) => void;
@@ -64,99 +65,92 @@ export function ChatInput({
   return (
     <div className="p-4 bg-background">
       <div className="max-w-3xl mx-auto">
-        <div
-          className={cn(
-            "relative flex flex-col rounded-xl border border-border bg-muted/50 transition-all",
-            "focus-within:bg-muted/80"
-          )}
-        >
-          {/* Textarea */}
-          <textarea
-            ref={textareaRef}
-            value={message}
-            onChange={(e) => setMessage(e.target.value)}
-            onKeyDown={handleKeyDown}
-            placeholder={placeholder}
-            disabled={disabled}
-            rows={1}
+        <GuideSpot id="chat-input" side="top" align="center">
+          <div
             className={cn(
-              "w-full resize-none bg-transparent px-4 pt-3 pb-2 text-[15px] leading-6",
-              "placeholder:text-muted-foreground focus:outline-none",
-              "disabled:cursor-not-allowed disabled:opacity-50",
-              "max-h-[200px] min-h-[44px]"
+              "relative flex flex-col rounded-xl border border-border bg-muted/50 transition-all",
+              "focus-within:bg-muted/80"
             )}
-          />
+          >
+            {/* Textarea */}
+            <textarea
+              ref={textareaRef}
+              value={message}
+              onChange={(e) => setMessage(e.target.value)}
+              onKeyDown={handleKeyDown}
+              placeholder={placeholder}
+              disabled={disabled}
+              rows={1}
+              className={cn(
+                "w-full resize-none bg-transparent px-4 pt-3 pb-2 text-[15px] leading-6",
+                "placeholder:text-muted-foreground focus:outline-none",
+                "disabled:cursor-not-allowed disabled:opacity-50",
+                "max-h-[200px] min-h-[44px]"
+              )}
+            />
 
-          {/* Bottom toolbar */}
-          <div className="flex items-center justify-between px-2 pb-2">
-            {/* Left side - Plus button with menu */}
-            {isMounted ? (
-              <Popover open={popoverOpen} onOpenChange={setPopoverOpen}>
-                <PopoverTrigger asChild>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon-sm"
-                    className="text-muted-foreground hover:text-foreground"
-                    disabled={disabled}
+            {/* Bottom toolbar */}
+            <div className="flex items-center justify-between px-2 pb-2">
+              {/* Left side - Plus button with menu */}
+              {isMounted ? (
+                <Popover open={popoverOpen} onOpenChange={setPopoverOpen}>
+                  <PopoverTrigger asChild>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon-sm"
+                      className="text-muted-foreground hover:text-foreground"
+                      disabled={disabled}
+                    >
+                      <Plus size={20} />
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent
+                    align="start"
+                    side="top"
+                    className="w-56 p-1.5"
                   >
-                    <Plus size={20} />
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent
-                  align="start"
-                  side="top"
-                  className="w-56 p-1.5"
+                    <button
+                      onClick={handleConnectBank}
+                      className="flex w-full items-center gap-3 rounded-md px-3 py-2.5 text-sm text-foreground hover:bg-muted transition-colors"
+                    >
+                      <Bank size={18} className="text-muted-foreground" />
+                      <span>Connect to bank</span>
+                    </button>
+                  </PopoverContent>
+                </Popover>
+              ) : (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon-sm"
+                  className="text-muted-foreground hover:text-foreground"
+                  disabled={disabled}
                 >
-                  <button
-                    onClick={handleConnectBank}
-                    className="flex w-full items-center gap-3 rounded-md px-3 py-2.5 text-sm text-foreground hover:bg-muted transition-colors"
-                  >
-                    <Bank size={18} className="text-muted-foreground" />
-                    <span>Connect to bank</span>
-                  </button>
-                </PopoverContent>
-              </Popover>
-            ) : (
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon-sm"
-                className="text-muted-foreground hover:text-foreground"
-                disabled={disabled}
-              >
-                <Plus size={20} />
-              </Button>
-            )}
+                  <Plus size={20} />
+                </Button>
+              )}
 
-            {/* Right side - Voice & Send */}
-            <div className="flex items-center gap-1">
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon-sm"
-                className="text-muted-foreground hover:text-foreground"
-                disabled={disabled}
-              >
-                <Waveform size={20} />
-              </Button>
-              <Button
-                type="button"
-                size="icon-sm"
-                onClick={handleSend}
-                disabled={disabled || !message.trim()}
-                className={cn(
-                  "rounded-full transition-colors",
-                  message.trim()
-                    ? "bg-foreground text-background hover:bg-foreground/90"
-                    : "bg-muted-foreground/20 text-muted-foreground cursor-not-allowed"
-                )}
-              >
-                <ArrowUp size={16} weight="bold" />
-              </Button>
+              {/* Right side - Send */}
+              <div className="flex items-center gap-1">
+                <Button
+                  type="button"
+                  size="icon-sm"
+                  onClick={handleSend}
+                  disabled={disabled || !message.trim()}
+                  className={cn(
+                    "rounded-full transition-colors",
+                    message.trim()
+                      ? "bg-foreground text-background hover:bg-foreground/90"
+                      : "bg-muted-foreground/20 text-muted-foreground cursor-not-allowed"
+                  )}
+                >
+                  <ArrowUp size={16} weight="bold" />
+                </Button>
+              </div>
             </div>
           </div>
-        </div>
+        </GuideSpot>
         <p className="text-[11px] text-muted-foreground/60 text-center mt-2">
           finauraa can make mistakes. Check important info.
         </p>

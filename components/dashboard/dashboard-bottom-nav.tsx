@@ -9,6 +9,21 @@ import {
   Target,
 } from "@phosphor-icons/react";
 import { cn } from "@/lib/utils";
+import { DashboardGuideSpot } from "./dashboard-feature-guide";
+
+// Guide step mapping
+type DashboardGuideStepId =
+  | "dash-accounts"
+  | "dash-transactions"
+  | "dash-spending"
+  | "dash-goals";
+
+const guideStepMap: Record<string, DashboardGuideStepId> = {
+  Accounts: "dash-accounts",
+  Transactions: "dash-transactions",
+  Spending: "dash-spending",
+  Goals: "dash-goals",
+};
 
 // Bottom navigation items
 const navItems = [
@@ -51,9 +66,10 @@ export function DashboardBottomNav() {
       <div className="flex items-center justify-around h-16 px-2">
         {navItems.map((item) => {
           const active = isActive(item.href);
-          return (
+          const guideId = guideStepMap[item.title];
+
+          const navLink = (
             <Link
-              key={item.title}
               href={item.href}
               className={cn(
                 "flex flex-col items-center justify-center gap-1 flex-1 py-2 transition-colors",
@@ -66,6 +82,16 @@ export function DashboardBottomNav() {
               <span className="text-[10px] font-medium">{item.title}</span>
             </Link>
           );
+
+          if (guideId) {
+            return (
+              <DashboardGuideSpot key={item.title} id={guideId} side="top" align="center">
+                {navLink}
+              </DashboardGuideSpot>
+            );
+          }
+
+          return <div key={item.title}>{navLink}</div>;
         })}
       </div>
     </nav>

@@ -26,7 +26,10 @@ import {
   Sparkle,
   LockKey,
   Users,
+  Question,
 } from "@phosphor-icons/react";
+import { useFeatureGuide } from "@/components/chat/feature-guide";
+import { useDashboardGuide } from "@/components/dashboard/dashboard-feature-guide";
 import { useSubscriptionTier } from "@/hooks/use-subscription";
 
 interface SettingItem {
@@ -47,6 +50,8 @@ export function SettingsContent() {
   const { theme, setTheme, resolvedTheme } = useTheme();
   const [mounted, setMounted] = useState(false);
   const { tier: subscriptionTier, isFamilyMember, isLoading: isLoadingSubscription } = useSubscriptionTier();
+  const { showGuide } = useFeatureGuide();
+  const { showGuide: showDashboardGuide } = useDashboardGuide();
 
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const [isDeletingAccount, setIsDeletingAccount] = useState(false);
@@ -221,6 +226,20 @@ export function SettingsContent() {
       description: "English",
       action: "link",
       href: "#language",
+    },
+    {
+      icon: Question,
+      title: "Show AI Chat Guide",
+      description: "Replay the AI chat introduction tutorial",
+      action: "button",
+      onClick: showGuide,
+    },
+    {
+      icon: Question,
+      title: "Show Dashboard Guide",
+      description: "Replay the dashboard navigation tutorial (mobile)",
+      action: "button",
+      onClick: showDashboardGuide,
     },
   ];
 

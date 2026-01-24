@@ -2,7 +2,6 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { Separator } from "@/components/ui/separator";
 import { DashboardHeader } from "./dashboard-header";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -28,6 +27,7 @@ import {
   CaretRight,
   ArrowsClockwise,
   SpinnerGap,
+  CheckCircle,
 } from "@phosphor-icons/react";
 
 function getAccountIcon(accountType: string) {
@@ -43,9 +43,15 @@ function getAccountIcon(accountType: string) {
 
 export function AccountsContent() {
   const router = useRouter();
-  const { banks, isLoading, mutate } = useBankConnections();
+  const {
+    banks,
+    isLoading,
+    isSyncing,
+    syncStatus,
+    lastSyncedFormatted,
+    triggerSync,
+  } = useBankConnections();
   const [selectedBankId, setSelectedBankId] = useState<string | null>(null);
-  const [isRefreshing, setIsRefreshing] = useState(false);
 
   // Bank connection with consent dialog
   const { connectBank, isConnecting, ConsentDialog } = useBankConnection();
@@ -57,18 +63,8 @@ export function AccountsContent() {
     }
   }, [banks, selectedBankId]);
 
-  const handleRefresh = async () => {
-    setIsRefreshing(true);
-    try {
-      const response = await fetch("/api/finance/refresh", { method: "POST" });
-      if (response.ok) {
-        await mutate();
-      }
-    } catch (error) {
-      console.error("Refresh failed:", error);
-    } finally {
-      setIsRefreshing(false);
-    }
+  const handleRefresh = () => {
+    triggerSync(true); // Force full refresh
   };
 
   const handleAccountClick = (accountId: string) => {
@@ -90,14 +86,33 @@ export function AccountsContent() {
       {/* Header */}
       <DashboardHeader
         title="Connected Banks"
+        subtitle={
+          banks.length > 0 ? (
+            <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
+              {isSyncing ? (
+                <>
+                  <SpinnerGap size={12} className="animate-spin" />
+                  <span>Syncing...</span>
+                </>
+              ) : syncStatus === "synced" ? (
+                <>
+                  <CheckCircle size={12} className="text-emerald-500" />
+                  <span>Synced</span>
+                </>
+              ) : (
+                <span>Last synced {lastSyncedFormatted}</span>
+              )}
+            </span>
+          ) : undefined
+        }
         actions={
           <Button
             variant="ghost"
             size="icon"
             onClick={handleRefresh}
-            disabled={isRefreshing || isLoading}
+            disabled={isSyncing || isLoading}
           >
-            {isRefreshing ? (
+            {isSyncing ? (
               <SpinnerGap size={20} className="animate-spin" />
             ) : (
               <ArrowsClockwise size={20} />
@@ -236,9 +251,9 @@ export function AccountsContent() {
               title="No accounts found"
               description="This bank doesn't have any accounts yet. Try refreshing or selecting a different bank."
               action={{
-                label: isRefreshing ? "Refreshing..." : "Refresh",
+                label: isSyncing ? "Refreshing..." : "Refresh",
                 onClick: handleRefresh,
-                loading: isRefreshing,
+                loading: isSyncing,
                 variant: "outline",
               }}
             />
@@ -247,7 +262,7 @@ export function AccountsContent() {
           {/* Refresh hint */}
           {!isLoading && displayedAccounts.length > 0 && (
             <p className="text-xs text-center text-muted-foreground">
-              Tap the refresh button to sync latest data from your banks
+              Data syncs automatically. Tap refresh for latest updates.
             </p>
           )}
         </div>

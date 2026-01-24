@@ -35,11 +35,13 @@ export async function updateSession(request: NextRequest) {
   } = await supabase.auth.getUser();
 
   // Redirect unauthenticated users to login page
-  // Exclude public routes: login, signup, auth callback, API routes, and invitation pages
+  // Exclude public routes: login, signup, auth callback, password reset, API routes, and invitation pages
   const isAuthPage =
     request.nextUrl.pathname.startsWith("/login") ||
     request.nextUrl.pathname.startsWith("/signup") ||
-    request.nextUrl.pathname.startsWith("/auth");
+    request.nextUrl.pathname.startsWith("/auth") ||
+    request.nextUrl.pathname.startsWith("/forgot-password") ||
+    request.nextUrl.pathname.startsWith("/reset-password");
 
   const isApiRoute = request.nextUrl.pathname.startsWith("/api");
 
