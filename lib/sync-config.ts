@@ -10,8 +10,8 @@ export const SYNC_CONFIG = {
   // > 60 min - full incremental sync
 
   // Cron job settings
-  CRON_INTERVAL_HOURS: 6, // Run every 6 hours
-  CRON_SKIP_IF_SYNCED_HOURS: 4, // Skip if synced in last 4 hours
+  CRON_INTERVAL_HOURS: 24, // Run once daily (Vercel Hobby limit)
+  CRON_SKIP_IF_SYNCED_HOURS: 12, // Skip if synced in last 12 hours
   CRON_RATE_LIMIT_PER_MINUTE: 10, // Max users to sync per minute
   CRON_BATCH_SIZE: 5, // Process users in batches
 
