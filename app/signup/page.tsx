@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Sparkle, SpinnerGap, CheckCircle } from "@phosphor-icons/react";
 
 function SignupForm() {
+  const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -21,6 +22,11 @@ function SignupForm() {
   const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
+
+    if (!fullName.trim()) {
+      setError("Please enter your name");
+      return;
+    }
 
     if (password !== confirmPassword) {
       setError("Passwords do not match");
@@ -46,6 +52,9 @@ function SignupForm() {
       password,
       options: {
         emailRedirectTo: callbackUrl,
+        data: {
+          full_name: fullName.trim(),
+        },
       },
     });
 
@@ -95,6 +104,17 @@ function SignupForm() {
 
         {/* Form */}
         <form onSubmit={handleSignup} className="space-y-4">
+          <div className="space-y-2">
+            <Input
+              type="text"
+              placeholder="Full name"
+              value={fullName}
+              onChange={(e) => setFullName(e.target.value)}
+              required
+              disabled={loading}
+              autoComplete="name"
+            />
+          </div>
           <div className="space-y-2">
             <Input
               type="email"

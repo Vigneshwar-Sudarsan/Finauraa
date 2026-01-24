@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
+import { createClient, createAdminClient } from "@/lib/supabase/server";
 
 /**
  * GET /api/finance/family/spending
@@ -86,17 +86,24 @@ export async function GET() {
     // Filter to only members who have given spending consent
     const consentedMembers = members.filter((m) => m.spending_consent_given);
 
+    // Get consented user IDs - ALWAYS include the owner (owner implicitly consents by creating the group)
+    const consentedUserIds = consentedMembers.map((m) => m.user_id).filter(Boolean);
+
+    // Owner should always be included in family spending data
+    // They implicitly consent when creating the group
+    const allConsentedUserIds = [...new Set([...consentedUserIds, familyGroup.owner_id])];
+
     // Fetch profiles separately to avoid RLS join issues
-    // Include all consented member IDs plus the owner (owner might not be in family_members)
-    const consentedUserIds = consentedMembers.map((m) => m.user_id);
-    const allUserIdsToFetch = [...new Set([...consentedUserIds, familyGroup.owner_id])];
+    const allUserIdsToFetch = allConsentedUserIds;
 
     const { data: memberProfiles } = await supabase
       .from("profiles")
       .select("id, full_name, email")
       .in("id", allUserIdsToFetch);
 
-    if (consentedMembers.length === 0) {
+    // Owner is always included, so we only show "no consented members" if owner has no transactions
+    // and no other members have consented
+    if (allConsentedUserIds.length === 0) {
       return NextResponse.json({
         totalSpending: 0,
         totalIncome: 0,
@@ -108,13 +115,23 @@ export async function GET() {
       });
     }
 
-    // Get ALL transactions from all consented members
-    // This shows combined family spending (all members' transactions)
-    const { data: transactions } = await supabase
+    // Get ALL transactions from all consented members (including owner)
+    // Using admin client to bypass RLS since we've already verified:
+    // 1. User is authenticated
+    // 2. User belongs to this family group
+    // 3. User has appropriate subscription tier
+    // 4. We only fetch transactions from consented family members
+    const adminClient = createAdminClient();
+
+    const { data: transactions, error: txError } = await adminClient
       .from("transactions")
       .select("user_id, amount, category, currency, transaction_type, transaction_scope")
-      .in("user_id", consentedUserIds)
+      .in("user_id", allConsentedUserIds)
       .is("deleted_at", null);
+
+    if (txError) {
+      console.error("[Family Spending] Transaction fetch error:", txError);
+    }
 
     if (!transactions || transactions.length === 0) {
       return NextResponse.json({
@@ -225,7 +242,7 @@ export async function GET() {
       categories,
       memberContributions,
       familyGroup: { id: familyGroup.id, name: familyGroup.name },
-      memberCount: consentedMembers.length,
+      memberCount: allConsentedUserIds.length,
     });
   } catch (error) {
     console.error("Failed to fetch family spending:", error);

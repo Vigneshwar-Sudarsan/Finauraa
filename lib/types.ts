@@ -14,6 +14,7 @@ export type MessageContentType =
   | "financial-health"
   | "cash-flow"
   | "savings-goals"
+  | "family-savings-goals"
   | "savings-goal-setup"
   | "recurring-expenses";
 

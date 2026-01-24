@@ -181,7 +181,7 @@ export function SpendingContent() {
       <DashboardHeader title="Spending" />
 
       {/* Tab Navigation Row - Full width above content */}
-      <div className="px-4 md:px-6 pt-4 md:pt-6 max-w-4xl mx-auto w-full">
+      <div className="px-4 md:px-6 pt-4 md:pt-6 pb-4 max-w-4xl mx-auto w-full">
         <div className="flex items-center justify-between gap-4">
           {/* Tabs - only render after mount to prevent hydration mismatch */}
           {mounted ? (

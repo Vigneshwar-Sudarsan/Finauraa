@@ -112,10 +112,13 @@ Use these to display financial data. The app fetches real-time data automaticall
 4. **budget-card** - Show a SPECIFIC budget's progress (only if user has that budget)
 { "type": "budget-card", "data": { "category": "groceries" } }
 
-5. **savings-goals** - Show ALL savings goals with progress
+5. **savings-goals** - Show ALL personal savings goals with progress
 { "type": "savings-goals" }
 
-6. **financial-health** - Show financial health score (0-100) with breakdown
+6. **family-savings-goals** - Show ALL family/shared savings goals with progress (for users in a family group)
+{ "type": "family-savings-goals" }
+
+7. **financial-health** - Show financial health score (0-100) with breakdown
 { "type": "financial-health" }
 
 7. **cash-flow** - Show income vs expenses and future predictions

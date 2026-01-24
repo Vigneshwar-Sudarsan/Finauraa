@@ -11,6 +11,7 @@ import {
   Calendar,
   Check,
   TrendUp,
+  ClockCounterClockwise,
 } from "@phosphor-icons/react";
 import { useCategories } from "@/hooks/use-categories";
 
@@ -36,6 +37,7 @@ interface SavingsGoalsSectionProps {
   onCreateGoal: () => void;
   onEditGoal: (goal: SavingsGoal) => void;
   onContribute: (goal: SavingsGoal) => void;
+  onViewHistory?: (goal: SavingsGoal) => void;
   recentIncome?: number;
   defaultCurrency?: string;
 }
@@ -46,6 +48,7 @@ export function SavingsGoalsSection({
   onCreateGoal,
   onEditGoal,
   onContribute,
+  onViewHistory,
   recentIncome,
   defaultCurrency = "BHD",
 }: SavingsGoalsSectionProps) {
@@ -195,17 +198,32 @@ export function SavingsGoalsSection({
                         </span>
                       )}
                     </div>
-                    <Button
-                      size="xs"
-                      variant="outline"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        onContribute(goal);
-                      }}
-                    >
-                      <Plus size={12} />
-                      Add
-                    </Button>
+                    <div className="flex items-center gap-1.5">
+                      {onViewHistory && (
+                        <Button
+                          size="xs"
+                          variant="ghost"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onViewHistory(goal);
+                          }}
+                          title="View contribution history"
+                        >
+                          <ClockCounterClockwise size={14} />
+                        </Button>
+                      )}
+                      <Button
+                        size="xs"
+                        variant="outline"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onContribute(goal);
+                        }}
+                      >
+                        <Plus size={12} />
+                        Add
+                      </Button>
+                    </div>
                   </div>
 
                   {remaining > 0 && (

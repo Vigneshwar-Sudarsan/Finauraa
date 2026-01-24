@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
+import { createClient, createAdminClient } from "@/lib/supabase/server";
 
 /**
  * GET /api/finance/family/budgets
@@ -91,7 +91,9 @@ export async function GET() {
     const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
 
     // Get transactions for all consented members (all transactions, not just family-scoped)
-    const { data: transactions } = await supabase
+    // Using admin client to bypass RLS since we've already verified access
+    const adminClient = createAdminClient();
+    const { data: transactions } = await adminClient
       .from("transactions")
       .select("category, amount, transaction_type")
       .in("user_id", memberIds)

@@ -115,7 +115,7 @@ export interface FinanceManagerContext {
   }>;
   budgetRecommendations: BudgetRecommendation[];
 
-  // Savings Goals
+  // Savings Goals (Personal)
   savingsGoals: Array<{
     name: string;
     targetAmount: number;
@@ -125,6 +125,20 @@ export interface FinanceManagerContext {
     projectedCompletionDate: string | null;
     onTrack: boolean;
   }>;
+
+  // Family Savings Goals
+  familySavingsGoals: Array<{
+    id: string;
+    name: string;
+    targetAmount: number;
+    currentAmount: number;
+    progress: number;
+    targetDate: string | null;
+    currency: string;
+    assignedTo: Array<{ userId: string; name: string }>;
+    isCompleted: boolean;
+  }>;
+  familyGroupName: string | null;
 
   // Cash Flow
   cashFlowPrediction: CashFlowPrediction;
@@ -820,6 +834,8 @@ export async function getFinanceManagerContext(userId: string): Promise<FinanceM
         topCategories: [],
       },
       recentTransactions: [],
+      familySavingsGoals: [],
+      familyGroupName: null,
     };
   }
 
@@ -966,6 +982,102 @@ export async function getFinanceManagerContext(userId: string): Promise<FinanceM
     };
   });
 
+  // Get family savings goals (if user is in a family group)
+  const { data: userProfile } = await supabase
+    .from("profiles")
+    .select("family_group_id")
+    .eq("id", userId)
+    .single();
+
+  let familySavingsGoals: FinanceManagerContext["familySavingsGoals"] = [];
+  let familyGroupName: string | null = null;
+
+  if (userProfile?.family_group_id) {
+    // Get family group name
+    const { data: familyGroup } = await supabase
+      .from("family_groups")
+      .select("name")
+      .eq("id", userProfile.family_group_id)
+      .single();
+
+    familyGroupName = familyGroup?.name || null;
+
+    // Get family savings goals (from savings_goals table with scope='family')
+    const { data: familyGoalsData } = await supabase
+      .from("savings_goals")
+      .select(`
+        id,
+        name,
+        target_amount,
+        current_amount,
+        target_date,
+        currency,
+        is_completed,
+        family_goal_members (
+          user_id,
+          is_whole_family
+        )
+      `)
+      .eq("family_group_id", userProfile.family_group_id)
+      .eq("scope", "family");
+
+    // Get member profiles for assigned members
+    const memberUserIds = new Set<string>();
+    (familyGoalsData || []).forEach((goal: {
+      family_goal_members?: Array<{ user_id: string | null; is_whole_family: boolean }>;
+    }) => {
+      (goal.family_goal_members || []).forEach((m) => {
+        if (m.user_id && !m.is_whole_family) {
+          memberUserIds.add(m.user_id);
+        }
+      });
+    });
+
+    const { data: memberProfiles } = memberUserIds.size > 0
+      ? await supabase
+          .from("profiles")
+          .select("id, full_name, email")
+          .in("id", Array.from(memberUserIds))
+      : { data: [] };
+
+    const profilesMap = new Map(
+      (memberProfiles || []).map(p => [p.id, p])
+    );
+
+    familySavingsGoals = (familyGoalsData || []).map((goal: {
+      id: string;
+      name: string;
+      target_amount: number;
+      current_amount: number;
+      target_date: string | null;
+      currency: string;
+      is_completed: boolean;
+      family_goal_members?: Array<{
+        user_id: string | null;
+        is_whole_family: boolean;
+      }>;
+    }) => ({
+      id: goal.id,
+      name: goal.name,
+      targetAmount: goal.target_amount,
+      currentAmount: goal.current_amount || 0,
+      progress: Math.round(((goal.current_amount || 0) / goal.target_amount) * 100),
+      targetDate: goal.target_date,
+      currency: goal.currency || "BHD",
+      assignedTo: (goal.family_goal_members || []).map((m) => {
+        if (m.is_whole_family) {
+          return { userId: "all", name: "Whole Family" };
+        }
+        const profile = profilesMap.get(m.user_id || "");
+        return {
+          userId: m.user_id || "",
+          name: profile?.full_name || profile?.email?.split("@")[0] || "Member",
+        };
+      }),
+      isCompleted: goal.is_completed,
+    }));
+  }
+
   // Generate budget recommendations
   const budgetRecommendations = await generateBudgetRecommendations(spendingPatterns, monthlyIncome);
 
@@ -1017,6 +1129,8 @@ export async function getFinanceManagerContext(userId: string): Promise<FinanceM
     financialHealth,
     yearlySummary,
     recentTransactions,
+    familySavingsGoals,
+    familyGroupName,
   };
 }
 
@@ -1085,11 +1199,11 @@ None set up. User has not created any budgets yet.`;
     });
   }
 
-  // Savings goals section
+  // Savings goals section (Personal)
   if (context.savingsGoals.length > 0) {
     prompt += `
 
-=== SAVINGS GOALS (${context.savingsGoals.length}) ===`;
+=== PERSONAL SAVINGS GOALS (${context.savingsGoals.length}) ===`;
     context.savingsGoals.forEach(g => {
       const status = g.onTrack ? "ON TRACK" : "NEEDS ATTENTION";
       prompt += `
@@ -1104,8 +1218,51 @@ None set up. User has not created any budgets yet.`;
   } else {
     prompt += `
 
-=== SAVINGS GOALS ===
-None set up. User has not created any savings goals yet.`;
+=== PERSONAL SAVINGS GOALS ===
+None set up. User has not created any personal savings goals yet.`;
+  }
+
+  // Family savings goals section
+  if (context.familyGroupName) {
+    prompt += `
+
+=== FAMILY GROUP ===
+- Family Name: ${context.familyGroupName}`;
+
+    if (context.familySavingsGoals.length > 0) {
+      const activeGoals = context.familySavingsGoals.filter(g => !g.isCompleted);
+      const completedGoals = context.familySavingsGoals.filter(g => g.isCompleted);
+
+      prompt += `
+
+=== FAMILY SAVINGS GOALS (${activeGoals.length} active, ${completedGoals.length} completed) ===`;
+      activeGoals.forEach(g => {
+        const assignees = g.assignedTo.length > 0
+          ? g.assignedTo.map(a => a.name).join(", ")
+          : "Not assigned";
+        prompt += `
+- ${g.name}: ${g.currentAmount.toFixed(3)}/${g.targetAmount.toFixed(3)} ${g.currency} (${g.progress}% complete)`;
+        if (g.targetDate) {
+          prompt += ` | Target: ${g.targetDate}`;
+        }
+        prompt += ` | Assigned: ${assignees}`;
+      });
+
+      if (completedGoals.length > 0) {
+        prompt += `
+
+Completed Family Goals:`;
+        completedGoals.forEach(g => {
+          prompt += `
+- ${g.name}: ${g.targetAmount.toFixed(3)} ${g.currency} ✓`;
+        });
+      }
+    } else {
+      prompt += `
+
+=== FAMILY SAVINGS GOALS ===
+No family savings goals set up yet.`;
+    }
   }
 
   // Top spending categories

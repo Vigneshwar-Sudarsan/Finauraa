@@ -109,7 +109,9 @@ export function ChatContainer() {
   const [savingsGoalSheetData, setSavingsGoalSheetData] = useState<{
     name?: string;
     suggestedAmount?: number;
+    isFamily?: boolean;
   } | null>(null);
+  const [familyMembers, setFamilyMembers] = useState<Array<{ userId: string; name: string; role: string }>>([]);
 
   // Bank connection with consent dialog
   const { connectBank, isConnecting: isConnectingBank, ConsentDialog } = useBankConnection({
@@ -871,6 +873,46 @@ export function ChatContainer() {
         setSavingsGoalSheetOpen(true);
         break;
 
+      case "create-family-savings-goal":
+        // Fetch family members first, then open the family savings goal drawer
+        try {
+          const familyResponse = await fetch("/api/finance/family/savings-goals");
+          if (familyResponse.ok) {
+            const familyData = await familyResponse.json();
+            if (familyData.noFamilyGroup) {
+              await addAndSaveMessage({
+                role: "assistant",
+                content: "You need to be part of a family group to create family savings goals. Would you like to create a family group first?",
+                richContent: [
+                  {
+                    type: "action-buttons",
+                    data: {
+                      actions: [
+                        { label: "Go to Family Settings", action: "navigate", data: { url: "/dashboard/settings/family" } },
+                      ],
+                    },
+                  },
+                ],
+              }, currentConvId);
+            } else {
+              setFamilyMembers(familyData.familyMembers || []);
+              setSavingsGoalSheetData({
+                name: (data?.name as string) || "",
+                suggestedAmount: (data?.suggestedAmount as number) || 1000,
+                isFamily: true,
+              });
+              setSavingsGoalSheetOpen(true);
+            }
+          }
+        } catch (error) {
+          console.error("Failed to fetch family data:", error);
+          await addAndSaveMessage({
+            role: "assistant",
+            content: "Sorry, I couldn't load your family information. Please try again.",
+          }, currentConvId);
+        }
+        break;
+
       case "view-savings-goals":
         // Show all savings goals
         await addAndSaveMessage({
@@ -887,12 +929,13 @@ export function ChatContainer() {
       case "savings-goal-created":
         // Goal was successfully created via the setup form
         const createdGoalName = (data?.name as string) || "your goal";
+        const isCreatedFamilyGoal = (data?.isFamily as boolean) || false;
         await addAndSaveMessage({
           role: "assistant",
-          content: `Great! I've successfully created "${createdGoalName}" for you. Here's your updated savings goals:`,
+          content: `Great! I've successfully created "${createdGoalName}" for you. Here's your updated ${isCreatedFamilyGoal ? "family " : ""}savings goals:`,
           richContent: [
             {
-              type: "savings-goals",
+              type: isCreatedFamilyGoal ? "family-savings-goals" : "savings-goals",
             },
           ],
         }, currentConvId);
@@ -1067,14 +1110,25 @@ export function ChatContainer() {
       {/* Savings Goal Sheet */}
       <SavingsGoalSheet
         open={savingsGoalSheetOpen}
-        onOpenChange={setSavingsGoalSheetOpen}
+        onOpenChange={(open) => {
+          setSavingsGoalSheetOpen(open);
+          if (!open) {
+            // Reset family state when closing
+            setSavingsGoalSheetData(null);
+          }
+        }}
         onSuccess={() => {
           // When goal is created from sheet, show success message in chat
-          handleAction("savings-goal-created", { name: savingsGoalSheetData?.name || "your goal" });
+          handleAction("savings-goal-created", {
+            name: savingsGoalSheetData?.name || "your goal",
+            isFamily: savingsGoalSheetData?.isFamily || false,
+          });
           setSavingsGoalSheetData(null);
         }}
         existingGoal={null}
         defaultCurrency="BHD"
+        isFamily={savingsGoalSheetData?.isFamily || false}
+        familyMembers={savingsGoalSheetData?.isFamily ? familyMembers : []}
       />
 
       {/* Bank Consent Dialog */}

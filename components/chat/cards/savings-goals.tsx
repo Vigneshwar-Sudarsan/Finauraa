@@ -10,6 +10,7 @@ interface SavingsGoalsProps {
   data?: Record<string, unknown>;
   onAction?: (action: string, data?: Record<string, unknown>) => void;
   disabled?: boolean;
+  isFamily?: boolean;
 }
 
 interface SavingsGoal {
@@ -31,19 +32,22 @@ interface SavingsGoalsData {
   currency: string;
 }
 
-export function SavingsGoals({ data, onAction, disabled }: SavingsGoalsProps) {
+export function SavingsGoals({ data, onAction, disabled, isFamily = false }: SavingsGoalsProps) {
   const [goalsData, setGoalsData] = useState<SavingsGoalsData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const response = await fetch("/api/finance/savings-goals");
+        // Fetch family or personal goals based on isFamily prop
+        const endpoint = isFamily ? "/api/finance/family/savings-goals" : "/api/finance/savings-goals";
+        const response = await fetch(endpoint);
         if (response.ok) {
           const result = await response.json();
 
-          // Transform API response to expected format
-          const goals = (result.goals || []).map((g: {
+          // Transform API response to expected format (handle both personal and family goal formats)
+          const goalsArray = result.goals || [];
+          const goals = goalsArray.map((g: {
             id: string;
             name?: string;
             goal_name?: string;
@@ -52,6 +56,7 @@ export function SavingsGoals({ data, onAction, disabled }: SavingsGoalsProps) {
             progress_percentage?: number;
             target_date?: string;
             currency?: string;
+            is_completed?: boolean;
           }) => ({
             id: g.id,
             name: g.name || g.goal_name || "Unnamed Goal",
@@ -60,7 +65,7 @@ export function SavingsGoals({ data, onAction, disabled }: SavingsGoalsProps) {
             progress: g.progress_percentage || Math.round(((g.current_amount || 0) / g.target_amount) * 100),
             monthlyContribution: 0,
             projectedCompletionDate: g.target_date || null,
-            onTrack: true,
+            onTrack: !g.is_completed,
             currency: g.currency || "BHD",
           }));
 
@@ -88,7 +93,7 @@ export function SavingsGoals({ data, onAction, disabled }: SavingsGoalsProps) {
     } else {
       fetchData();
     }
-  }, [data]);
+  }, [data, isFamily]);
 
   const currency = goalsData?.currency ?? "BHD";
 
@@ -125,19 +130,21 @@ export function SavingsGoals({ data, onAction, disabled }: SavingsGoalsProps) {
       <div className="w-full max-w-sm rounded-xl border border-border/60 bg-card p-4 space-y-4">
         <div className="flex items-center gap-2">
           <Target className="h-5 w-5 text-muted-foreground" weight="duotone" />
-          <p className="font-medium">Savings Goals</p>
+          <p className="font-medium">{isFamily ? "Family Savings Goals" : "Savings Goals"}</p>
         </div>
         <p className="text-sm text-muted-foreground">
-          You haven&apos;t set up any savings goals yet. Create one to start tracking your progress toward your financial targets.
+          {isFamily
+            ? "Your family hasn't set up any shared savings goals yet. Create one to start saving together toward common financial targets."
+            : "You haven't set up any savings goals yet. Create one to start tracking your progress toward your financial targets."}
         </p>
         {!disabled && (
           <Button
             size="sm"
-            onClick={() => onAction?.("create-savings-goal", { name: "My Savings Goal", suggestedAmount: 1000 })}
+            onClick={() => onAction?.(isFamily ? "create-family-savings-goal" : "create-savings-goal", { name: isFamily ? "Family Goal" : "My Savings Goal", suggestedAmount: 1000 })}
             className="w-full rounded-full"
           >
             <Plus className="h-4 w-4 mr-1.5" weight="bold" />
-            Create Savings Goal
+            Create {isFamily ? "Family " : ""}Savings Goal
           </Button>
         )}
       </div>
@@ -154,7 +161,7 @@ export function SavingsGoals({ data, onAction, disabled }: SavingsGoalsProps) {
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <Target className="h-5 w-5 text-primary" weight="duotone" />
-          <p className="font-medium">Savings Goals</p>
+          <p className="font-medium">{isFamily ? "Family Savings Goals" : "Savings Goals"}</p>
         </div>
         <span className="text-sm font-semibold text-primary">{overallProgress}% overall</span>
       </div>
@@ -228,11 +235,11 @@ export function SavingsGoals({ data, onAction, disabled }: SavingsGoalsProps) {
         <div className="flex gap-2">
           <Button
             size="sm"
-            onClick={() => onAction?.("create-savings-goal", { name: "New Goal", suggestedAmount: 500 })}
+            onClick={() => onAction?.(isFamily ? "create-family-savings-goal" : "create-savings-goal", { name: isFamily ? "Family Goal" : "New Goal", suggestedAmount: 500 })}
             className="flex-1 rounded-full"
           >
             <Plus className="h-4 w-4 mr-1" weight="bold" />
-            Add Goal
+            Add {isFamily ? "Family " : ""}Goal
           </Button>
           <Button
             variant="outline"

@@ -19,7 +19,7 @@ import {
   FieldError,
   FieldDescription,
 } from "@/components/ui/field";
-import { SpinnerGap, Confetti } from "@phosphor-icons/react";
+import { SpinnerGap, Confetti, User, Users, Check } from "@phosphor-icons/react";
 import { cn } from "@/lib/utils";
 import { useIsMobile } from "@/hooks/use-mobile";
 
@@ -34,6 +34,15 @@ interface SavingsGoal {
   progress_percentage?: number;
   remaining?: number;
   days_remaining?: number | null;
+  is_completed?: boolean;
+  auto_contribute?: boolean;
+  auto_contribute_percentage?: number;
+}
+
+interface FamilyMember {
+  userId: string;
+  name: string;
+  role: string;
 }
 
 interface ContributeToGoalSheetProps {
@@ -42,6 +51,10 @@ interface ContributeToGoalSheetProps {
   onSuccess?: () => void;
   goal: SavingsGoal | null;
   suggestedAmount?: number;
+  isFamily?: boolean;
+  familyMembers?: FamilyMember[];
+  isOwner?: boolean;
+  currentUserId?: string;
 }
 
 export function ContributeToGoalSheet({
@@ -50,12 +63,17 @@ export function ContributeToGoalSheet({
   onSuccess,
   goal,
   suggestedAmount,
+  isFamily = false,
+  familyMembers = [],
+  isOwner = false,
+  currentUserId,
 }: ContributeToGoalSheetProps) {
   const isMobile = useIsMobile();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [amount, setAmount] = useState("");
   const [justCompleted, setJustCompleted] = useState(false);
+  const [selectedContributor, setSelectedContributor] = useState<string | null>(null);
 
   if (!goal) return null;
 
@@ -70,6 +88,7 @@ export function ContributeToGoalSheet({
     setAmount("");
     setError(null);
     setJustCompleted(false);
+    setSelectedContributor(null);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -85,10 +104,18 @@ export function ContributeToGoalSheet({
     setIsSubmitting(true);
 
     try {
-      const response = await fetch(`/api/finance/savings-goals/${goal.id}/contribute`, {
+      const baseUrl = isFamily ? "/api/finance/family/savings-goals" : "/api/finance/savings-goals";
+      const payload: { amount: number; on_behalf_of?: string } = { amount: parsedAmount };
+
+      // If contributing on behalf of someone else
+      if (isFamily && selectedContributor && selectedContributor !== currentUserId) {
+        payload.on_behalf_of = selectedContributor;
+      }
+
+      const response = await fetch(`${baseUrl}/${goal.id}/contribute`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ amount: parsedAmount }),
+        body: JSON.stringify(payload),
       });
 
       if (!response.ok) {
@@ -205,6 +232,43 @@ export function ContributeToGoalSheet({
                 </div>
 
                 <FieldGroup className="gap-5">
+                  {/* Contributor Selection (Family owners only) */}
+                  {isFamily && isOwner && familyMembers.length > 1 && (
+                    <Field>
+                      <FieldLabel>Who is contributing?</FieldLabel>
+                      <div className="flex flex-wrap gap-2 mt-1">
+                        {familyMembers.map((member) => {
+                          const isSelected = selectedContributor === member.userId ||
+                            (!selectedContributor && member.userId === currentUserId);
+                          const isCurrentUser = member.userId === currentUserId;
+                          return (
+                            <button
+                              key={member.userId}
+                              type="button"
+                              onClick={() => setSelectedContributor(member.userId)}
+                              className={cn(
+                                "flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm transition-all",
+                                isSelected
+                                  ? "bg-primary text-primary-foreground ring-2 ring-primary ring-offset-2"
+                                  : "bg-muted hover:bg-muted/80 text-foreground"
+                              )}
+                            >
+                              <User size={14} />
+                              <span className="font-medium">
+                                {member.name.split(" ")[0]}
+                                {isCurrentUser && " (me)"}
+                              </span>
+                              {isSelected && <Check size={12} weight="bold" />}
+                            </button>
+                          );
+                        })}
+                      </div>
+                      <FieldDescription>
+                        Record a contribution on behalf of a family member
+                      </FieldDescription>
+                    </Field>
+                  )}
+
                   {/* Suggested Amount Banner */}
                   {suggestedAmount && suggestedAmount > 0 && (
                     <div className="p-3 bg-primary/5 border border-primary/20 rounded-lg">

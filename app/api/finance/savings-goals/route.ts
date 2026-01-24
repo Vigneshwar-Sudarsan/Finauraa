@@ -31,7 +31,7 @@ export async function GET() {
       return NextResponse.json({ goals: [], noBanksConnected: true });
     }
 
-    // Select only needed columns for better performance
+    // Select only personal goals (exclude family goals)
     const { data: goals, error } = await supabase
       .from("savings_goals")
       .select(`
@@ -48,6 +48,7 @@ export async function GET() {
         created_at
       `)
       .eq("user_id", user.id)
+      .eq("scope", "personal")
       .order("created_at", { ascending: false });
 
     if (error) {
@@ -188,6 +189,7 @@ export async function POST(request: NextRequest) {
         is_completed: current_amount >= target_amount,
         auto_contribute,
         auto_contribute_percentage: auto_contribute ? auto_contribute_percentage : null,
+        scope: "personal",
       })
       .select()
       .single();

@@ -6,3 +6,4 @@ export { SavingsGoalsSection } from "./savings-goals-section";
 export { SpendingLimitsSection } from "./spending-limits-section";
 export { TransactionFiltersSheet, type TransactionFilters } from "./transaction-filters-sheet";
 export { FamilySpendingConsentDialog } from "./family-spending-consent-dialog";
+export { ContributionHistorySheet } from "./contribution-history-sheet";

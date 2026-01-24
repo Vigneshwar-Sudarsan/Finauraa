@@ -94,6 +94,16 @@ export function RichContent({ content, onAction, disabled }: RichContentProps) {
         />
       );
 
+    case "family-savings-goals":
+      return (
+        <SavingsGoals
+          data={content.data}
+          onAction={onAction}
+          disabled={disabled}
+          isFamily={true}
+        />
+      );
+
     case "budget-overview":
       return (
         <BudgetOverview
