@@ -1,12 +1,13 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Separator } from "@/components/ui/separator";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
   Users,
   UserPlus,
@@ -27,28 +28,20 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { FamilyGroupWithMembers, FamilyMember } from "@/lib/types";
+import { FamilyMember } from "@/lib/types";
 import { InviteMemberDialog } from "./family/invite-member-dialog";
 import { EditGroupNameDialog } from "./family/edit-group-name-dialog";
 import { DeleteGroupDialog } from "./family/delete-group-dialog";
 import { LeaveGroupDialog } from "./family/leave-group-dialog";
 import { MemberDetailsSheet } from "./family/member-details-sheet";
+import { useFamilyGroup } from "@/hooks/use-family-group";
 
 const MAX_FAMILY_MEMBERS = 7;
 
-interface FamilyGroupData {
-  group: FamilyGroupWithMembers | null;
-  userRole: "owner" | "admin" | "member" | null;
-  isOwner: boolean;
-  canCreate?: boolean;
-  requiresUpgrade?: boolean;
-}
-
 export function FamilyContent() {
-  const [data, setData] = useState<FamilyGroupData | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const { data, isLoading: loading, isError, error, mutate } = useFamilyGroup();
   const [creatingGroup, setCreatingGroup] = useState(false);
+  const [createError, setCreateError] = useState<string | null>(null);
 
   // Dialog states
   const [inviteDialogOpen, setInviteDialogOpen] = useState(false);
@@ -57,40 +50,9 @@ export function FamilyContent() {
   const [leaveGroupDialogOpen, setLeaveGroupDialogOpen] = useState(false);
   const [selectedMember, setSelectedMember] = useState<FamilyMember | null>(null);
 
-  const fetchFamilyGroup = useCallback(async () => {
-    try {
-      const response = await fetch("/api/family/group");
-      const result = await response.json();
-
-      if (!response.ok) {
-        if (result.requiresUpgrade) {
-          setData({ group: null, userRole: null, isOwner: false, requiresUpgrade: true });
-        } else {
-          setError(result.error || "Failed to fetch family group");
-        }
-        return;
-      }
-
-      setData({
-        group: result.group,
-        userRole: result.userRole || null,
-        isOwner: result.isOwner || false,
-        canCreate: result.canCreate || false,
-      });
-    } catch (err) {
-      setError("Failed to fetch family group");
-      console.error(err);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    fetchFamilyGroup();
-  }, [fetchFamilyGroup]);
-
   const handleCreateGroup = async () => {
     setCreatingGroup(true);
+    setCreateError(null);
     try {
       const response = await fetch("/api/family/group", {
         method: "POST",
@@ -99,13 +61,13 @@ export function FamilyContent() {
       });
 
       if (response.ok) {
-        await fetchFamilyGroup();
+        await mutate();
       } else {
         const result = await response.json();
-        setError(result.error || "Failed to create group");
+        setCreateError(result.error || "Failed to create group");
       }
     } catch (err) {
-      setError("Failed to create group");
+      setCreateError("Failed to create group");
       console.error(err);
     } finally {
       setCreatingGroup(false);
@@ -142,19 +104,70 @@ export function FamilyContent() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center py-12">
-        <SpinnerGap size={32} className="animate-spin text-muted-foreground" />
+      <div className="space-y-6">
+        {/* Group Header Skeleton */}
+        <Card>
+          <CardHeader>
+            <div className="flex items-start justify-between">
+              <div>
+                <div className="flex items-center gap-2">
+                  <Skeleton className="size-5 rounded" />
+                  <Skeleton className="h-6 w-32" />
+                </div>
+                <Skeleton className="h-4 w-56 mt-2" />
+              </div>
+              <Skeleton className="size-9 rounded" />
+            </div>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <Skeleton className="h-4 w-16" />
+                <Skeleton className="h-4 w-12" />
+              </div>
+              <Skeleton className="h-2 w-full rounded-full" />
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Active Members Skeleton */}
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between">
+            <div>
+              <Skeleton className="h-5 w-32" />
+              <Skeleton className="h-4 w-20 mt-1" />
+            </div>
+            <Skeleton className="h-9 w-20 rounded" />
+          </CardHeader>
+          <CardContent className="p-0">
+            {[1, 2, 3].map((i) => (
+              <div key={i}>
+                {i > 1 && <Separator />}
+                <div className="flex items-center justify-between p-4">
+                  <div className="flex items-center gap-3">
+                    <Skeleton className="size-10 rounded-full" />
+                    <div>
+                      <Skeleton className="h-4 w-32 mb-1" />
+                      <Skeleton className="h-3 w-40" />
+                    </div>
+                  </div>
+                  <Skeleton className="h-6 w-16 rounded-full" />
+                </div>
+              </div>
+            ))}
+          </CardContent>
+        </Card>
       </div>
     );
   }
 
-  if (error) {
+  if (isError) {
     return (
       <Card>
         <CardContent className="py-12 text-center">
           <Warning size={48} className="mx-auto text-destructive mb-4" />
-          <p className="text-destructive">{error}</p>
-          <Button variant="outline" onClick={fetchFamilyGroup} className="mt-4">
+          <p className="text-destructive">{error || "Failed to load family group"}</p>
+          <Button variant="outline" onClick={() => mutate()} className="mt-4">
             Try Again
           </Button>
         </CardContent>
@@ -385,14 +398,14 @@ export function FamilyContent() {
       <InviteMemberDialog
         open={inviteDialogOpen}
         onOpenChange={setInviteDialogOpen}
-        onSuccess={fetchFamilyGroup}
+        onSuccess={mutate}
       />
 
       <EditGroupNameDialog
         open={editNameDialogOpen}
         onOpenChange={setEditNameDialogOpen}
         currentName={group.name}
-        onSuccess={fetchFamilyGroup}
+        onSuccess={mutate}
       />
 
       <DeleteGroupDialog
@@ -413,7 +426,7 @@ export function FamilyContent() {
         onClose={() => setSelectedMember(null)}
         isOwner={isOwner}
         currentUserRole={userRole}
-        onUpdate={fetchFamilyGroup}
+        onUpdate={mutate}
       />
     </div>
   );

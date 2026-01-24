@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useTheme } from "next-themes";
 import { DashboardHeader } from "./dashboard-header";
@@ -27,6 +27,7 @@ import {
   LockKey,
   Users,
 } from "@phosphor-icons/react";
+import { useSubscriptionTier } from "@/hooks/use-subscription";
 
 interface SettingItem {
   icon: React.ComponentType<{ size?: number; className?: string }>;
@@ -45,63 +46,39 @@ export function SettingsContent() {
   const supabase = createClient();
   const { theme, setTheme, resolvedTheme } = useTheme();
   const [mounted, setMounted] = useState(false);
+  const { tier: subscriptionTier, isFamilyMember, isLoading: isLoadingSubscription } = useSubscriptionTier();
 
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const [isDeletingAccount, setIsDeletingAccount] = useState(false);
-  const [subscriptionTier, setSubscriptionTier] = useState<"free" | "pro" | "family" | null>(null);
-  const [isLoadingSubscription, setIsLoadingSubscription] = useState(true);
   const [familyMemberCount, setFamilyMemberCount] = useState<number | null>(null);
-  const [isFamilyMember, setIsFamilyMember] = useState(false);
-  const [hasFamilyGroup, setHasFamilyGroup] = useState(false);
 
-  // Fetch subscription tier
-  const fetchSubscriptionTier = useCallback(async () => {
-    setIsLoadingSubscription(true);
-    try {
-      const response = await fetch("/api/subscription");
-      if (response.ok) {
-        const data = await response.json();
-        const tier = data.subscription?.tier || "free";
-        setSubscriptionTier(tier);
-        setIsFamilyMember(data.subscription?.isFamilyMember || false);
-
-        // Check if user is part of a family group (either as owner or member)
-        // Family tier owners and family members both have access to family features
-        if (tier === "family" || data.subscription?.isFamilyMember) {
-          setHasFamilyGroup(true);
-          fetchFamilyInfo();
-        }
-      } else {
-        setSubscriptionTier("free");
-      }
-    } catch (error) {
-      console.error("Failed to fetch subscription:", error);
-      setSubscriptionTier("free");
-    } finally {
-      setIsLoadingSubscription(false);
-    }
-  }, []);
+  // Check if user is part of a family group (either as owner or member)
+  const hasFamilyGroup = subscriptionTier === "family" || isFamilyMember;
 
   // Fetch family group info
-  const fetchFamilyInfo = async () => {
-    try {
-      const response = await fetch("/api/family/group");
-      if (response.ok) {
-        const data = await response.json();
-        if (data.group) {
-          setFamilyMemberCount(data.group.member_count || 0);
+  useEffect(() => {
+    if (hasFamilyGroup) {
+      const fetchFamilyInfo = async () => {
+        try {
+          const response = await fetch("/api/family/group");
+          if (response.ok) {
+            const data = await response.json();
+            if (data.group) {
+              setFamilyMemberCount(data.group.member_count || 0);
+            }
+          }
+        } catch (error) {
+          console.error("Failed to fetch family info:", error);
         }
-      }
-    } catch (error) {
-      console.error("Failed to fetch family info:", error);
+      };
+      fetchFamilyInfo();
     }
-  };
+  }, [hasFamilyGroup]);
 
   // Wait for component to mount to avoid hydration mismatch
   useEffect(() => {
     setMounted(true);
-    fetchSubscriptionTier();
-  }, [fetchSubscriptionTier]);
+  }, []);
 
   // Use resolvedTheme which handles "system" theme, default to true (dark) before mount
   const isDarkMode = mounted ? resolvedTheme === "dark" : true;

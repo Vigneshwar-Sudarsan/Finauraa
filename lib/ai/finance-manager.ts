@@ -60,9 +60,12 @@ export interface CashFlowPrediction {
   projectedLowDate?: string;
 }
 
+// Aura Level thresholds for the Aura Score system
+export type AuraLevel = "Radiant" | "Bright" | "Steady" | "Dim" | "Critical";
+
 export interface FinancialHealth {
-  score: number; // 0-100
-  grade: "A" | "B" | "C" | "D" | "F";
+  score: number; // 0-100 (Aura Score)
+  auraLevel: AuraLevel;
   factors: {
     savingsRate: { score: number; value: number; status: "good" | "warning" | "critical" };
     budgetAdherence: { score: number; value: number; status: "good" | "warning" | "critical" };
@@ -501,22 +504,24 @@ function calculateFinancialHealth(
   else if (emergencyMonths >= 1) { emergencyScore = 10; emergencyStatus = "warning"; }
   else { emergencyScore = 5; emergencyStatus = "critical"; }
 
-  // Spending Stability Score (0-25 points) - consistent spending patterns
+  // Spending Stability Score (0-25 points) - penalize overspending, not underspending
+  // Being under budget is good financial behavior, only flag when exceeding budgets
   const volatility = budgets.length > 0
-    ? budgets.reduce((sum, b) => sum + Math.abs(b.percentUsed - 100), 0) / budgets.length
+    ? budgets.reduce((sum, b) => sum + Math.max(0, b.percentUsed - 100), 0) / budgets.length
     : 0;
   let stabilityScore = 25;
   let stabilityStatus: "good" | "warning" | "critical" = "good";
-  if (volatility > 50) { stabilityScore = 10; stabilityStatus = "critical"; }
-  else if (volatility > 25) { stabilityScore = 20; stabilityStatus = "warning"; }
+  if (volatility > 30) { stabilityScore = 10; stabilityStatus = "critical"; }
+  else if (volatility > 15) { stabilityScore = 20; stabilityStatus = "warning"; }
 
   const totalScore = savingsRateScore + budgetScore + emergencyScore + stabilityScore;
 
-  let grade: FinancialHealth["grade"] = "F";
-  if (totalScore >= 90) grade = "A";
-  else if (totalScore >= 80) grade = "B";
-  else if (totalScore >= 70) grade = "C";
-  else if (totalScore >= 60) grade = "D";
+  // Aura Level based on score
+  let auraLevel: AuraLevel = "Critical";
+  if (totalScore >= 90) auraLevel = "Radiant";      // 90-100: Exceptional financial health
+  else if (totalScore >= 75) auraLevel = "Bright";  // 75-89: Strong financial position
+  else if (totalScore >= 60) auraLevel = "Steady";  // 60-74: Stable but room for improvement
+  else if (totalScore >= 40) auraLevel = "Dim";     // 40-59: Needs attention
 
   // Generate top recommendation
   let topRecommendation = "";
@@ -534,7 +539,7 @@ function calculateFinancialHealth(
 
   return {
     score: totalScore,
-    grade,
+    auraLevel,
     factors: {
       savingsRate: { score: savingsRateScore, value: savingsRate, status: savingsRateStatus },
       budgetAdherence: { score: budgetScore, value: budgetAdherence, status: budgetStatus },
@@ -1046,8 +1051,8 @@ USER FINANCIAL CONTEXT (Enhanced Finance Assistant Data):
 - Net Cash Flow: ${context.netCashFlow.toFixed(3)} ${context.currency}
 - Savings Rate: ${context.savingsRate}%
 
-=== FINANCIAL HEALTH SCORE ===
-- Overall Score: ${context.financialHealth.score}/100 (Grade: ${context.financialHealth.grade})
+=== AURA SCORE (Financial Health) ===
+- Aura Score: ${context.financialHealth.score}/100 (Level: ${context.financialHealth.auraLevel})
 - Savings Rate Factor: ${context.financialHealth.factors.savingsRate.status.toUpperCase()} (${context.financialHealth.factors.savingsRate.value}%)
 - Budget Adherence: ${context.financialHealth.factors.budgetAdherence.status.toUpperCase()} (${context.financialHealth.factors.budgetAdherence.value}% within budget)
 - Emergency Fund: ${context.financialHealth.factors.emergencyFund.status.toUpperCase()} (${context.financialHealth.factors.emergencyFund.months} months covered)

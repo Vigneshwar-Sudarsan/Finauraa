@@ -373,6 +373,7 @@ Total per query:              ≈ $0.0055
 - [ ] Public launch
 - [ ] 1,000 users milestone
 - [ ] First paying customers
+- [ ] Payment Initiation Service (PIS) via Tarabut
 
 ### Q3 2026
 - [ ] 5,000 users milestone

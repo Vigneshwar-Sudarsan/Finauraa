@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -14,43 +14,18 @@ import { AIModeComparison } from "./ai-mode-comparison";
 import { ShieldCheck, Sparkle, Info, Crown, Lock } from "@phosphor-icons/react";
 import { Switch } from "@/components/ui/switch";
 import { useFeatureAccess } from "@/hooks/use-feature-access";
+import { useAIMode } from "@/hooks/use-ai-mode";
 
-interface AIPrivacySettingsProps {
-  userId: string;
-}
-
-export function AIPrivacySettings({ userId }: AIPrivacySettingsProps) {
+export function AIPrivacySettings() {
   const router = useRouter();
   const { canAccess, tier, isLoading: featureLoading } = useFeatureAccess();
+  const { mode, hasConsent, isLoading: loading, mutate } = useAIMode();
 
-  const [mode, setMode] = useState<'privacy-first' | 'enhanced'>('privacy-first');
-  const [hasConsent, setHasConsent] = useState(false);
   const [showConsentDialog, setShowConsentDialog] = useState(false);
-  const [loading, setLoading] = useState(true);
   const [updating, setUpdating] = useState(false);
 
   // Check if user can access enhanced AI based on subscription
   const canUseEnhancedAI = canAccess("enhancedAI");
-
-  // Fetch current AI mode
-  useEffect(() => {
-    fetchAIMode();
-  }, []);
-
-  const fetchAIMode = async () => {
-    try {
-      const response = await fetch('/api/user/ai-mode');
-      if (response.ok) {
-        const data = await response.json();
-        setMode(data.mode);
-        setHasConsent(data.hasConsent);
-      }
-    } catch (error) {
-      console.error('Error fetching AI mode:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const handleModeToggle = async () => {
     const newMode = mode === 'privacy-first' ? 'enhanced' : 'privacy-first';
@@ -82,10 +57,8 @@ export function AIPrivacySettings({ userId }: AIPrivacySettingsProps) {
       const data = await response.json();
 
       if (response.ok) {
-        setMode(newMode);
-        if (newMode === 'enhanced') {
-          setHasConsent(true);
-        }
+        // Revalidate the cache with new data
+        mutate();
         // Show success message
         toast.success(data.message);
       } else {

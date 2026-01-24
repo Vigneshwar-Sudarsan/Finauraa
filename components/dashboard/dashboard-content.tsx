@@ -9,64 +9,25 @@ import { TransactionsList } from "./transactions-list";
 import { DashboardHeader } from "./dashboard-header";
 import { EmptyState } from "@/components/ui/empty-state";
 import { useBankConnection } from "@/hooks/use-bank-connection";
+import { useBankConnections } from "@/hooks/use-bank-connections";
 import { Bank } from "@phosphor-icons/react";
 import { formatCurrency } from "@/lib/utils";
 
-interface BankConnection {
-  id: string;
-  bank_id: string;
-  bank_name: string;
-  status: string;
-  accounts: Account[];
-}
-
-interface Account {
-  id: string;
-  account_id: string;
-  account_type: string;
-  account_number: string;
-  currency: string;
-  balance: number;
-  available_balance: number;
-}
-
 export function DashboardContent() {
   const router = useRouter();
-  const [banks, setBanks] = useState<BankConnection[]>([]);
+  const { banks, isLoading } = useBankConnections();
   const [selectedBankId, setSelectedBankId] = useState<string | null>(null);
   const [selectedAccountId, setSelectedAccountId] = useState<string | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
 
   // Bank connection with consent dialog
   const { connectBank, isConnecting, ConsentDialog } = useBankConnection();
 
+  // Auto-select first bank when banks load
   useEffect(() => {
-    const fetchData = async () => {
-      try {
-        const response = await fetch("/api/finance/banks");
-        // Silently handle 403 - will show empty state with Connect Bank prompt
-        if (response.status === 403) {
-          setBanks([]);
-          return;
-        }
-        if (response.ok) {
-          const data = await response.json();
-          setBanks(data.banks ?? []);
-
-          // Auto-select first bank if available
-          if (data.banks && data.banks.length > 0) {
-            setSelectedBankId(data.banks[0].id);
-          }
-        }
-      } catch (error) {
-        console.error("Failed to fetch banks:", error);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    fetchData();
-  }, []);
+    if (banks.length > 0 && !selectedBankId) {
+      setSelectedBankId(banks[0].id);
+    }
+  }, [banks, selectedBankId]);
 
   // Get currently selected bank
   const selectedBank = banks.find((b) => b.id === selectedBankId);

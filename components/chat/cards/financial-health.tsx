@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
-import { Check, TrendUp, TrendDown, Minus, Info } from "@phosphor-icons/react";
+import { Check, TrendUp, TrendDown, Minus, Info, Sparkle } from "@phosphor-icons/react";
 
 interface FinancialHealthProps {
   data?: Record<string, unknown>;
@@ -28,9 +28,11 @@ interface SpendingStabilityFactor {
   status: "good" | "warning" | "critical";
 }
 
+type AuraLevel = "Radiant" | "Bright" | "Steady" | "Dim" | "Critical";
+
 interface FinancialHealthData {
   score: number;
-  grade: "A" | "B" | "C" | "D" | "F";
+  auraLevel: AuraLevel;
   factors: {
     savingsRate: HealthFactor;
     budgetAdherence: HealthFactor;
@@ -40,13 +42,14 @@ interface FinancialHealthData {
   topRecommendation: string;
 }
 
-const GRADE_COLORS: Record<string, string> = {
-  A: "text-green-600 dark:text-green-400",
-  B: "text-blue-600 dark:text-blue-400",
-  C: "text-yellow-600 dark:text-yellow-400",
-  D: "text-orange-600 dark:text-orange-400",
-  F: "text-red-600 dark:text-red-400",
-};
+// Aura Level configuration
+const AURA_LEVELS: { level: AuraLevel; min: number; max: number; color: string; bgColor: string; description: string }[] = [
+  { level: "Radiant", min: 90, max: 100, color: "text-purple-500", bgColor: "bg-purple-500", description: "Exceptional" },
+  { level: "Bright", min: 75, max: 89, color: "text-green-500", bgColor: "bg-green-500", description: "Strong" },
+  { level: "Steady", min: 60, max: 74, color: "text-blue-500", bgColor: "bg-blue-500", description: "Stable" },
+  { level: "Dim", min: 40, max: 59, color: "text-yellow-500", bgColor: "bg-yellow-500", description: "Needs attention" },
+  { level: "Critical", min: 0, max: 39, color: "text-red-500", bgColor: "bg-red-500", description: "Urgent action needed" },
+];
 
 const STATUS_COLORS: Record<string, string> = {
   good: "text-green-600 dark:text-green-400",
@@ -111,7 +114,7 @@ export function FinancialHealth({ data, onAction, disabled }: FinancialHealthPro
     return (
       <div className="w-full max-w-sm rounded-xl border border-border/60 bg-card p-4">
         <p className="text-sm text-muted-foreground">
-          Connect your bank account to see your financial health score.
+          Connect your bank account to see your Aura Score.
         </p>
       </div>
     );
@@ -128,35 +131,51 @@ export function FinancialHealth({ data, onAction, disabled }: FinancialHealthPro
     }
   };
 
+  const currentAuraConfig = AURA_LEVELS.find(a => a.level === health.auraLevel) || AURA_LEVELS[4];
+
   return (
     <div className="w-full max-w-sm rounded-xl border border-border/60 bg-card p-4 space-y-4">
-      {/* Score Header */}
+      {/* Aura Score Header */}
       <div className="flex items-center justify-between">
         <div>
-          <p className="text-xs text-muted-foreground">Financial Health Score</p>
-          <p className="text-lg font-semibold">{health.score}/100</p>
+          <div className="flex items-center gap-1.5">
+            <Sparkle className="h-4 w-4 text-purple-500" weight="fill" />
+            <p className="text-xs text-muted-foreground">Aura Score</p>
+          </div>
+          <p className="text-2xl font-bold">{health.score}<span className="text-sm font-normal text-muted-foreground">/100</span></p>
         </div>
-        <div className={`text-3xl font-bold ${GRADE_COLORS[health.grade]}`}>
-          {health.grade}
+        <div className={`text-right`}>
+          <p className={`text-lg font-semibold ${currentAuraConfig.color}`}>{health.auraLevel}</p>
+          <p className="text-[10px] text-muted-foreground">{currentAuraConfig.description}</p>
         </div>
       </div>
 
       {/* Score Bar */}
       <div className="relative h-2 bg-muted rounded-full overflow-hidden">
         <div
-          className={`absolute h-full rounded-full transition-all duration-500 ${
-            health.score >= 80
-              ? "bg-green-500"
-              : health.score >= 60
-              ? "bg-yellow-500"
-              : "bg-red-500"
-          }`}
+          className={`absolute h-full rounded-full transition-all duration-500 ${currentAuraConfig.bgColor}`}
           style={{ width: `${health.score}%` }}
         />
       </div>
 
+      {/* Aura Level Scale */}
+      <div className="flex items-center gap-0.5">
+        {AURA_LEVELS.map((a) => (
+          <div
+            key={a.level}
+            className={`flex-1 text-center py-1.5 rounded-sm text-[9px] font-medium transition-all ${
+              health.auraLevel === a.level
+                ? `${a.bgColor} text-white`
+                : "bg-muted/50 text-muted-foreground"
+            }`}
+          >
+            <div className="truncate px-0.5">{a.level}</div>
+          </div>
+        ))}
+      </div>
+
       {/* Factors */}
-      <div className="space-y-3">
+      <div className="space-y-2.5 pt-1">
         {/* Savings Rate */}
         <div className="flex items-center justify-between text-sm">
           <span className="text-muted-foreground">Savings Rate</span>

@@ -68,7 +68,7 @@ Finauraa is a personal finance management application built with Next.js 14 (App
 | Transactions | `/dashboard/transactions` | Transaction history | `max-w-2xl` |
 | Spending | `/dashboard/spending` | Spending analysis (My/Family tabs) | `max-w-4xl` |
 | Goals | `/dashboard/goals` | Savings goals tracker | `max-w-2xl` |
-| Payments | `/dashboard/payments` | Payment management | `max-w-2xl` |
+| Payments | `/dashboard/payments` | Payment initiation (Coming Soon) | `max-w-2xl` |
 
 ### Settings Pages
 

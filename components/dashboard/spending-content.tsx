@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { DashboardHeader } from "./dashboard-header";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -21,6 +21,8 @@ import {
 import { EmptyState } from "@/components/ui/empty-state";
 import { useBankConnection } from "@/hooks/use-bank-connection";
 import { useFeatureAccess } from "@/hooks/use-feature-access";
+import { useSpending } from "@/hooks/use-spending";
+import { useBankConnections } from "@/hooks/use-bank-connections";
 import { cn, formatCurrency, formatCompactCurrency } from "@/lib/utils";
 import {
   TrendUp,
@@ -96,11 +98,8 @@ interface BankConnection {
 
 export function SpendingContent() {
   const router = useRouter();
-  const [data, setData] = useState<SpendingData | null>(null);
-  const [budgets, setBudgets] = useState<Budget[]>([]);
-  const [banks, setBanks] = useState<BankConnection[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [isLoadingBudgets, setIsLoadingBudgets] = useState(true);
+  const { data, budgets, isLoading, isBudgetsLoading, mutate, mutateBudgets } = useSpending();
+  const { banks } = useBankConnections();
   const [error, setError] = useState<string | null>(null);
   const [needsConsent, setNeedsConsent] = useState(false);
   const [activeTab, setActiveTab] = useState<"my" | "family">("my");
@@ -134,70 +133,13 @@ export function SpendingContent() {
     setActiveTab(value as "my" | "family");
   };
 
-  const fetchSpendingData = useCallback(async () => {
-    try {
-      const response = await fetch("/api/finance/insights/spending");
-      if (!response.ok) {
-        // Check if it's a consent/authorization issue
-        if (response.status === 403) {
-          setNeedsConsent(true);
-          setError("Bank connection required");
-        } else {
-          throw new Error("Failed to fetch spending data");
-        }
-        return;
-      }
-      const spendingData = await response.json();
-      setData(spendingData);
-      setNeedsConsent(false);
-    } catch (err) {
-      console.error("Failed to fetch spending data:", err);
-      setError("Unable to load spending data");
-    } finally {
-      setIsLoading(false);
-    }
-  }, []);
-
-  const fetchBudgets = useCallback(async () => {
-    try {
-      const response = await fetch("/api/finance/budgets");
-      // Silently handle 403 - main fetchSpendingData handles consent flow
-      if (response.status === 403) return;
-      if (!response.ok) throw new Error("Failed to fetch budgets");
-      const { budgets: budgetsData } = await response.json();
-      setBudgets(budgetsData || []);
-    } catch (err) {
-      console.error("Failed to fetch budgets:", err);
-    } finally {
-      setIsLoadingBudgets(false);
-    }
-  }, []);
-
-  const fetchBanks = useCallback(async () => {
-    try {
-      const response = await fetch("/api/finance/connections");
-      // Silently handle 403 - main fetchSpendingData handles consent flow
-      if (response.status === 403) return;
-      if (!response.ok) throw new Error("Failed to fetch connections");
-      const { connections } = await response.json();
-      setBanks(connections || []);
-    } catch (err) {
-      console.error("Failed to fetch banks:", err);
-    }
-  }, []);
-
-  useEffect(() => {
-    // Parallelize all three API calls for better performance
-    Promise.all([fetchSpendingData(), fetchBudgets(), fetchBanks()]);
-  }, [fetchSpendingData, fetchBudgets, fetchBanks]);
-
   const handleRefreshAll = () => {
     if (activeTab === "family") {
       // Trigger family spending refresh
       setFamilyRefreshTrigger((prev) => prev + 1);
     } else {
-      fetchSpendingData();
-      fetchBudgets();
+      mutate();
+      mutateBudgets();
     }
   };
 
@@ -281,11 +223,32 @@ export function SpendingContent() {
       {/* Family Tab Content */}
       {activeTab === "family" && (
         featureLoading ? (
-          <div className="flex-1 flex items-center justify-center">
-            <div className="flex items-center gap-2 text-muted-foreground">
-              <div className="size-2 bg-foreground/40 rounded-full animate-pulse" />
-              <div className="size-2 bg-foreground/40 rounded-full animate-pulse" style={{ animationDelay: "150ms" }} />
-              <div className="size-2 bg-foreground/40 rounded-full animate-pulse" style={{ animationDelay: "300ms" }} />
+          <div className="flex-1 overflow-auto p-4 md:p-6">
+            <div className="max-w-4xl mx-auto space-y-6">
+              {/* Overview card skeleton */}
+              <div className="rounded-xl border p-6 space-y-4">
+                <div className="flex items-center justify-between">
+                  <div className="space-y-2">
+                    <div className="h-3 w-28 bg-muted rounded animate-pulse" />
+                    <div className="h-8 w-36 bg-muted rounded animate-pulse" />
+                  </div>
+                  <div className="size-20 bg-muted rounded-full animate-pulse" />
+                </div>
+              </div>
+              {/* Members list skeleton */}
+              <div className="rounded-xl border p-4 space-y-3">
+                <div className="h-5 w-28 bg-muted rounded animate-pulse" />
+                {[1, 2, 3].map((i) => (
+                  <div key={i} className="flex items-center gap-3 py-2">
+                    <div className="size-10 bg-muted rounded-full animate-pulse" />
+                    <div className="flex-1 space-y-1">
+                      <div className="h-4 w-24 bg-muted rounded animate-pulse" />
+                      <div className="h-3 w-20 bg-muted rounded animate-pulse" />
+                    </div>
+                    <div className="h-4 w-16 bg-muted rounded animate-pulse" />
+                  </div>
+                ))}
+              </div>
             </div>
           </div>
         ) : canAccessFamilyFeatures ? (
@@ -782,7 +745,7 @@ export function SpendingContent() {
                 <SpendingLimitsSection
                   budgets={budgets}
                   currency={data.currency}
-                  isLoading={isLoadingBudgets}
+                  isLoading={isBudgetsLoading}
                   variant="personal"
                   onAddLimit={() => {
                     setSelectedBudget(null);
@@ -915,8 +878,8 @@ export function SpendingContent() {
         open={setLimitOpen}
         onOpenChange={setSetLimitOpen}
         onSuccess={() => {
-          fetchBudgets();
-          fetchSpendingData();
+          mutateBudgets();
+          mutate();
         }}
         existingBudget={selectedBudget}
         selectedCategory={selectedCategory}

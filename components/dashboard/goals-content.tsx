@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect } from "react";
 import { DashboardHeader } from "./dashboard-header";
 import { Card, CardContent } from "@/components/ui/card";
 import {
@@ -17,6 +17,8 @@ import { Progress } from "@/components/ui/progress";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { useBankConnection } from "@/hooks/use-bank-connection";
+import { useSavingsGoals } from "@/hooks/use-savings-goals";
+import { useSpending } from "@/hooks/use-spending";
 import { cn, formatCurrency } from "@/lib/utils";
 import {
   Plus,
@@ -50,11 +52,10 @@ interface SavingsGoal {
 }
 
 export function GoalsContent() {
-  const [goals, setGoals] = useState<SavingsGoal[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const { goals, activeGoals, completedGoals, isLoading, mutate } = useSavingsGoals();
+  const { data: spendingData } = useSpending();
   const [error, setError] = useState<string | null>(null);
   const [needsConsent, setNeedsConsent] = useState(false);
-  const [recentIncome, setRecentIncome] = useState(0);
 
   // Categories hook
   const { getCategoryLabel } = useCategories();
@@ -74,49 +75,7 @@ export function GoalsContent() {
   // Filter state
   const [filter, setFilter] = useState<"active" | "completed">("active");
 
-  const fetchGoals = useCallback(async () => {
-    try {
-      const response = await fetch("/api/finance/savings-goals");
-      if (!response.ok) {
-        // Check if it's a consent/authorization issue
-        if (response.status === 403) {
-          setNeedsConsent(true);
-          setError("Bank connection required");
-        } else {
-          throw new Error("Failed to fetch savings goals");
-        }
-        return;
-      }
-      const { goals: goalsData } = await response.json();
-      setGoals(goalsData || []);
-      setNeedsConsent(false);
-    } catch (err) {
-      console.error("Failed to fetch savings goals:", err);
-      setError("Unable to load savings goals");
-    } finally {
-      setIsLoading(false);
-    }
-  }, []);
-
-  const fetchIncome = useCallback(async () => {
-    try {
-      const response = await fetch("/api/finance/insights/spending");
-      if (!response.ok) return;
-      const data = await response.json();
-      setRecentIncome(data.totalIncome || 0);
-    } catch (err) {
-      console.error("Failed to fetch income:", err);
-    }
-  }, []);
-
-  useEffect(() => {
-    // Parallelize both API calls for better performance
-    Promise.all([fetchGoals(), fetchIncome()]);
-  }, [fetchGoals, fetchIncome]);
-
-  const activeGoals = goals.filter((g) => !g.is_completed);
-  const completedGoals = goals.filter((g) => g.is_completed);
-
+  const recentIncome = spendingData?.totalIncome || 0;
   const defaultCurrency = goals[0]?.currency || "BHD";
 
   // Suggested contributions (filter out dismissed ones)
@@ -522,7 +481,7 @@ export function GoalsContent() {
       <SavingsGoalSheet
         open={savingsGoalOpen}
         onOpenChange={setSavingsGoalOpen}
-        onSuccess={fetchGoals}
+        onSuccess={mutate}
         existingGoal={selectedGoal}
         defaultCurrency={defaultCurrency}
       />
@@ -530,7 +489,7 @@ export function GoalsContent() {
       <ContributeToGoalSheet
         open={contributeOpen}
         onOpenChange={setContributeOpen}
-        onSuccess={fetchGoals}
+        onSuccess={mutate}
         goal={contributeGoal}
         suggestedAmount={
           contributeGoal?.auto_contribute && contributeGoal?.auto_contribute_percentage && recentIncome

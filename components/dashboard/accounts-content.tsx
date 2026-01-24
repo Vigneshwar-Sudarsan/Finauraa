@@ -20,6 +20,7 @@ import {
 import { BankSelector } from "./bank-selector";
 import { EmptyState } from "@/components/ui/empty-state";
 import { useBankConnection } from "@/hooks/use-bank-connection";
+import { useBankConnections } from "@/hooks/use-bank-connections";
 import {
   Bank,
   CreditCard,
@@ -28,24 +29,6 @@ import {
   ArrowsClockwise,
   SpinnerGap,
 } from "@phosphor-icons/react";
-
-interface Account {
-  id: string;
-  account_id: string;
-  account_type: string;
-  account_number: string;
-  currency: string;
-  balance: number;
-  available_balance: number;
-}
-
-interface BankConnection {
-  id: string;
-  bank_id: string;
-  bank_name: string;
-  status: string;
-  accounts: Account[];
-}
 
 function getAccountIcon(accountType: string) {
   const type = accountType.toLowerCase();
@@ -60,49 +43,26 @@ function getAccountIcon(accountType: string) {
 
 export function AccountsContent() {
   const router = useRouter();
-  const [banks, setBanks] = useState<BankConnection[]>([]);
+  const { banks, isLoading, mutate } = useBankConnections();
   const [selectedBankId, setSelectedBankId] = useState<string | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
 
   // Bank connection with consent dialog
   const { connectBank, isConnecting, ConsentDialog } = useBankConnection();
 
-  const fetchData = async () => {
-    try {
-      const response = await fetch("/api/finance/banks");
-      // Silently handle 403 - will show empty state with Connect Bank prompt
-      if (response.status === 403) {
-        setBanks([]);
-        return;
-      }
-      if (response.ok) {
-        const data = await response.json();
-        setBanks(data.banks ?? []);
-        // Auto-select first bank if available
-        if (data.banks && data.banks.length > 0 && !selectedBankId) {
-          setSelectedBankId(data.banks[0].id);
-        }
-      }
-    } catch (error) {
-      console.error("Failed to fetch data:", error);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
+  // Auto-select first bank when banks load
   useEffect(() => {
-    fetchData();
-  }, []);
+    if (banks.length > 0 && !selectedBankId) {
+      setSelectedBankId(banks[0].id);
+    }
+  }, [banks, selectedBankId]);
 
   const handleRefresh = async () => {
     setIsRefreshing(true);
     try {
       const response = await fetch("/api/finance/refresh", { method: "POST" });
-      // Silently handle 403 - user will see appropriate state
-      if (response.status === 403) return;
       if (response.ok) {
-        await fetchData();
+        await mutate();
       }
     } catch (error) {
       console.error("Refresh failed:", error);

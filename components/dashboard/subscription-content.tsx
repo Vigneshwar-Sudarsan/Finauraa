@@ -60,16 +60,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { toast } from "sonner";
-
-interface SubscriptionData {
-  tier: "free" | "pro" | "family";
-  status: "active" | "canceled" | "past_due" | "trialing" | "canceling" | "paused" | "incomplete";
-  billingCycle: "monthly" | "yearly";
-  startedAt: string | null;
-  endsAt: string | null;
-  trialEndsAt: string | null;
-  isFamilyMember?: boolean; // True if user inherits tier from family group owner
-}
+import { useSubscription } from "@/hooks/use-subscription";
 
 interface BillingChangePreview {
   currentBilling: string;
@@ -83,34 +74,6 @@ interface BillingChangePreview {
   nextBillingDate: string | null;
   yearlySavings: number;
   savingsPercentage: number;
-}
-
-interface UsageData {
-  bankConnections: { used: number; limit: number | null };
-  transactions: { used: number; limit: number | null };
-  aiQueries: { used: number; limit: number };
-  exports: { used: number; limit: number };
-}
-
-interface BillingRecord {
-  id: string;
-  amount: number;
-  currency: string;
-  status: "succeeded" | "pending" | "failed" | "refunded";
-  description: string;
-  invoiceUrl: string | null;
-  createdAt: string;
-}
-
-interface PaymentMethod {
-  id: string;
-  type: "card";
-  brand: string;
-  last4: string;
-  expMonth: number;
-  expYear: number;
-  isDefault: boolean;
-  isSubscriptionPayment: boolean;
 }
 
 // Plan configuration for display (prices in USD)
@@ -141,32 +104,15 @@ const planInfo = {
 export function SubscriptionContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const [isLoading, setIsLoading] = useState(true);
+  const { subscription, usage, billingHistory, paymentMethods, isLoading, mutate } = useSubscription();
   const [isSyncing, setIsSyncing] = useState(false);
   const [isActionLoading, setIsActionLoading] = useState(false);
   const [showSuccessMessage, setShowSuccessMessage] = useState(false);
-  const [subscription, setSubscription] = useState<SubscriptionData>({
-    tier: "free",
-    status: "active",
-    billingCycle: "monthly",
-    startedAt: null,
-    endsAt: null,
-    trialEndsAt: null,
-    isFamilyMember: false,
-  });
   const [billingChangePreview, setBillingChangePreview] = useState<BillingChangePreview | null>(null);
   const [isLoadingBillingPreview, setIsLoadingBillingPreview] = useState(false);
   const [isBillingChangeLoading, setIsBillingChangeLoading] = useState(false);
   const [isBillingCycleUpdating, setIsBillingCycleUpdating] = useState(false);
   const [showBillingChangeDialog, setShowBillingChangeDialog] = useState(false);
-  const [usage, setUsage] = useState<UsageData>({
-    bankConnections: { used: 0, limit: 1 },
-    transactions: { used: 0, limit: 500 },
-    aiQueries: { used: 0, limit: 5 },
-    exports: { used: 0, limit: 0 },
-  });
-  const [billingHistory, setBillingHistory] = useState<BillingRecord[]>([]);
-  const [paymentMethods, setPaymentMethods] = useState<PaymentMethod[]>([]);
   const [familyGroupInfo, setFamilyGroupInfo] = useState<{
     name: string;
     ownerName: string;
@@ -175,43 +121,26 @@ export function SubscriptionContent() {
   // Check for success param from Stripe checkout redirect
   const isCheckoutSuccess = searchParams.get("success") === "true";
 
-  const fetchSubscriptionData = async () => {
-    try {
-      const subResponse = await fetch("/api/subscription");
-      if (subResponse.ok) {
-        const subData = await subResponse.json();
-        setSubscription(subData.subscription);
-        setUsage(prev => ({
-          bankConnections: subData.usage?.bankConnections ?? prev.bankConnections,
-          transactions: subData.usage?.transactions ?? prev.transactions,
-          aiQueries: subData.usage?.aiQueries ?? prev.aiQueries,
-          exports: subData.usage?.exports ?? prev.exports,
-        }));
-        setBillingHistory(subData.billingHistory || []);
-        setPaymentMethods(subData.paymentMethods || []);
-
-        // If user is a family member, fetch family group info
-        if (subData.subscription?.isFamilyMember) {
-          try {
-            const familyResponse = await fetch("/api/family/group");
-            if (familyResponse.ok) {
-              const familyData = await familyResponse.json();
-              setFamilyGroupInfo({
-                name: familyData.group?.name || "Family Group",
-                ownerName: familyData.group?.owner?.full_name || familyData.group?.owner?.email || "Group Owner",
-              });
-            }
-          } catch (familyError) {
-            console.error("Failed to fetch family group info:", familyError);
+  // Fetch family group info if user is a family member
+  useEffect(() => {
+    if (subscription.isFamilyMember) {
+      const fetchFamilyInfo = async () => {
+        try {
+          const familyResponse = await fetch("/api/family/group");
+          if (familyResponse.ok) {
+            const familyData = await familyResponse.json();
+            setFamilyGroupInfo({
+              name: familyData.group?.name || "Family Group",
+              ownerName: familyData.group?.owner?.full_name || familyData.group?.owner?.email || "Group Owner",
+            });
           }
+        } catch (familyError) {
+          console.error("Failed to fetch family group info:", familyError);
         }
-      }
-    } catch (error) {
-      console.error("Failed to fetch subscription:", error);
-    } finally {
-      setIsLoading(false);
+      };
+      fetchFamilyInfo();
     }
-  };
+  }, [subscription.isFamilyMember]);
 
   // Sync subscription from Stripe (useful after checkout when webhook might be delayed)
   const syncSubscription = async () => {
@@ -220,7 +149,7 @@ export function SubscriptionContent() {
       const syncResponse = await fetch("/api/subscription/sync", { method: "POST" });
       if (syncResponse.ok) {
         // Re-fetch subscription data after sync
-        await fetchSubscriptionData();
+        await mutate();
       }
     } catch (error) {
       console.error("Failed to sync subscription:", error);
@@ -241,8 +170,6 @@ export function SubscriptionContent() {
         setTimeout(() => setShowSuccessMessage(false), 5000);
       };
       performSync();
-    } else {
-      fetchSubscriptionData();
     }
   }, [isCheckoutSuccess, router]);
 
@@ -274,7 +201,7 @@ export function SubscriptionContent() {
 
       if (response.ok) {
         toast.success(data.message);
-        await fetchSubscriptionData();
+        await mutate();
       } else {
         toast.error(data.error || "Failed to cancel subscription");
       }
@@ -283,7 +210,7 @@ export function SubscriptionContent() {
       toast.error("Failed to cancel subscription");
     } finally {
       setIsActionLoading(false);
-          }
+    }
   };
 
   const handleReactivateSubscription = async () => {
@@ -297,7 +224,7 @@ export function SubscriptionContent() {
 
       if (response.ok) {
         toast.success(data.message);
-        await fetchSubscriptionData();
+        await mutate();
       } else {
         toast.error(data.error || "Failed to reactivate subscription");
       }
@@ -306,7 +233,7 @@ export function SubscriptionContent() {
       toast.error("Failed to reactivate subscription");
     } finally {
       setIsActionLoading(false);
-          }
+    }
   };
 
   const fetchBillingChangePreview = async (newBilling: "monthly" | "yearly") => {
@@ -349,7 +276,7 @@ export function SubscriptionContent() {
         setIsBillingChangeLoading(false);
         // Show loading in the billing cycle card while fetching updated data
         setIsBillingCycleUpdating(true);
-        await fetchSubscriptionData();
+        await mutate();
         setIsBillingCycleUpdating(false);
       } else {
         toast.error(data.error || "Failed to change billing cycle");
@@ -359,8 +286,7 @@ export function SubscriptionContent() {
       console.error("Failed to change billing cycle:", error);
       toast.error("Failed to change billing cycle");
       setIsBillingChangeLoading(false);
-    } finally {
-          }
+    }
   };
 
   const currentPlan = planInfo[subscription.tier];

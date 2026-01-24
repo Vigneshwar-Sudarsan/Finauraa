@@ -22,10 +22,6 @@ import {
 import { useFeatureAccess } from "@/hooks/use-feature-access";
 import { NOTIFICATION_FEATURES, TierLimits } from "@/lib/features";
 
-interface NotificationSettingsProps {
-  userId: string;
-}
-
 interface NotificationPreference {
   id: string;
   icon: React.ComponentType<{ size?: number; className?: string; weight?: "regular" | "duotone" | "fill" }>;
@@ -36,7 +32,7 @@ interface NotificationPreference {
   requiredFeature?: keyof TierLimits; // Feature required for this notification
 }
 
-export function NotificationSettings({ userId }: NotificationSettingsProps) {
+export function NotificationSettings() {
   const router = useRouter();
   const { canAccess, tier, isLoading: featureLoading } = useFeatureAccess();
 

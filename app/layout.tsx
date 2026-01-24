@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Inter } from "next/font/google";
 import { ThemeProvider } from "@/components/theme-provider";
+import { SWRProvider } from "@/lib/swr-config";
 import { PWAInstallPrompt } from "@/components/pwa-install-prompt";
 import { Toaster } from "@/components/ui/sonner";
 import "./globals.css";
@@ -71,9 +72,11 @@ export default function RootLayout({
           enableSystem
           disableTransitionOnChange
         >
-          {children}
-          <PWAInstallPrompt />
-          <Toaster position="top-center" richColors closeButton />
+          <SWRProvider>
+            {children}
+            <PWAInstallPrompt />
+            <Toaster position="top-center" richColors closeButton />
+          </SWRProvider>
         </ThemeProvider>
       </body>
     </html>

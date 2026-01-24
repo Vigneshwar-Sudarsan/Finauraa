@@ -1,28 +1,9 @@
 "use client";
 
-import { Suspense } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { CaretLeft } from "@phosphor-icons/react";
 import { FamilyContent } from "@/components/dashboard/family-content";
-
-function FamilyLoading() {
-  return (
-    <div className="flex-1 flex items-center justify-center">
-      <div className="flex items-center gap-2 text-muted-foreground">
-        <div className="size-2 bg-foreground/40 rounded-full animate-pulse" />
-        <div
-          className="size-2 bg-foreground/40 rounded-full animate-pulse"
-          style={{ animationDelay: "150ms" }}
-        />
-        <div
-          className="size-2 bg-foreground/40 rounded-full animate-pulse"
-          style={{ animationDelay: "300ms" }}
-        />
-      </div>
-    </div>
-  );
-}
 
 export default function FamilySettingsPage() {
   const router = useRouter();
@@ -51,9 +32,7 @@ export default function FamilySettingsPage() {
               Manage your family plan members and settings
             </p>
           </div>
-          <Suspense fallback={<FamilyLoading />}>
-            <FamilyContent />
-          </Suspense>
+          <FamilyContent />
         </div>
       </div>
     </div>
