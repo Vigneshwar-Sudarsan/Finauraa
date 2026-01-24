@@ -431,8 +431,22 @@ export async function POST(request: NextRequest) {
     // Determine user's AI data mode (privacy-first or enhanced)
     const { mode, canUseEnhanced } = await getUserAIDataMode(user.id);
 
+    // Fetch user's name from profile to personalize AI responses
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("full_name")
+      .eq("id", user.id)
+      .single();
+
+    const userName = profile?.full_name || null;
+
     // Fetch context based on user's mode and permissions
     let contextMessage: string;
+
+    // Add user's name to context if available
+    const userNameContext = userName
+      ? `\n\nUSER NAME: ${userName} (Address the user by their first name when appropriate)`
+      : "";
 
     if (mode === 'enhanced' && canUseEnhanced) {
       // Enhanced mode: Full Finance Assistant data with user's consent
@@ -441,13 +455,13 @@ export async function POST(request: NextRequest) {
       // financial health score, anomaly detection, and actionable recommendations
       const financeContext = await getFinanceManagerContext(user.id);
       contextMessage = financeContext
-        ? formatFinanceManagerContext(financeContext)
+        ? userNameContext + formatFinanceManagerContext(financeContext)
         : "\n\nUSER CONTEXT: Unable to load financial data. Please try again.";
     } else {
       // Privacy-first mode: Anonymized/aggregated data only (default)
       // This only includes categorical info like "balance is healthy", never exact amounts
       const anonymizedContext = await getAnonymizedUserContext(user.id);
-      contextMessage = formatContextForAI(anonymizedContext);
+      contextMessage = userNameContext + formatContextForAI(anonymizedContext);
     }
 
     // Format messages for Claude
