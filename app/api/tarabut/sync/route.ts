@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createTarabutClient } from "@/lib/tarabut/client";
+import { tokenManager } from "@/lib/tarabut/token-manager";
 
 /**
  * POST /api/tarabut/sync
@@ -33,32 +34,25 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Connection not found" }, { status: 404 });
     }
 
-    // Check if token is expired
-    const tokenExpiry = new Date(connection.token_expires_at);
+    // Get valid token (refreshes if needed)
+    const client = createTarabutClient();
+    const tokenResult = await tokenManager.getValidToken(user.id, {
+      access_token: connection.access_token,
+      token_expires_at: connection.token_expires_at,
+    });
 
-    if (tokenExpiry < new Date()) {
-      // Token expired - need to reconnect
+    // Update database if token was refreshed
+    if (tokenResult.shouldUpdate) {
       await supabase
         .from("bank_connections")
-        .update({ status: "expired" })
+        .update({
+          access_token: tokenResult.accessToken,
+          token_expires_at: tokenResult.expiresAt.toISOString(),
+        })
         .eq("id", connectionId);
-
-      return NextResponse.json({ error: "Connection expired, please reconnect" }, { status: 401 });
     }
 
-    // Get fresh access token
-    const client = createTarabutClient();
-    const tokenResponse = await client.getAccessToken(user.id);
-    const accessToken = tokenResponse.accessToken;
-
-    // Update connection with new token
-    await supabase
-      .from("bank_connections")
-      .update({
-        access_token: accessToken,
-        token_expires_at: new Date(Date.now() + tokenResponse.expiresIn * 1000).toISOString(),
-      })
-      .eq("id", connectionId);
+    const accessToken = tokenResult.accessToken;
 
     // Get all accounts for this connection
     const { data: accounts } = await supabase
