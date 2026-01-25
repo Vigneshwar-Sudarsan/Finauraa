@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createTarabutClient } from "@/lib/tarabut/client";
+import { tokenManager } from "@/lib/tarabut/token-manager";
 import { requireBankConsent, logDataAccessSuccess } from "@/lib/consent-middleware";
 import { logBankEvent } from "@/lib/audit";
 
@@ -50,8 +51,6 @@ export async function POST() {
     }
 
     const client = createTarabutClient();
-    const tokenResponse = await client.getAccessToken(user.id);
-    const accessToken = tokenResponse.accessToken;
 
     let totalNewTransactions = 0;
     let accountsUpdated = 0;
@@ -59,15 +58,25 @@ export async function POST() {
 
     for (const connection of connections) {
       try {
-        // Update connection token
-        await supabase
-          .from("bank_connections")
-          .update({
-            access_token: accessToken,
-            token_expires_at: new Date(Date.now() + tokenResponse.expiresIn * 1000).toISOString(),
-            updated_at: new Date().toISOString(),
-          })
-          .eq("id", connection.id);
+        // Get valid token (refreshes if needed)
+        const tokenResult = await tokenManager.getValidToken(user.id, {
+          access_token: connection.access_token,
+          token_expires_at: connection.token_expires_at,
+        });
+
+        // Update database if token was refreshed
+        if (tokenResult.shouldUpdate) {
+          await supabase
+            .from("bank_connections")
+            .update({
+              access_token: tokenResult.accessToken,
+              token_expires_at: tokenResult.expiresAt.toISOString(),
+              updated_at: new Date().toISOString(),
+            })
+            .eq("id", connection.id);
+        }
+
+        const accessToken = tokenResult.accessToken;
 
         // Fetch fresh accounts from Tarabut
         const accountsResponse = await client.getAccounts(accessToken);
