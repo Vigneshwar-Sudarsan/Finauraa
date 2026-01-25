@@ -92,7 +92,7 @@ export async function POST(request: NextRequest) {
           return NextResponse.json({ error: "Invalid payload" }, { status: 400 });
         }
         validatedEvent = result.data;
-        await handleCheckoutCompleted(validatedEvent.data.object as Stripe.Checkout.Session);
+        await handleCheckoutCompleted(validatedEvent.data.object as unknown as Stripe.Checkout.Session);
         break;
       }
 
@@ -112,7 +112,7 @@ export async function POST(request: NextRequest) {
           return NextResponse.json({ error: "Invalid payload" }, { status: 400 });
         }
         validatedEvent = result.data;
-        const subscription = validatedEvent.data.object as Stripe.Subscription;
+        const subscription = validatedEvent.data.object as unknown as Stripe.Subscription;
 
         // Route to appropriate handler based on event type
         if (event.type === "customer.subscription.deleted") {
@@ -143,7 +143,7 @@ export async function POST(request: NextRequest) {
           return NextResponse.json({ error: "Invalid payload" }, { status: 400 });
         }
         validatedEvent = result.data;
-        const invoice = validatedEvent.data.object as Stripe.Invoice;
+        const invoice = validatedEvent.data.object as unknown as Stripe.Invoice;
 
         if (event.type === "invoice.upcoming") {
           await handleUpcomingInvoice(invoice);
@@ -165,7 +165,7 @@ export async function POST(request: NextRequest) {
           return NextResponse.json({ error: "Invalid payload" }, { status: 400 });
         }
         validatedEvent = result.data;
-        await handlePaymentFailed(validatedEvent.data.object as Stripe.PaymentIntent);
+        await handlePaymentFailed(validatedEvent.data.object as unknown as Stripe.PaymentIntent);
         break;
       }
 
