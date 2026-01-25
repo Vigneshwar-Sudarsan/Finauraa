@@ -62,6 +62,8 @@ Recent decisions affecting current work:
 - **5-minute token buffer window: Proactive token refresh before expiry (03-01)**
 - **Mutex per user: Prevents concurrent token refresh race conditions (03-01)**
 - **shouldUpdate flag pattern: Caller must persist token if refreshed (03-01)**
+- **OAuth routes preserve direct getAccessToken: Routes that establish tokens (connect, callback) don't use token manager (03-02)**
+- **Database updates conditional on shouldUpdate: Minimize writes when token still valid (03-02)**
 - **requireAdmin pattern: Returns AdminCheckResult with isAdmin flag and optional response for clean error handling (03-04)**
 - **Before/after state audit logging: Log both states after mutations for complete audit trail reconstruction (03-04)**
 - **Self-revocation prevention: Admins cannot revoke their own access to avoid accidental lockouts (03-04)**
