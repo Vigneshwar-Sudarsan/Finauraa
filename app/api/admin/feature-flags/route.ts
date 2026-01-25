@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { invalidateFeatureFlagsCache } from "@/lib/features-db";
+import { requireAdmin } from "@/lib/admin/access-control";
+import { logAdminAction } from "@/lib/audit";
 
 /**
  * Admin API for Feature Flags Management
@@ -10,43 +12,18 @@ import { invalidateFeatureFlagsCache } from "@/lib/features-db";
  * POST /api/admin/feature-flags - Create a new feature flag
  */
 
-// List of admin user IDs or emails (configure in env)
-const ADMIN_EMAILS = process.env.ADMIN_EMAILS?.split(",") || [];
-
-async function isAdmin(supabase: Awaited<ReturnType<typeof createClient>>): Promise<boolean> {
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) return false;
-
-  // Check if user email is in admin list
-  if (ADMIN_EMAILS.includes(user.email || "")) {
-    return true;
-  }
-
-  // Alternatively, check for admin role in profile
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("is_admin")
-    .eq("id", user.id)
-    .single();
-
-  return profile?.is_admin === true;
-}
-
 /**
  * GET /api/admin/feature-flags
  * Fetch all feature flags for the admin panel
  */
 export async function GET() {
   try {
-    const supabase = await createClient();
-
-    // Check admin access
-    if (!(await isAdmin(supabase))) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
+    const adminCheck = await requireAdmin("/api/admin/feature-flags");
+    if (!adminCheck.isAdmin) {
+      return adminCheck.response!;
     }
+
+    const supabase = await createClient();
 
     const { data: flags, error } = await supabase
       .from("feature_flags")
@@ -92,17 +69,12 @@ export async function GET() {
  */
 export async function PUT(request: NextRequest) {
   try {
-    const supabase = await createClient();
-
-    // Check admin access
-    if (!(await isAdmin(supabase))) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
+    const adminCheck = await requireAdmin("/api/admin/feature-flags");
+    if (!adminCheck.isAdmin) {
+      return adminCheck.response!;
     }
 
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-
+    const supabase = await createClient();
     const body = await request.json();
     const { id, free_value, pro_value, family_value, is_active, description } = body;
 
@@ -113,10 +85,17 @@ export async function PUT(request: NextRequest) {
       );
     }
 
+    // Fetch existing flag for audit logging (before state)
+    const { data: beforeFlag } = await supabase
+      .from("feature_flags")
+      .select("*")
+      .eq("id", id)
+      .single();
+
     // Build update object
     const updateData: Record<string, unknown> = {
       updated_at: new Date().toISOString(),
-      updated_by: user?.id,
+      updated_by: adminCheck.userId,
     };
 
     if (free_value !== undefined) updateData.free_value = free_value;
@@ -139,6 +118,20 @@ export async function PUT(request: NextRequest) {
         { status: 500 }
       );
     }
+
+    // Log admin action with before/after state
+    await logAdminAction(
+      adminCheck.userId!,
+      "admin_action",
+      "feature_flag",
+      id,
+      {
+        action: "update_feature_flag",
+        before: beforeFlag,
+        after: updatedFlag,
+        changes: updateData,
+      }
+    );
 
     // Invalidate cache so changes take effect immediately
     invalidateFeatureFlagsCache();
@@ -163,17 +156,12 @@ export async function PUT(request: NextRequest) {
  */
 export async function POST(request: NextRequest) {
   try {
-    const supabase = await createClient();
-
-    // Check admin access
-    if (!(await isAdmin(supabase))) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
+    const adminCheck = await requireAdmin("/api/admin/feature-flags");
+    if (!adminCheck.isAdmin) {
+      return adminCheck.response!;
     }
 
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-
+    const supabase = await createClient();
     const body = await request.json();
     const {
       feature_key,
@@ -219,7 +207,7 @@ export async function POST(request: NextRequest) {
         family_value: family_value ?? null,
         value_type: value_type || "boolean",
         is_active: true,
-        updated_by: user?.id,
+        updated_by: adminCheck.userId,
       })
       .select()
       .single();
@@ -231,6 +219,18 @@ export async function POST(request: NextRequest) {
         { status: 500 }
       );
     }
+
+    // Log admin action
+    await logAdminAction(
+      adminCheck.userId!,
+      "admin_action",
+      "feature_flag",
+      newFlag.id,
+      {
+        action: "create_feature_flag",
+        flag: newFlag,
+      }
+    );
 
     // Invalidate cache
     invalidateFeatureFlagsCache();
@@ -255,13 +255,12 @@ export async function POST(request: NextRequest) {
  */
 export async function DELETE(request: NextRequest) {
   try {
-    const supabase = await createClient();
-
-    // Check admin access
-    if (!(await isAdmin(supabase))) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
+    const adminCheck = await requireAdmin("/api/admin/feature-flags");
+    if (!adminCheck.isAdmin) {
+      return adminCheck.response!;
     }
 
+    const supabase = await createClient();
     const searchParams = request.nextUrl.searchParams;
     const id = searchParams.get("id");
 
@@ -271,6 +270,13 @@ export async function DELETE(request: NextRequest) {
         { status: 400 }
       );
     }
+
+    // Fetch existing flag for audit logging (before state)
+    const { data: beforeFlag } = await supabase
+      .from("feature_flags")
+      .select("*")
+      .eq("id", id)
+      .single();
 
     // Soft delete - just deactivate
     const { data: flag, error } = await supabase
@@ -287,6 +293,19 @@ export async function DELETE(request: NextRequest) {
         { status: 500 }
       );
     }
+
+    // Log admin action with before/after state
+    await logAdminAction(
+      adminCheck.userId!,
+      "admin_action",
+      "feature_flag",
+      id,
+      {
+        action: "delete_feature_flag",
+        before: beforeFlag,
+        after: flag,
+      }
+    );
 
     // Invalidate cache
     invalidateFeatureFlagsCache();
