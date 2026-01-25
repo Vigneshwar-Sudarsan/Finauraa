@@ -32,7 +32,7 @@ import {
 } from "@phosphor-icons/react";
 import Link from "next/link";
 import { AddTransactionSheet, TransactionFiltersSheet, type TransactionFilters } from "@/components/spending";
-import { format, isToday, isYesterday, isThisWeek, isThisMonth, parseISO } from "date-fns";
+import { format, isToday, isYesterday, isThisWeek, isThisMonth, parseISO, parse } from "date-fns";
 import { getCategoryIcon, formatCategoryName } from "@/lib/constants/category-icons";
 
 interface Transaction {
@@ -82,14 +82,66 @@ interface SubscriptionInfo {
   isLimited: boolean;
 }
 
+const PAGE_SIZE = 30;
+
 export function TransactionsContent() {
-  const { transactions, subscription, isLoading, mutate } = useTransactions();
+  const [offset, setOffset] = useState(0);
+  const [allTransactions, setAllTransactions] = useState<Transaction[]>([]);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
+
+  const { transactions, subscription, pagination, isLoading, mutate } = useTransactions({
+    limit: PAGE_SIZE,
+    offset: 0,
+  });
+
   const { banks } = useBankConnections();
   const [error, setError] = useState<string | null>(null);
   const [needsConsent, setNeedsConsent] = useState(false);
   const [addTransactionOpen, setAddTransactionOpen] = useState(false);
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [pendingFilterApplied, setPendingFilterApplied] = useState(false);
+
+  // Initialize allTransactions with first page
+  useEffect(() => {
+    if (transactions.length > 0 && offset === 0) {
+      setAllTransactions(transactions);
+    }
+  }, [transactions, offset]);
+
+  // Use accumulated transactions for display
+  const displayTransactions = allTransactions.length > 0 ? allTransactions : transactions;
+
+  // Calculate if there are more transactions to load
+  const hasMoreToLoad = pagination ? displayTransactions.length < pagination.total : false;
+
+  // Load more transactions
+  const loadMore = async () => {
+    if (isLoadingMore || !hasMoreToLoad) return;
+
+    setIsLoadingMore(true);
+    const newOffset = displayTransactions.length;
+
+    try {
+      const response = await fetch(`/api/finance/transactions?limit=${PAGE_SIZE}&offset=${newOffset}`);
+      const data = await response.json();
+
+      if (data.transactions && data.transactions.length > 0) {
+        setAllTransactions(prev => [...prev, ...data.transactions]);
+        setOffset(newOffset);
+      }
+    } catch (err) {
+      console.error("Failed to load more transactions:", err);
+    } finally {
+      setIsLoadingMore(false);
+    }
+  };
+
+  // Reset pagination when mutate is called (e.g., after adding transaction)
+  const handleMutate = () => {
+    setOffset(0);
+    setAllTransactions([]);
+    mutate();
+  };
 
   // Bank connection with consent dialog
   const { connectBank, isConnecting, ConsentDialog } = useBankConnection();
@@ -139,7 +191,7 @@ export function TransactionsContent() {
     filters.maxAmount !== "";
 
   // Filter transactions
-  const filteredTransactions = transactions.filter((t) => {
+  const filteredTransactions = displayTransactions.filter((t) => {
     // Search filter
     if (searchQuery) {
       const query = searchQuery.toLowerCase();
@@ -200,10 +252,18 @@ export function TransactionsContent() {
     if (aIndex !== -1 && bIndex !== -1) return aIndex - bIndex;
     if (aIndex !== -1) return -1;
     if (bIndex !== -1) return 1;
-    return b.localeCompare(a); // Sort other months descending
+    // Sort other months chronologically descending (newest first)
+    // Parse "MMMM yyyy" format back to date for comparison
+    try {
+      const dateA = parse(a, "MMMM yyyy", new Date());
+      const dateB = parse(b, "MMMM yyyy", new Date());
+      return dateB.getTime() - dateA.getTime();
+    } catch {
+      return b.localeCompare(a);
+    }
   });
 
-  const defaultCurrency = transactions[0]?.currency || "BHD";
+  const defaultCurrency = displayTransactions[0]?.currency || "BHD";
 
   return (
     <div className="flex flex-col h-full">
@@ -242,7 +302,7 @@ export function TransactionsContent() {
       )}
 
       {/* Empty State */}
-      {!isLoading && !error && transactions.length === 0 && (
+      {!isLoading && !error && displayTransactions.length === 0 && (
         <div className="flex-1 flex items-center justify-center">
           <EmptyState
             icon={<Receipt size={28} className="text-muted-foreground" />}
@@ -306,10 +366,10 @@ export function TransactionsContent() {
       )}
 
       {/* Transactions List */}
-      {!isLoading && !error && filteredTransactions.length > 0 && (
+      {!isLoading && !error && displayTransactions.length > 0 && (
         <div className="flex-1 overflow-auto p-4 md:p-6 pb-24 sm:pb-6">
           <div className="max-w-2xl mx-auto space-y-4">
-            {/* Search & Filters */}
+            {/* Search & Filters - Always visible when there are transactions */}
             <div className="flex items-center gap-2">
               <div className="relative w-48 sm:w-64">
                 <MagnifyingGlass
@@ -347,6 +407,24 @@ export function TransactionsContent() {
               </Button>
             </div>
 
+            {/* No Results - Show when search/filter yields nothing */}
+            {filteredTransactions.length === 0 && (
+              <Card>
+                <CardContent className="flex flex-col items-center justify-center py-12">
+                  <MagnifyingGlass size={32} className="text-muted-foreground mb-3" />
+                  <p className="font-medium">No results found</p>
+                  <p className="text-sm text-muted-foreground mb-4">Try adjusting your search or filters.</p>
+                  <Button variant="outline" size="sm" onClick={clearFilters}>
+                    Clear Filters
+                  </Button>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* Transactions when results exist */}
+            {filteredTransactions.length > 0 && (
+              <>
+
             {/* Free Tier Limit Banner */}
             {subscription?.isLimited && (
               <div className="flex items-center gap-3 p-3 rounded-lg bg-amber-500/10 border border-amber-500/20">
@@ -381,7 +459,7 @@ export function TransactionsContent() {
                         {group}
                       </div>
                       {/* Transactions for this date group */}
-                      {groupedTransactions[group].map((transaction, index) => {
+                      {groupedTransactions[group]?.map((transaction, index) => {
                         const Icon = getCategoryIcon(transaction.category);
                         const isCredit = transaction.transaction_type === "credit";
                         const hasLogo = transaction.merchant_logo || transaction.category_icon;
@@ -465,23 +543,28 @@ export function TransactionsContent() {
                 </ItemGroup>
               </CardContent>
             </Card>
-          </div>
-        </div>
-      )}
 
-      {/* No Results */}
-      {!isLoading && !error && transactions.length > 0 && filteredTransactions.length === 0 && (
-        <div className="flex-1 flex items-center justify-center">
-          <EmptyState
-            icon={<MagnifyingGlass size={28} className="text-muted-foreground" />}
-            title="No results found"
-            description="Try adjusting your search or filters."
-            action={{
-              label: "Clear Filters",
-              onClick: clearFilters,
-              variant: "outline",
-            }}
-          />
+            {/* Pagination Info & Load More */}
+            {pagination && pagination.total > 0 && (
+              <div className="flex flex-col items-center gap-3 py-4">
+                <p className="text-sm text-muted-foreground">
+                  Showing {displayTransactions.length} of {pagination.total} transactions
+                </p>
+                {hasMoreToLoad && (
+                  <Button
+                    variant="outline"
+                    onClick={loadMore}
+                    disabled={isLoadingMore}
+                    className="w-full max-w-xs"
+                  >
+                    {isLoadingMore ? "Loading..." : "Load More"}
+                  </Button>
+                )}
+              </div>
+            )}
+            </>
+            )}
+          </div>
         </div>
       )}
 
@@ -498,7 +581,7 @@ export function TransactionsContent() {
       <AddTransactionSheet
         open={addTransactionOpen}
         onOpenChange={setAddTransactionOpen}
-        onSuccess={mutate}
+        onSuccess={handleMutate}
         banks={banks}
         defaultCurrency={defaultCurrency}
       />
