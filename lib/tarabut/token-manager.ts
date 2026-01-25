@@ -27,6 +27,12 @@ export interface TokenManagerOptions {
   bufferMinutes?: number; // Refresh if token expires within this window (default: 5)
 }
 
+/**
+ * Double-check window in milliseconds
+ * If last refresh was within this window, skip refresh
+ */
+const DOUBLE_CHECK_WINDOW_MS = 10000; // 10 seconds
+
 export class TarabutTokenManager {
   private refreshMutexes: Map<string, Mutex> = new Map();
   private lastRefreshTime: Map<string, number> = new Map();
@@ -67,10 +73,7 @@ export class TarabutTokenManager {
   ): Promise<TokenRefreshResult> {
     // Check if token needs refresh
     const expiresAt = new Date(connection.token_expires_at);
-    const now = new Date();
-    const bufferTime = new Date(now.getTime() + this.bufferMinutes * 60 * 1000);
-
-    const needsRefresh = expiresAt <= bufferTime;
+    const needsRefresh = this.isTokenExpiringSoon(expiresAt);
 
     if (!needsRefresh) {
       return {
@@ -88,7 +91,7 @@ export class TarabutTokenManager {
       const lastRefresh = this.lastRefreshTime.get(userId) || 0;
       const timeSinceRefresh = Date.now() - lastRefresh;
 
-      if (timeSinceRefresh < 10000) {
+      if (timeSinceRefresh < DOUBLE_CHECK_WINDOW_MS) {
         // Another concurrent request just refreshed, return existing
         // Note: In production, caller would re-fetch from DB to get updated token
         return {
@@ -113,6 +116,15 @@ export class TarabutTokenManager {
         expiresAt: newExpiresAt,
       };
     });
+  }
+
+  /**
+   * Check if token is expiring soon (within buffer window)
+   */
+  private isTokenExpiringSoon(expiresAt: Date): boolean {
+    const now = new Date();
+    const bufferTime = new Date(now.getTime() + this.bufferMinutes * 60 * 1000);
+    return expiresAt <= bufferTime;
   }
 
   /**
