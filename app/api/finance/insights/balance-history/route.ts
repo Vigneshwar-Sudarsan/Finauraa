@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createTarabutClient } from "@/lib/tarabut/client";
+import { tokenManager } from "@/lib/tarabut/token-manager";
 import { requireBankConsent } from "@/lib/consent-middleware";
 
 /**
@@ -41,7 +42,7 @@ export async function GET(request: NextRequest) {
     // Check if user has bank connections (fallback check)
     const { data: connections } = await supabase
       .from("bank_connections")
-      .select("id")
+      .select("id, access_token, token_expires_at")
       .eq("user_id", user.id)
       .eq("status", "active")
       .limit(1);
@@ -53,13 +54,29 @@ export async function GET(request: NextRequest) {
       });
     }
 
-    // Get access token for user
+    // Get valid token (refreshes if needed)
+    const connection = connections[0];
+    const tokenResult = await tokenManager.getValidToken(user.id, {
+      access_token: connection.access_token,
+      token_expires_at: connection.token_expires_at,
+    });
+
+    // Update database if token was refreshed
+    if (tokenResult.shouldUpdate) {
+      await supabase
+        .from("bank_connections")
+        .update({
+          access_token: tokenResult.accessToken,
+          token_expires_at: tokenResult.expiresAt.toISOString(),
+        })
+        .eq("id", connection.id);
+    }
+
     const tarabut = createTarabutClient();
-    const tokenResponse = await tarabut.getAccessToken(user.id);
 
     if (accountId) {
       // Fetch balance history for specific account
-      const history = await tarabut.getBalanceHistory(tokenResponse.accessToken, accountId);
+      const history = await tarabut.getBalanceHistory(tokenResult.accessToken, accountId);
 
       return NextResponse.json({
         accountId: history.accountId,
@@ -72,7 +89,7 @@ export async function GET(request: NextRequest) {
       });
     } else {
       // Fetch balance history for all accounts (V2)
-      const historyV2 = await tarabut.getBalanceHistoryV2(tokenResponse.accessToken);
+      const historyV2 = await tarabut.getBalanceHistoryV2(tokenResult.accessToken);
 
       return NextResponse.json({
         accounts: historyV2.accounts.map((acc) => ({
