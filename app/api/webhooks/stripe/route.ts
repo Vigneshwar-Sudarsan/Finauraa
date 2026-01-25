@@ -4,6 +4,13 @@ import { createClient } from "@supabase/supabase-js";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { logPaymentEvent } from "@/lib/audit";
 import { sendPaymentFailedNotification, sendTrialEndingNotification } from "@/lib/email";
+import {
+  CheckoutSessionEventSchema,
+  SubscriptionEventSchema,
+  InvoiceEventSchema,
+  PaymentIntentEventSchema,
+} from "./schemas";
+import { isEventProcessed, markEventProcessed } from "@/lib/webhook-security/idempotency";
 
 // Lazy initialization to avoid build-time errors
 let stripe: Stripe | null = null;
@@ -34,6 +41,11 @@ function getSupabaseAdmin(): SupabaseClient {
 /**
  * POST /api/webhooks/stripe
  * Handles Stripe webhook events to update subscription status
+ *
+ * Security features:
+ * - Signature verification via Stripe SDK (timing-safe HMAC comparison)
+ * - Zod validation of all accessed fields before type casting
+ * - Idempotency checks to prevent duplicate processing from retries
  */
 export async function POST(request: NextRequest) {
   const body = await request.text();
@@ -45,6 +57,7 @@ export async function POST(request: NextRequest) {
 
   let event: Stripe.Event;
 
+  // STEP 1: Verify signature (timing-safe comparison via Stripe SDK)
   try {
     event = getStripe().webhooks.constructEvent(
       body,
@@ -56,76 +69,129 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Invalid signature" }, { status: 400 });
   }
 
+  // STEP 2: Check idempotency - prevent duplicate processing
+  if (await isEventProcessed(event.id)) {
+    console.log(`Event ${event.id} already processed, skipping`);
+    return NextResponse.json({ received: true });
+  }
+
+  // STEP 3: Validate event payload with Zod before processing
+  // Different validation schemas based on event type
+  let validatedEvent;
+
   try {
     switch (event.type) {
       case "checkout.session.completed": {
-        const session = event.data.object as Stripe.Checkout.Session;
-        await handleCheckoutCompleted(session);
+        const result = CheckoutSessionEventSchema.safeParse(event);
+        if (!result.success) {
+          console.error("Checkout session payload validation failed:", {
+            event_id: event.id,
+            event_type: event.type,
+            errors: result.error.issues,
+          });
+          return NextResponse.json({ error: "Invalid payload" }, { status: 400 });
+        }
+        validatedEvent = result.data;
+        await handleCheckoutCompleted(validatedEvent.data.object as Stripe.Checkout.Session);
         break;
       }
 
       case "customer.subscription.created":
-      case "customer.subscription.updated": {
-        const subscription = event.data.object as Stripe.Subscription;
-        await handleSubscriptionUpdate(subscription);
-        break;
-      }
-
-      case "customer.subscription.deleted": {
-        const subscription = event.data.object as Stripe.Subscription;
-        await handleSubscriptionCanceled(subscription);
-        break;
-      }
-
-      case "customer.subscription.paused": {
-        const subscription = event.data.object as Stripe.Subscription;
-        await handleSubscriptionPaused(subscription);
-        break;
-      }
-
-      case "customer.subscription.resumed": {
-        const subscription = event.data.object as Stripe.Subscription;
-        await handleSubscriptionResumed(subscription);
-        break;
-      }
-
+      case "customer.subscription.updated":
+      case "customer.subscription.deleted":
+      case "customer.subscription.paused":
+      case "customer.subscription.resumed":
       case "customer.subscription.trial_will_end": {
-        const subscription = event.data.object as Stripe.Subscription;
-        await handleTrialWillEnd(subscription);
+        const result = SubscriptionEventSchema.safeParse(event);
+        if (!result.success) {
+          console.error("Subscription payload validation failed:", {
+            event_id: event.id,
+            event_type: event.type,
+            errors: result.error.issues,
+          });
+          return NextResponse.json({ error: "Invalid payload" }, { status: 400 });
+        }
+        validatedEvent = result.data;
+        const subscription = validatedEvent.data.object as Stripe.Subscription;
+
+        // Route to appropriate handler based on event type
+        if (event.type === "customer.subscription.deleted") {
+          await handleSubscriptionCanceled(subscription);
+        } else if (event.type === "customer.subscription.paused") {
+          await handleSubscriptionPaused(subscription);
+        } else if (event.type === "customer.subscription.resumed") {
+          await handleSubscriptionResumed(subscription);
+        } else if (event.type === "customer.subscription.trial_will_end") {
+          await handleTrialWillEnd(subscription);
+        } else {
+          // created or updated
+          await handleSubscriptionUpdate(subscription);
+        }
         break;
       }
 
-      case "invoice.payment_succeeded": {
-        const invoice = event.data.object as Stripe.Invoice;
-        await handleInvoicePayment(invoice, "succeeded");
-        break;
-      }
-
-      case "invoice.payment_failed": {
-        const invoice = event.data.object as Stripe.Invoice;
-        await handleInvoicePayment(invoice, "failed");
-        break;
-      }
-
+      case "invoice.payment_succeeded":
+      case "invoice.payment_failed":
       case "invoice.upcoming": {
-        const invoice = event.data.object as Stripe.Invoice;
-        await handleUpcomingInvoice(invoice);
+        const result = InvoiceEventSchema.safeParse(event);
+        if (!result.success) {
+          console.error("Invoice payload validation failed:", {
+            event_id: event.id,
+            event_type: event.type,
+            errors: result.error.issues,
+          });
+          return NextResponse.json({ error: "Invalid payload" }, { status: 400 });
+        }
+        validatedEvent = result.data;
+        const invoice = validatedEvent.data.object as Stripe.Invoice;
+
+        if (event.type === "invoice.upcoming") {
+          await handleUpcomingInvoice(invoice);
+        } else {
+          const status = event.type === "invoice.payment_succeeded" ? "succeeded" : "failed";
+          await handleInvoicePayment(invoice, status);
+        }
         break;
       }
 
       case "payment_intent.payment_failed": {
-        const paymentIntent = event.data.object as Stripe.PaymentIntent;
-        await handlePaymentFailed(paymentIntent);
+        const result = PaymentIntentEventSchema.safeParse(event);
+        if (!result.success) {
+          console.error("Payment intent payload validation failed:", {
+            event_id: event.id,
+            event_type: event.type,
+            errors: result.error.issues,
+          });
+          return NextResponse.json({ error: "Invalid payload" }, { status: 400 });
+        }
+        validatedEvent = result.data;
+        await handlePaymentFailed(validatedEvent.data.object as Stripe.PaymentIntent);
         break;
       }
 
       default:
         console.log(`Unhandled event type: ${event.type}`);
+        // Still mark as processed to avoid repeated logging
+        await markEventProcessed(event.id, event.type);
+        return NextResponse.json({ received: true });
     }
+
+    // STEP 4: Mark event as processed AFTER successful handling
+    // This ensures retries work if processing fails
+    await markEventProcessed(event.id, event.type, {
+      customer: (event.data.object as { customer?: string }).customer,
+    });
 
     return NextResponse.json({ received: true });
   } catch (error) {
-    console.error("Webhook handler error:", error);
+    console.error("Webhook handler error:", {
+      event_id: event.id,
+      event_type: event.type,
+      error,
+    });
+
+    // Return 500 for processing errors to trigger Stripe retry
+    // Don't mark as processed - allow retry on next webhook
     return NextResponse.json(
       { error: "Webhook handler failed" },
       { status: 500 }
