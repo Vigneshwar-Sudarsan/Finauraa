@@ -9,8 +9,8 @@ Requirements for this stabilization milestone. Each includes tests, monitoring, 
 
 ### Bug Fixes
 
-- [ ] **FIX-01**: Rate limiter fails closed (blocks requests) when database unavailable instead of failing open (allowing unlimited requests)
-- [ ] **FIX-02**: Consent middleware returns consistent error responses for all edge cases (no consent, expired, revoked, no banks)
+- [x] **FIX-01**: Rate limiter fails closed (blocks requests) when database unavailable instead of failing open (allowing unlimited requests) ✓
+- [x] **FIX-02**: Consent middleware returns consistent error responses for all edge cases (no consent, expired, revoked, no banks) ✓
 - [ ] **FIX-03**: PWA displays indicator when showing cached/stale data so users know information may be outdated
 
 ### Security Hardening
@@ -61,8 +61,8 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| FIX-01 | Phase 1 | Pending |
-| FIX-02 | Phase 1 | Pending |
+| FIX-01 | Phase 1 | Complete ✓ |
+| FIX-02 | Phase 1 | Complete ✓ |
 | SEC-01 | Phase 2 | Pending |
 | SEC-03 | Phase 2 | Pending |
 | SEC-02 | Phase 3 | Pending |
@@ -80,4 +80,4 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 ---
 *Requirements defined: 2026-01-25*
-*Last updated: 2026-01-25 after roadmap creation*
+*Last updated: 2026-01-25 — Phase 1 complete (FIX-01, FIX-02)*

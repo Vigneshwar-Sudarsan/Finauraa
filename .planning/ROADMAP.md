@@ -12,7 +12,7 @@ This milestone transforms Finaura from 80% complete to production-ready by fixin
 
 Decimal phases appear between their surrounding integers in numeric order.
 
-- [ ] **Phase 1: Critical Infrastructure Fixes** - Fix rate limiter and consent middleware bugs
+- [x] **Phase 1: Critical Infrastructure Fixes** - Fix rate limiter and consent middleware bugs ✓
 - [ ] **Phase 2: Webhook Security** - Harden webhook authentication and validation
 - [ ] **Phase 3: API Security** - Secure external API integrations
 - [ ] **Phase 4: AI Security** - Complete prompt injection protection
@@ -34,8 +34,8 @@ Decimal phases appear between their surrounding integers in numeric order.
 **Plans**: 2 plans
 
 Plans:
-- [ ] 01-01-PLAN.md - Testing infrastructure + rate limiter with in-memory fallback
-- [ ] 01-02-PLAN.md - Consent middleware consistency + Sentry alerting
+- [x] 01-01-PLAN.md - Testing infrastructure + rate limiter with in-memory fallback ✓
+- [x] 01-02-PLAN.md - Consent middleware consistency + Sentry alerting ✓
 
 ### Phase 2: Webhook Security
 **Goal**: Webhook handlers are protected against timing attacks and malformed payloads
@@ -117,7 +117,7 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Critical Infrastructure Fixes | 0/2 | Ready to execute | - |
+| 1. Critical Infrastructure Fixes | 2/2 | Complete ✓ | 2026-01-25 |
 | 2. Webhook Security | 0/TBD | Not started | - |
 | 3. API Security | 0/TBD | Not started | - |
 | 4. AI Security | 0/TBD | Not started | - |
@@ -126,4 +126,4 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6
 
 ---
 *Roadmap created: 2026-01-25*
-*Last updated: 2026-01-25*
+*Last updated: 2026-01-25 — Phase 1 complete*
