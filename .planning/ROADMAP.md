@@ -31,10 +31,11 @@ Decimal phases appear between their surrounding integers in numeric order.
   3. Consent middleware returns identical error structure for all edge cases (no consent, expired, revoked, no banks)
   4. API endpoints handle missing consent consistently without frontend special cases
   5. All infrastructure failures are logged with actionable alerts
-**Plans**: TBD
+**Plans**: 2 plans
 
 Plans:
-- [ ] TBD after planning
+- [ ] 01-01-PLAN.md - Testing infrastructure + rate limiter with in-memory fallback
+- [ ] 01-02-PLAN.md - Consent middleware consistency + Sentry alerting
 
 ### Phase 2: Webhook Security
 **Goal**: Webhook handlers are protected against timing attacks and malformed payloads
@@ -112,11 +113,11 @@ Plans:
 ## Progress
 
 **Execution Order:**
-Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6
+Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Critical Infrastructure Fixes | 0/TBD | Not started | - |
+| 1. Critical Infrastructure Fixes | 0/2 | Ready to execute | - |
 | 2. Webhook Security | 0/TBD | Not started | - |
 | 3. API Security | 0/TBD | Not started | - |
 | 4. AI Security | 0/TBD | Not started | - |
