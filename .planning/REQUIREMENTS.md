@@ -16,9 +16,9 @@ Requirements for this stabilization milestone. Each includes tests, monitoring, 
 ### Security Hardening
 
 - [x] **SEC-01**: Webhook secret comparisons use `crypto.timingSafeEqual()` to prevent timing attacks ✓
-- [ ] **SEC-02**: Tarabut API calls check `token_expires_at` and refresh tokens before making requests
+- [x] **SEC-02**: Tarabut API calls check `token_expires_at` and refresh tokens before making requests ✓
 - [x] **SEC-03**: Stripe webhook payloads validated with Zod schema before any `as string` type casting ✓
-- [ ] **SEC-04**: Admin access controlled via database table with audit logging instead of environment variable
+- [x] **SEC-04**: Admin access controlled via database table with audit logging instead of environment variable ✓
 - [ ] **SEC-05**: Prompt injection detection has comprehensive test suite covering known attack patterns
 
 ### Feature Completion
@@ -65,8 +65,8 @@ Which phases cover which requirements. Updated during roadmap creation.
 | FIX-02 | Phase 1 | Complete ✓ |
 | SEC-01 | Phase 2 | Complete ✓ |
 | SEC-03 | Phase 2 | Complete ✓ |
-| SEC-02 | Phase 3 | Pending |
-| SEC-04 | Phase 3 | Pending |
+| SEC-02 | Phase 3 | Complete ✓ |
+| SEC-04 | Phase 3 | Complete ✓ |
 | SEC-05 | Phase 4 | Pending |
 | FEAT-01 | Phase 5 | Pending |
 | FEAT-02 | Phase 5 | Pending |
@@ -80,4 +80,4 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 ---
 *Requirements defined: 2026-01-25*
-*Last updated: 2026-01-25 — Phase 2 complete (SEC-01, SEC-03)*
+*Last updated: 2026-01-26 — Phase 3 complete (SEC-02, SEC-04)*
