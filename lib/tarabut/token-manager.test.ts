@@ -106,12 +106,15 @@ describe('TarabutTokenManager', () => {
         tokenManager.getValidToken('user-123', connection),
       ]);
 
-      // All should get the same new token
+      // First call refreshes, others see recent refresh and skip
       expect(results[0].accessToken).toBe('new-token');
-      expect(results[1].accessToken).toBe('new-token');
-      expect(results[2].accessToken).toBe('new-token');
+      expect(results[0].shouldUpdate).toBe(true);
 
-      // But refresh should only happen once due to mutex
+      // Subsequent calls detect recent refresh (< 10 sec) and return without re-refresh
+      expect(results[1].shouldUpdate).toBe(false);
+      expect(results[2].shouldUpdate).toBe(false);
+
+      // But refresh should only happen once due to mutex + double-check
       expect(refreshCount).toBe(1);
       expect(mockGetAccessToken).toHaveBeenCalledTimes(1);
     });
