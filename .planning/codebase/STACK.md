@@ -5,129 +5,132 @@
 ## Languages
 
 **Primary:**
-- TypeScript 5.x - All application code (frontend and API routes)
-- JSX/TSX - React components and page layouts
+- TypeScript 5 - Full codebase, strict mode enabled, React components and Node.js backend
+- React 19.2.3 - Frontend UI framework with React DOM 19.2.3
 
 **Secondary:**
-- JavaScript - Configuration files (postcss.config.mjs, eslint.config.mjs)
+- JavaScript - Configuration files (ESLint, Next.js config)
+- CSS/Tailwind - Styling via Tailwind CSS 4 with PostCSS plugin
 
 ## Runtime
 
 **Environment:**
-- Node.js (version not specified in lock files, but next 16.1.3 requires Node 18+)
-- Next.js 16.1.3 (App Router-based SSR/SSG framework)
+- Node.js (inferred from package.json - no explicit version specified in .nvmrc)
 
 **Package Manager:**
-- npm - Lockfile present (package-lock.json)
+- npm (lock file: `package-lock.json` present, version 10+)
+- Lockfile: Present and committed
 
 ## Frameworks
 
 **Core:**
-- Next.js 16.1.3 - Full-stack React framework with API routes, SSR, and static generation
-- React 19.2.3 - UI library with modern features
-- React DOM 19.2.3 - React rendering library
+- Next.js 16.1.3 - Full-stack React framework, API routes, middleware support
+- React 19.2.3 - Component library with latest hooks and RSC support
 
-**UI & Styling:**
-- Tailwind CSS 4.x - Utility-first CSS framework
-- PostCSS 4.x (@tailwindcss/postcss) - CSS processor for Tailwind
-- shadcn/ui 3.7.0 - Component library (installed via package, used via components.json)
-- Radix UI 1.4.3 - Headless UI components (form primitives, dialogs, etc.)
-- Base UI 1.1.0 - Unstyled component library for complex interactions
-- Lucide React 0.562.0 - Icon library
-- Phosphor Icons 2.1.10 - Alternative icon set
-- class-variance-authority 0.7.1 - CSS class composition utility for components
-- clsx 2.1.1 - Conditional classname builder
-- tailwind-merge 3.4.0 - Merge Tailwind CSS classes intelligently
-- tw-animate-css 1.4.0 - Animated Tailwind utilities
-
-**UI Interaction:**
-- vaul 1.1.2 - Drawer component library
-- sonner 2.0.7 - Toast notifications
-- next-themes 0.4.6 - Dark mode theme management
-- react-day-picker 9.13.0 - Date picker component
+**UI Component Libraries:**
+- Radix UI 1.4.3 - Headless component primitives
+- shadcn 3.7.0 - Pre-built component library (installed as dev dependency)
+- Base UI React 1.1.0 - Additional component library
+- Lucide React 0.562.0 - Icon library (SVG icons)
+- Phosphor Icons React 2.1.10 - Additional icon set
 
 **State Management:**
-- Zustand 5.0.10 - Lightweight state management library
+- Zustand 5.0.10 - Lightweight state management (reference: `lib/stores/transaction-filter-store.ts`)
+- SWR 2.3.8 - Data fetching and caching with React hooks
+
+**Styling:**
+- Tailwind CSS 4 - Utility-first CSS framework
+- Tailwind CSS PostCSS 4 - PostCSS plugin for Tailwind
+- Tailwind Merge 3.4.0 - Utility class merge library for conditional styles
+- tw-animate-css 1.4.0 - Animation utilities
+- Class Variance Authority 0.7.1 - CSS class composition library
+
+**UI Enhancements:**
+- Sonner 2.0.7 - Toast notifications
+- Vaul 1.1.2 - Drawer/modal component
+- React Day Picker 9.13.0 - Date picker component
+- Date-fns 4.1.0 - Date manipulation library
+- Next Themes 0.4.6 - Theme switching (dark/light mode)
+
+**Progressive Web App:**
+- @ducanh2912/next-pwa 10.2.9 - PWA support with service workers and offline caching
+  - Workbox configuration for runtime caching with 24-hour expiration
+  - Network-first strategy with 3-second timeout for faster fallback
+  - Disabled in development mode
+
+**Testing:**
+- Not detected in package.json (no Jest, Vitest, or other test runners)
+
+**Build/Dev:**
+- ESLint 9 - Linting
+- ESLint Config Next 16.1.3 - Next.js specific ESLint rules
+- Sharp 0.34.5 - Image optimization (used by Next.js Image component)
 
 ## Key Dependencies
 
 **Critical:**
-- @supabase/supabase-js 2.90.1 - PostgreSQL database and authentication client
-- @supabase/ssr 0.8.0 - Supabase helper utilities for Server-Side Rendering
-- stripe 20.2.0 - Payment processing and subscription management
-- @anthropic-ai/sdk 0.71.2 - Claude AI integration for financial insights chatbot
+- @supabase/supabase-js 2.90.1 - PostgreSQL database with real-time subscriptions
+- @supabase/ssr 0.8.0 - Server-side rendering integration with Supabase auth
+- Stripe 20.2.0 - Payment processing (subscriptions, billing, webhooks)
+- @anthropic-ai/sdk 0.71.2 - Claude AI integration for financial insights
+- Resend 6.8.0 - Email service for transactional notifications
 
-**Infrastructure & Observability:**
-- @sentry/nextjs 10.35.0 - Error tracking and monitoring
-- @ducanh2912/next-pwa 10.2.9 - Progressive Web App capabilities with Workbox
-- sharp 0.34.5 - Image optimization and processing
-
-**Date & Time:**
-- date-fns 4.1.0 - Date manipulation and formatting utilities
-
-**Utilities:**
-- resend 6.8.0 - Transactional email service integration
+**Infrastructure:**
+- @sentry/nextjs 10.35.0 - Error tracking and performance monitoring
+- Zustand 5.0.10 - Client-side state persistence
 
 ## Configuration
 
 **Environment:**
-- Configured via `.env.local` with following categories:
-  - **Tarabut Open Banking:** `TARABUT_CLIENT_ID`, `TARABUT_CLIENT_SECRET`, `TARABUT_REDIRECT_URI`
-  - **Supabase:** `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`
-  - **Stripe:** `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `STRIPE_PRO_PRICE_ID_MONTHLY`, `STRIPE_PRO_PRICE_ID_YEARLY`, `STRIPE_FAMILY_PRICE_ID_MONTHLY`, `STRIPE_FAMILY_PRICE_ID_YEARLY`
-  - **Claude AI:** `ANTHROPIC_API_KEY`
-  - **Email (Resend):** `RESEND_API_KEY`, `EMAIL_FROM`
-  - **Feature Flags:** `USE_DYNAMIC_FEATURES`, `ADMIN_EMAILS`
-  - **App URLs:** `NEXT_PUBLIC_APP_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`
-  - **Cron Jobs:** `CRON_SECRET`
-  - **Compliance:** `DATA_RETENTION_AFTER_REVOCATION_DAYS`
-
-**TypeScript:**
-- Path alias: `@/*` maps to project root
-- Target: ES2017
-- Strict mode enabled
-- React JSX mode: react-jsx
+Configured via `.env.local` (not committed) with settings from `.env.example`:
+- Tarabut Gateway (Open Banking API credentials)
+- Supabase URL and API keys
+- Anthropic API key
+- Stripe keys and webhook secret
+- Stripe price IDs for monthly/yearly plans (Pro and Family plans)
+- Resend email API key and sender email
+- Feature flags configuration (database-driven or static)
+- Admin email list for feature flag management
+- Cron job authentication secret
+- App URL for Stripe redirects
 
 **Build:**
-- Output: `.next/` directory
-- Build command: `next build --webpack` (using Webpack, not Turbopack, due to PWA plugin)
-- Static export: None (server-side rendering enabled)
-
-**PWA (Progressive Web App):**
-- Workbox configuration in `next.config.ts`
-- Offline cache strategy: NetworkFirst with 3-second timeout
-- Max cached entries: 200
-- Cache age: 24 hours
-- Disabled in development mode
-
-## Dev Dependencies
-
-**Code Quality:**
-- eslint 9.x - JavaScript linting
-- eslint-config-next 16.1.3 - Next.js ESLint configuration
-- TypeScript 5.x - Type checking
-
-**Tooling:**
-- @types/node 20.x - Node.js type definitions
-- @types/react 19.x - React type definitions
-- @types/react-dom 19.x - React DOM type definitions
-- shadcn 3.7.0 - CLI for managing shadcn/ui components
+- `next.config.ts` - Next.js configuration with PWA plugin
+- `tsconfig.json` - TypeScript compiler options (target ES2017, moduleResolution: bundler)
+- `middleware.ts` - Next.js middleware for auth/session management
+- `components.json` - Shadcn component library configuration
+- `eslint.config.mjs` - ESLint configuration
+- `vercel.json` - Vercel deployment configuration with cron jobs
 
 ## Platform Requirements
 
 **Development:**
-- Node.js 18+ (required by Next.js 16.1.3)
-- npm or compatible package manager
+- Node.js runtime
+- npm package manager
+- TypeScript 5+
+- Supabase project (for local development)
 
 **Production:**
-- Deployment target: Vercel (native support for Next.js)
-- Alternative: Any Node.js-compatible hosting (Node 18+)
-- Database: PostgreSQL (via Supabase)
-- Static assets: Next.js internal or CDN
+- Vercel (deployment platform specified in `vercel.json`)
+- Environment variables for all external services (Stripe, Supabase, Anthropic, Resend, Tarabut)
+- Cron job support via Vercel for scheduled tasks
 
-**Browser Support:**
-- Modern browsers with ES2017 support
-- PWA support for offline functionality
+## Deployment & CI/CD
+
+**Hosting:**
+- Vercel - Full-stack deployment with serverless functions
+- Edge functions capable (PWA with service workers)
+
+**Cron Jobs (Vercel):**
+Defined in `vercel.json`:
+- `/api/cron/expire-consents` - Daily at 00:00 (expiry warning emails)
+- `/api/cron/data-retention` - Daily at 01:00 (PDPL compliance cleanup)
+- `/api/cron/sync-banks` - Daily at 06:00 (Tarabut bank data sync)
+
+**Database:**
+- Supabase (PostgreSQL + PostgREST API)
+- Real-time subscriptions via Supabase
+- Row-level security (RLS) for multi-tenant isolation
 
 ---
 

@@ -5,308 +5,345 @@
 ## Directory Layout
 
 ```
-D:\My Project\Finauraa/
-├── app/                      # Next.js App Router - Pages and API routes
-│   ├── page.tsx             # Root chat interface
-│   ├── layout.tsx           # Root layout with theme/PWA providers
-│   ├── globals.css          # Global Tailwind styles
-│   ├── auth/                # Auth callback endpoints
-│   ├── login/               # Login page
-│   ├── signup/              # Signup page
-│   ├── dashboard/           # Dashboard pages (protected)
-│   ├── family/              # Family features pages
-│   └── api/                 # Backend API routes
-├── components/              # React components organized by feature
-│   ├── ui/                  # Reusable UI primitives (shadcn)
-│   ├── chat/                # Chat interface components
-│   ├── dashboard/           # Dashboard feature components
-│   ├── settings/            # Settings components
-│   ├── spending/            # Spending/budget components
-│   ├── theme-provider.tsx   # Theme context provider
-│   ├── app-sidebar.tsx      # Main navigation sidebar
-│   └── pwa-install-prompt.tsx
-├── lib/                     # Shared business logic and utilities
-│   ├── ai/                  # AI-related utilities
-│   ├── supabase/            # Supabase client factories
-│   ├── tarabut/             # Tarabut open banking client
-│   ├── stores/              # Zustand state stores
-│   ├── validations/         # Zod validation schemas
-│   ├── constants/           # Configuration constants
-│   ├── types.ts             # Shared TypeScript types
-│   ├── features.ts          # Feature gating config
-│   ├── consent-middleware.ts # Consent checking
-│   ├── audit.ts             # Audit logging
-│   ├── email.ts             # Email utilities (Resend)
-│   └── database.types.ts    # Supabase auto-generated types
-├── hooks/                   # Custom React hooks
-│   ├── use-bank-connection.tsx
-│   ├── use-feature-access.ts
-│   └── use-mobile.ts
-├── scripts/                 # Utility scripts
-├── supabase/                # Database migrations and config
-│   └── migrations/
-├── public/                  # Static assets
-│   ├── icons/              # PWA icons
-│   └── screenshots/
-├── .planning/              # GSD planning documents
-├── middleware.ts           # Next.js middleware for auth
-├── next.config.ts          # Next.js configuration with PWA
-├── package.json            # Dependencies
-├── tailwind.config.ts      # Tailwind CSS config
-├── tsconfig.json           # TypeScript config
-└── docs/                   # Documentation
+finauraa/
+├── app/                        # Next.js App Router pages and API routes
+│   ├── api/                    # REST API endpoints (domain-organized)
+│   │   ├── admin/              # Admin endpoints (feature flags, audit)
+│   │   ├── chat/               # AI chat route handler
+│   │   ├── consents/           # User consent management
+│   │   ├── conversations/      # Chat conversation history
+│   │   ├── cron/               # Background jobs (data sync, cleanup)
+│   │   ├── family/             # Family group operations
+│   │   ├── finance/            # Financial data endpoints
+│   │   │   ├── accounts/       # Bank accounts list/detail
+│   │   │   ├── budgets/        # Budget CRUD
+│   │   │   ├── categories/     # Spending categories
+│   │   │   ├── cash-flow/      # Cash flow predictions
+│   │   │   ├── connections/    # Bank connection status
+│   │   │   ├── family/         # Family financial data
+│   │   │   ├── health/         # Financial health score
+│   │   │   ├── insights/       # Spending/income analytics
+│   │   │   ├── recurring/      # Recurring expense detection
+│   │   │   ├── refresh/        # Manual data sync triggers
+│   │   │   ├── savings-goals/  # Personal savings goals
+│   │   │   ├── spending/       # Spending analysis
+│   │   │   └── summary/        # Monthly summaries
+│   │   ├── insights/           # Analytics endpoints
+│   │   ├── notifications/      # Push/email notification delivery
+│   │   ├── subscription/       # Stripe webhook, tier management
+│   │   ├── tarabut/            # Bank integration webhooks
+│   │   ├── user/               # User profile, data export
+│   │   └── webhooks/           # External service webhooks
+│   ├── auth/                   # Auth pages (signup, login flow)
+│   ├── dashboard/              # Protected dashboard pages
+│   │   ├── accounts/           # Account details view
+│   │   ├── goals/              # Savings goals view
+│   │   ├── payments/           # Subscription/payments page
+│   │   ├── settings/           # User settings
+│   │   ├── spending/           # Spending analytics dashboard
+│   │   └── transactions/       # Transaction history view
+│   ├── family/                 # Family group pages
+│   ├── forgot-password/        # Password recovery flow
+│   ├── login/                  # Login page
+│   ├── reset-password/         # Password reset flow
+│   ├── signup/                 # Sign up page
+│   ├── error.tsx               # App-level error boundary
+│   ├── globals.css             # Global Tailwind styles
+│   ├── layout.tsx              # Root layout with providers
+│   ├── page.tsx                # Home/chat page
+│   └── favicon.ico             # App icon
+│
+├── components/                 # React components (organized by domain)
+│   ├── chat/                   # Chat interface components
+│   │   ├── cards/              # Rich content card components
+│   │   │   ├── action-buttons.tsx      # Interactive action buttons
+│   │   │   ├── ai-mode-intro.tsx       # AI mode selection intro
+│   │   │   ├── balance-card.tsx        # Account balance display
+│   │   │   ├── bank-connected.tsx      # Bank status indicator
+│   │   │   ├── budget-card.tsx         # Single budget detail
+│   │   │   ├── budget-overview.tsx     # All budgets summary
+│   │   │   ├── cash-flow.tsx           # Cash flow projection
+│   │   │   ├── financial-health.tsx    # Health score card
+│   │   │   ├── recurring-expenses.tsx  # Recurring bills list
+│   │   │   ├── savings-goal-setup.tsx  # Goal creation form
+│   │   │   ├── savings-goals.tsx       # Goals progress view
+│   │   │   ├── spending-analysis.tsx   # Category breakdown
+│   │   │   └── transactions-list.tsx   # Recent transactions
+│   │   ├── chat-container.tsx          # Main chat wrapper, state management
+│   │   ├── chat-header.tsx             # Chat title/actions bar
+│   │   ├── chat-input.tsx              # Message input field
+│   │   ├── chat-message.tsx            # Individual message renderer
+│   │   ├── conversation-history-drawer.tsx  # Sidebar with past chats
+│   │   ├── feature-guide.tsx           # Feature walkthrough/tutorial
+│   │   ├── quick-actions.tsx           # Suggested action buttons
+│   │   ├── rich-content.tsx            # Rich content router/switcher
+│   │   └── index.ts                    # Barrel exports
+│   ├── dashboard/              # Dashboard page components
+│   │   ├── account-detail-content.tsx  # Account transaction view
+│   │   ├── account-tabs.tsx            # Tab navigation in account detail
+│   │   ├── accounts-content.tsx        # All accounts list
+│   │   ├── bank-consent-dialog.tsx     # Consent request modal
+│   │   ├── bank-selector.tsx           # Bank selection UI
+│   │   ├── connections-list.tsx        # Connected banks list
+│   │   ├── dashboard-bottom-nav.tsx    # Mobile navigation
+│   │   ├── dashboard-content.tsx       # Main dashboard router/switcher
+│   │   └── transactions-content.tsx    # Transaction list view
+│   ├── settings/               # Settings page components
+│   │   ├── profile-tab.tsx     # User profile settings
+│   │   ├── subscription-tab.tsx # Subscription management
+│   │   ├── family-tab.tsx      # Family group settings
+│   │   └── privacy-tab.tsx     # Consent and privacy settings
+│   ├── spending/               # Spending/goals components
+│   │   ├── savings-goal-sheet.tsx # Goal creation drawer
+│   │   ├── spending-category-detail.tsx # Category analytics
+│   │   └── monthly-spending-card.tsx # Monthly summary
+│   ├── ui/                     # Shadcn UI base components
+│   │   ├── button.tsx
+│   │   ├── card.tsx
+│   │   ├── dialog.tsx
+│   │   ├── sidebar.tsx
+│   │   ├── sonner.tsx          # Toast notification system
+│   │   └── [other base UI]
+│   ├── app-sidebar.tsx         # Main navigation sidebar
+│   ├── feature-gate.tsx        # Feature flag wrapper
+│   ├── mobile-nav.tsx          # Mobile navigation menu
+│   ├── pwa-install-prompt.tsx  # PWA install banner
+│   └── theme-provider.tsx      # Dark/light theme context
+│
+├── hooks/                      # Custom React hooks
+│   ├── use-ai-mode.ts          # AI privacy mode selection
+│   ├── use-api-call.ts         # Generic async API call hook (most important)
+│   ├── use-bank-connection.tsx # Bank account connection flow
+│   ├── use-bank-connections.ts # Multiple bank connections management
+│   ├── use-categories.ts       # Transaction categories
+│   ├── use-dialog-form.ts      # Dialog open/close state
+│   ├── use-family-group.ts     # Family group data fetching
+│   ├── use-feature-access.ts   # Feature flag checking
+│   ├── use-mobile.ts           # Mobile viewport detection
+│   ├── use-profile.ts          # User profile data
+│   ├── use-savings-goals.ts    # Personal savings goals
+│   ├── use-spending.ts         # Monthly spending data
+│   ├── use-subscription.ts     # Subscription tier info
+│   └── use-transactions.ts     # Transaction list fetching
+│
+├── lib/                        # Utilities and business logic
+│   ├── ai/                     # AI chat and context utilities
+│   │   ├── data-privacy.ts     # Anonymization and privacy modes
+│   │   ├── finance-manager.ts  # Financial data aggregation and analysis
+│   │   ├── rate-limit.ts       # Rate limiting logic
+│   │   └── sanitize.ts         # Prompt injection detection
+│   ├── supabase/               # Database client setup
+│   │   ├── client.ts           # Browser client
+│   │   ├── middleware.ts       # Auth middleware for requests
+│   │   └── server.ts           # Server client for API routes
+│   ├── stores/                 # Zustand state stores
+│   │   └── transaction-filter-store.ts # Filter state (type, category, date range)
+│   ├── tarabut/                # Bank integration utilities
+│   │   └── [Bank API helpers]
+│   ├── validations/            # Zod validation schemas
+│   │   ├── consent.ts          # Consent request schemas
+│   │   └── family.ts           # Family group schemas
+│   ├── constants/              # Constants and configuration
+│   │   └── [Feature flags, tier limits, etc.]
+│   ├── audit.ts                # Audit logging for compliance
+│   ├── consent-middleware.ts   # Consent verification middleware
+│   ├── constants.ts            # App-wide constants
+│   ├── database.types.ts       # Generated Supabase types
+│   ├── date-utils.ts           # Date formatting and calculations
+│   ├── email.ts                # Email template helpers
+│   ├── features.ts             # Feature flag utilities
+│   ├── features-db.ts          # Feature flag database queries
+│   ├── features-server.ts      # Server-side feature checks
+│   ├── ratelimit.ts            # Rate limiting configuration
+│   ├── sync-config.ts          # Bank data sync configuration
+│   ├── swr-config.tsx          # SWR provider setup
+│   ├── types.ts                # Shared TypeScript types
+│   └── utils.ts                # General utilities (format, parse, ID generation)
+│
+├── public/                     # Static assets
+│   ├── icons/                  # PWA and favicon icons
+│   └── screenshots/            # Demo screenshots
+│
+├── supabase/                   # Database migrations and config
+│   └── migrations/             # SQL migration files
+│
+├── docs/                       # Documentation (if present)
+│
+├── scripts/                    # Utility scripts
+│
+├── .planning/                  # GSD planning documents
+│   └── codebase/               # Architecture/structure analysis
+│
+├── package.json                # Dependencies
+├── tsconfig.json               # TypeScript config
+├── next.config.ts              # Next.js config (PWA setup)
+├── tailwind.config.ts          # Tailwind CSS config
+├── .eslintrc.json              # ESLint config
+└── vercel.json                 # Vercel deployment config
 ```
 
 ## Directory Purposes
 
-**`app/`** - Next.js App Router application structure
-- Contains all page routes and API endpoints
-- Server-side rendering with optional Suspense boundaries
-- Dynamic pages enforce `force-dynamic` for auth-dependent content
-- Public routes: `/login`, `/signup`, `/auth/*`
-- Protected routes: `/`, `/dashboard/*`, `/family/*` (redirect via middleware if not authenticated)
+**app/**
+- Purpose: Next.js 16 App Router entry point; combines page routes and API endpoints
+- Contains: React pages (TSX), layouts, error boundaries, API route handlers
+- Key files: `layout.tsx` (root provider setup), `page.tsx` (home), `globals.css` (base styles)
 
-**`app/api/`** - Backend REST API endpoints
-- `/api/chat/` - AI message processing (POST)
-- `/api/finance/` - Account, transaction, budget, savings goal endpoints
-- `/api/family/` - Family group and member management
-- `/api/consents/` - Consent management and retrieval
-- `/api/tarabut/` - Bank connection/disconnection flows
-- `/api/cron/` - Background jobs (data retention, consent expiration)
-- `/api/admin/` - Admin-only feature flag management
-- Each route implements authentication and consent checks
+**components/**
+- Purpose: Reusable React component library organized by feature domain
+- Contains: Page sections, UI components, complex component trees
+- Key pattern: Each feature has a directory (chat/, dashboard/, spending/) with related components
 
-**`app/dashboard/`** - Dashboard feature pages
-- `/dashboard` - Main dashboard with account overview
-- `/dashboard/accounts/` - Account list and detail views
-- `/dashboard/transactions/` - Transaction history
-- `/dashboard/spending/` - Spending analysis and charts
-- `/dashboard/goals/` - Savings goals management
-- `/dashboard/settings/*` - User settings (profile, privacy, notifications, subscription, connected banks, family, AI privacy)
+**hooks/**
+- Purpose: Encapsulate data fetching and state management logic
+- Contains: Custom React hooks using `useApiCall` for API calls, `useCallback` for memoization
+- Pattern: File naming follows `use-[feature].ts`; most are thin wrappers around `useApiCall` with specific URLs
 
-**`components/`** - React component hierarchy
-- **`ui/`** - Primitives from shadcn/ui: button, card, dialog, sidebar, tabs, etc.
-- **`chat/`** - Chat interface: ChatContainer, ChatInput, ChatMessage, ConversationHistory, rich content cards
-- **`dashboard/`** - Dashboard layouts: DashboardContent, AccountTabs, TransactionsList, SpendingContent, etc.
-- **`settings/`** - Settings forms and dialogs
-- **`spending/`** - Budget and savings goal components
+**lib/**
+- Purpose: Core business logic, utilities, and configuration
+- Contains: Type definitions, validators, helpers, external service integration
+- Key subdirectories: `ai/` (Claude context building), `supabase/` (database client), `validations/` (Zod schemas)
 
-**`lib/`** - Shared business logic
-- **`ai/`**:
-  - `data-privacy.ts` - Anonymized/enhanced context generation for AI
-  - `sanitize.ts` - Prompt injection detection and input sanitization
-  - `rate-limit.ts` - Rate limiting logic (30 req/min per user)
-- **`supabase/`**:
-  - `server.ts` - Server-side Supabase client factory
-  - `client.ts` - Client-side Supabase client factory
-  - `middleware.ts` - Auth session refresh and route protection
-- **`tarabut/`**:
-  - `client.ts` - Tarabut API client for open banking
-  - `types.ts` - Tarabut response types
-- **`stores/`** - Zustand store definitions (e.g., transaction filters)
-- **`validations/`** - Zod validation schemas (consent, family)
-- **`constants/`** - Category definitions
-- **`features.ts`** - Feature gating: subscription tier limits and feature availability
-- **`features-server.ts`** - Server-side feature check functions
-- **`features-db.ts`** - Database queries for feature limits
-- **`consent-middleware.ts`** - Consent verification for data access
-- **`audit.ts`** - Audit logging functions
-- **`email.ts`** - Resend email client and templates
-- **`types.ts`** - Shared TypeScript interfaces (Message, Transaction, Budget, Family types)
-- **`database.types.ts`** - Auto-generated Supabase TypeScript types from schema
+**app/api/**
+- Purpose: Server-side REST API endpoints handling all business logic
+- Contains: Route handlers (route.ts files) organized by domain
+- Pattern: Each endpoint checks auth first, then consent, then performs logic, returns JSON
 
-**`hooks/`** - Custom React hooks
-- `use-bank-connection.tsx` - Bank connection flow with consent dialog
-- `use-feature-access.ts` - Feature availability checking
-- `use-mobile.ts` - Mobile viewport detection
+**public/**
+- Purpose: Static files served by Next.js (images, icons, manifests)
+- Contains: PWA icons, app logos, any public downloadable assets
 
-**`supabase/`** - Database migrations and schema
-- `migrations/` - SQL migration files tracked in version control
-- Database schema defines tables for users, profiles, bank_connections, bank_accounts, transactions, budgets, savings_goals, messages, conversations, user_consents, family_groups, family_members, audit_logs, feature_flags
-
-**`public/`** - Static assets served directly
-- PWA icons (multiple sizes for iOS/Android)
-- Screenshot images
-- `manifest.json` generated at build time by next-pwa
-
-**`middleware.ts`** - Next.js request middleware
-- Runs on every request before routing
-- Calls `updateSession()` from `lib/supabase/middleware.ts`
-- Redirects unauthenticated users to `/login`
-- Redirects authenticated users away from auth pages
-- Excludes static assets and PWA files from middleware
+**supabase/**
+- Purpose: Database schema and migrations
+- Contains: SQL migration files defining tables, RLS policies, triggers
 
 ## Key File Locations
 
 **Entry Points:**
-- `D:\My Project\Finauraa\app\layout.tsx` - Root layout wrapping all pages
-- `D:\My Project\Finauraa\app\page.tsx` - Main chat page
-- `D:\My Project\Finauraa\app\dashboard\page.tsx` - Dashboard root
-- `D:\My Project\Finauraa\middleware.ts` - Global middleware for auth
+- `app/page.tsx`: Home/chat interface (authenticated)
+- `app/layout.tsx`: Root layout with ThemeProvider, SWRProvider, Toaster
+- `app/dashboard/page.tsx`: Dashboard hub for finance views
+- `app/login/page.tsx`: Login page
 
 **Configuration:**
-- `D:\My Project\Finauraa\package.json` - Dependencies and scripts
-- `D:\My Project\Finauraa\next.config.ts` - Next.js config with PWA plugin
-- `D:\My Project\Finauraa\tailwind.config.ts` - Tailwind CSS customization
-- `D:\My Project\Finauraa\tsconfig.json` - TypeScript configuration with path aliases
+- `tsconfig.json`: TypeScript compiler options with `@/*` path alias
+- `next.config.ts`: Next.js 16 with PWA plugin
+- `tailwind.config.ts`: Tailwind CSS (v4) with custom colors
+- `package.json`: Dependencies and scripts (dev, build, start, lint)
 
-**Core Business Logic:**
-- `D:\My Project\Finauraa\lib\features.ts` - Feature/tier configuration (source of truth)
-- `D:\My Project\Finauraa\lib\ai\data-privacy.ts` - AI context generation
-- `D:\My Project\Finauraa\lib\consent-middleware.ts` - Consent checking
-- `D:\My Project\Finauraa\lib\audit.ts` - Audit logging
+**Core Logic:**
+- `lib/ai/finance-manager.ts`: Aggregates user financial data for AI context
+- `lib/ai/data-privacy.ts`: Implements privacy modes (anonymized vs enhanced)
+- `lib/consent-middleware.ts`: Verifies PDPL consent before data access
+- `lib/types.ts`: Message, transaction, family, and user type definitions
+- `hooks/use-api-call.ts`: Core hook for all API calls with loading/error/data
 
-**API Routes (Critical):**
-- `D:\My Project\Finauraa\app\api\chat\route.ts` - Main AI chat endpoint
-- `D:\My Project\Finauraa\app\api\finance\accounts\route.ts` - Account listing
-- `D:\My Project\Finauraa\app\api\finance\transactions\route.ts` - Transaction history
-- `D:\My Project\Finauraa\app\api\tarabut\connect\route.ts` - Bank connection initiation
-- `D:\My Project\Finauraa\app\api\consents\route.ts` - Consent creation/retrieval
+**Testing:**
+- Test files co-located with source (not yet created in current codebase)
+- Suggested pattern: `components/chat/__tests__/chat-container.test.tsx`
 
-**Component Roots:**
-- `D:\My Project\Finauraa\components\app-sidebar.tsx` - Main navigation
-- `D:\My Project\Finauraa\components\chat\chat-container.tsx` - Chat UI root
-- `D:\My Project\Finauraa\components\dashboard\dashboard-content.tsx` - Dashboard root
+**Styling:**
+- `app/globals.css`: Global styles and Tailwind directives
+- Component styles: Inline Tailwind classes (no external CSS files)
+- Theme: Dark theme default with light mode support via `next-themes`
 
 ## Naming Conventions
 
 **Files:**
-- `.tsx` for React components (client or server)
-- `.ts` for non-React code (utilities, hooks, types)
-- `route.ts` for Next.js API handlers
-- `page.tsx` for Next.js page components
-- `layout.tsx` for Next.js layout wrappers
-- Kebab-case for filenames: `use-bank-connection.tsx`, `chat-input.tsx`, `dashboard-content.tsx`
+- React components: `CamelCase.tsx` (e.g., `ChatContainer.tsx`)
+- Utilities/functions: `kebab-case.ts` (e.g., `use-api-call.ts`)
+- Directories: `kebab-case` (e.g., `chat-input`)
+- API routes: `route.ts` at path matching resource (e.g., `app/api/chat/route.ts`)
 
-**Directories:**
-- Feature-based organization in `components/` and `app/`
-- Group related files by feature: `chat/`, `dashboard/`, `spending/`, `settings/`
-- Lowercase with hyphens: `bank-connection`, `chat-container`, `spending-summary`
-- API routes mirror domain structure: `/api/finance/accounts`, `/api/family/members/invite`
+**Functions:**
+- React components: PascalCase (e.g., `function ChatContainer()`)
+- Hooks: camelCase starting with `use` (e.g., `useApiCall()`)
+- Utilities: camelCase (e.g., `formatCurrency()`)
+- API handlers: `GET()`, `POST()`, `DELETE()`, etc. (exported functions)
 
-**Functions & Exports:**
-- PascalCase for React components: `ChatContainer`, `DashboardContent`, `AccountTabs`
-- camelCase for utility functions: `sanitizeUserInput()`, `checkRateLimit()`, `getAnonymizedUserContext()`
-- camelCase for hooks: `useBankConnection()`, `useFeatureAccess()`, `useMobile()`
-- UPPER_SNAKE_CASE for constants: `TIER_LIMITS`, `FEATURE_NAMES`, `NOTIFICATION_FEATURES`
+**Variables:**
+- Constants: UPPER_SNAKE_CASE (e.g., `WELCOME_MESSAGE_NO_BANK`)
+- Objects/arrays: camelCase (e.g., `richContent`, `spendingPatterns`)
+- TypeScript types: PascalCase (e.g., `interface FinanceManagerContext`, `type MessageRole`)
 
-**Types & Interfaces:**
-- PascalCase for types: `Message`, `Transaction`, `BankAccount`, `FamilyGroup`
-- Suffix with `Type` or similar if needed for clarity
-- Database types in `lib/database.types.ts` auto-generated from schema
+**Types:**
+- Interfaces: PascalCase, prefix with `I` if needed for clarity (e.g., `FinanceManagerContext`)
+- Union types: PascalCase (e.g., `MessageRole = "user" | "assistant"`)
+- Enums: Avoid; use Zod enums and `z.infer` instead (e.g., `consentTypeSchema`)
 
 ## Where to Add New Code
 
-**New Feature (e.g., Bill Payments):**
+**New Chat Feature (AI capability):**
+- Add message type to `lib/types.ts` in `MessageContentType` union
+- Create card component in `components/chat/cards/[feature].tsx`
+- Export from `components/chat/cards/index.ts`
+- Update `chat-container.tsx` to render new card via `RichContent` component
+- Update system prompt in `app/api/chat/route.ts` with new capability
+- Add context data gathering in `lib/ai/finance-manager.ts` if needed
 
-1. **Create pages:**
-   - Add route in `app/dashboard/payments/page.tsx`
-   - Create layout if needed in `app/dashboard/payments/layout.tsx`
+**New Financial Data Endpoint:**
+- Create directory structure: `app/api/finance/[feature]/`
+- Add `route.ts` with GET/POST handlers
+- Call `requireBankConsent()` middleware first
+- Query Supabase via `createClient()` or `createAdminClient()`
+- Return typed JSON response
+- Create hook in `hooks/use-[feature].ts` wrapping `useApiCall()`
+- Import hook in component and call with `const { data, loading } = use[Feature]()`
 
-2. **Create API routes:**
-   - `app/api/finance/payments/route.ts` - List payments
-   - `app/api/finance/payments/[id]/route.ts` - Get single payment
-   - Add consent check: `requireBankConsent()` from `lib/consent-middleware.ts`
-   - Add feature gating: `checkFeatureAccess()` from `lib/features-server.ts`
+**New Component:**
+- Determine if page or reusable: page → `app/`, component → `components/[domain]/`
+- If API data needed: create hook in `hooks/` first, then import in component
+- Use Tailwind for styling (no CSS files)
+- Export from barrel file if reusable (`index.ts` in parent directory)
+- Type all props with TypeScript interfaces
 
-3. **Create components:**
-   - `components/dashboard/payments-content.tsx` - Main feature component
-   - `components/dashboard/payments-list.tsx` - Payment list display
-   - `components/dashboard/payment-detail-sheet.tsx` - Detail modal
-   - Place in `components/dashboard/` since it's dashboard-related
+**New Validation Schema:**
+- Add Zod schema to appropriate file in `lib/validations/`
+- Export both schema and inferred type: `export type MyInput = z.infer<typeof mySchema>`
+- Use in API route via `validateRequestBody(mySchema, body)`
+- Return detailed error with `formatZodError()` if validation fails
 
-4. **Create types:**
-   - Add to `lib/types.ts` if shared: `interface Payment { ... }`
-   - Reference existing payment fields from database
+**New Utility Function:**
+- Add to existing `lib/utils.ts` or create new domain-specific file
+- Export from `lib/` (e.g., `lib/date-utils.ts`)
+- Document with JSDoc comment block
+- Example: `export function calculateSavingsRate(income: number, saved: number): number`
 
-5. **Create utilities:**
-   - If complex logic: `lib/payments.ts` with helper functions
-   - Import and use in API routes
+**New Zustand Store:**
+- Create file in `lib/stores/[feature]-store.ts`
+- Define interface for store state and actions
+- Export hook: `export const use[Feature]Store = create<[Feature]State>(...)`
+- Import and use in components: `const { value, setValue } = use[Feature]Store()`
 
-6. **Add feature gating:**
-   - Update `lib/features.ts` - Add `billPayments: boolean` to TierLimits
-   - Update `TIER_LIMITS` object with tier-specific limits
-   - Check in route: `if (!isFeatureAvailable(tier, 'billPayments')) return 403`
-
-**New Component/Module:**
-
-1. **Location decision:**
-   - If reusable UI primitive: `components/ui/`
-   - If feature-specific: `components/{feature}/`
-   - If page root: `app/{route}/`
-
-2. **Naming:**
-   - File: PascalCase with `.tsx` extension
-   - Export: PascalCase component name
-   - Use consistent naming with rest of codebase
-
-3. **Example - New card component:**
-   ```typescript
-   // components/chat/cards/payment-card.tsx
-   export function PaymentCard({ data }: { data: { paymentId: string } }) {
-     // Fetch and render payment details
-   }
-   ```
-
-**Utilities & Helpers:**
-
-1. **Location:** `lib/{domain}/` or top-level `lib/utils.ts`
-   - `lib/payments.ts` for payment-domain logic
-   - `lib/ai/` for AI-related utilities
-   - `lib/utils.ts` for generic helpers
-
-2. **Export pattern:**
-   ```typescript
-   export function calculatePaymentTotal(payments: Payment[]): number { ... }
-   export async function fetchPaymentHistory(userId: string): Promise<Payment[]> { ... }
-   ```
-
-3. **Imports in other files:**
-   - `import { calculatePaymentTotal } from '@/lib/payments'`
-   - Use `@/` path alias defined in `tsconfig.json`
+**New API Integration (third-party service):**
+- Create utilities in `lib/[service]/` directory
+- Define types matching service response format
+- Export wrapper functions (not raw API calls)
+- Use in API routes, not directly in components
+- Store API keys in environment variables
 
 ## Special Directories
 
-**`supabase/migrations/`:**
-- Purpose: SQL migration files for database schema
-- Generated: No (manually written)
-- Committed: Yes (version controlled)
-- Each file: SQL statements to apply sequentially
-- Naming: `{timestamp}_{description}.sql`
-
-**`.next/`:**
-- Purpose: Next.js build output
-- Generated: Yes (by `npm run build`)
-- Committed: No (.gitignored)
-- Contains compiled JavaScript, source maps, server functions
-
-**`node_modules/`:**
-- Purpose: NPM dependencies
-- Generated: Yes (by `npm install`)
-- Committed: No (.gitignored)
-- Lock file: `package-lock.json` (committed)
-
-**`.planning/`:**
-- Purpose: GSD planning documents
-- Generated: No (manually written or by GSD)
+**lib/constants/:**
+- Purpose: Feature flags, tier limits, category definitions, static lookup data
+- Generated: No (hand-maintained)
 - Committed: Yes
-- Contains ARCHITECTURE.md, STRUCTURE.md, CONVENTIONS.md, etc.
 
-## Path Aliases
+**.next/:**
+- Purpose: Build output from Next.js compiler
+- Generated: Yes (on `npm run build`)
+- Committed: No (in .gitignore)
 
-Configured in `tsconfig.json`:
-- `@/` → `D:\My Project\Finauraa\` (root)
-- Use in all imports: `import { Button } from '@/components/ui/button'`
-- Never use relative imports like `../../`
+**supabase/migrations/:**
+- Purpose: SQL schema evolution tracked in version control
+- Generated: No (hand-written SQL)
+- Committed: Yes (essential for reproducibility)
 
-## File Size Guidelines
+**node_modules/:**
+- Purpose: npm dependencies
+- Generated: Yes (from package-lock.json)
+- Committed: No (in .gitignore)
 
-Consider refactoring if:
-- Component file > 300 lines: Split into smaller components
-- API route > 200 lines: Extract logic to `lib/{domain}.ts`
-- Utility file > 400 lines: Split into multiple files by responsibility
+---
 
-Examples of well-sized files:
-- `components/chat/chat-input.tsx` - ~150 lines (input + submission logic)
-- `app/api/chat/route.ts` - ~360 lines (auth, rate limit, AI call, response)
-- `lib/ai/data-privacy.ts` - ~450 lines (anonymization + enhancement logic)
+*Structure analysis: 2026-01-25*

@@ -5,287 +5,278 @@
 ## Naming Patterns
 
 **Files:**
-- kebab-case for all file names: `chat-message.tsx`, `use-feature-access.ts`, `consent-middleware.ts`
-- Component files use `.tsx` extension
-- Utility/logic files use `.ts` extension
-- Validation schemas use `-validation.ts` or located in `lib/validations/` directory
-- Hooks use `use-` prefix: `use-feature-access.ts`, `use-bank-connection.tsx`, `use-mobile.ts`
+- Component files (React): PascalCase with `.tsx` extension. Example: `ChatMessage.tsx`, `AppSidebar.tsx`
+- Utility/hook files: kebab-case with `.ts` or `.tsx` extension. Example: `use-api-call.ts`, `use-mobile.ts`, `chat-message.tsx`
+- API route handlers: `route.ts` in directory structure reflecting endpoint. Example: `app/api/finance/accounts/route.ts`
+- UI primitive components: lowercase kebab-case. Example: `button.tsx`, `input.tsx`, `card.tsx`, `dropdown-menu.tsx`
+- Configuration files: kebab-case or dot prefix. Example: `eslint.config.mjs`, `tsconfig.json`
 
 **Functions:**
-- camelCase for all function names
-- Component functions use PascalCase (React convention): `ChatMessage()`, `Button()`, `AppSidebar()`
-- Utility functions use camelCase: `sanitizeUserInput()`, `formatCurrency()`, `checkRateLimit()`
-- Hook functions use camelCase: `useFeatureAccess()`, `useMobile()`
-- Private/internal functions may use underscore prefix: `_getSystemPrompt()` (though not always enforced)
+- React components: PascalCase. Example: `function ChatMessage()`, `export function Button()`
+- Custom hooks: camelCase prefixed with `use`. Example: `export function useIsMobile()`, `export function useApiCall<TData, TResponse>()`
+- Utility functions: camelCase. Example: `generateId()`, `formatCurrency()`, `sanitizeUserInput()`
+- Callback handlers in components: camelCase starting with `on` or action verb. Example: `onAction`, `onChange`, `onSuccess`, `onError`
 
 **Variables:**
-- camelCase for all variables and constants
-- UPPERCASE_SNAKE_CASE for true constants/configuration:
-  - `TIER_LIMITS` in `lib/features.ts`
-  - `FROM_EMAIL` in `lib/email.ts`
-  - `HIGH_RISK_PATTERNS` in `lib/ai/sanitize.ts`
-  - `MAX_MESSAGE_LENGTH` in `lib/ai/sanitize.ts`
-- State variables use camelCase: `subscription`, `usage`, `isLoading`, `error`
+- Constants: UPPER_SNAKE_CASE. Example: `MOBILE_BREAKPOINT = 768`, `MAX_MESSAGE_LENGTH = 2000`, `HIGH_RISK_PATTERNS`
+- State variables: camelCase. Example: `isMobile`, `loading`, `error`, `errorMessage`
+- Type/interface instances: camelCase. Example: `message`, `account`, `transformedAccounts`
 
 **Types:**
-- PascalCase for all type/interface names
-- Enum values use UPPERCASE_SNAKE_CASE:
-  ```typescript
-  export type AuditActionType = "data_access" | "data_fetch" | "data_create"
-  export type SubscriptionTier = "free" | "pro" | "family"
-  ```
-- Props interfaces end with `Props`: `ChatMessageProps`, `FeatureAccessHook`
-- Input/output types use descriptive names: `CreateConsentInput`, `EmailResult`, `SanitizeResult`
-
-**Directories:**
-- kebab-case for all directory names: `ui/`, `chat/`, `spending/`, `dashboard/`, `family/`
-- Feature-based organization under `app/`: `app/dashboard/`, `app/auth/`, `app/api/`
-- Utility organization: `lib/ai/`, `lib/supabase/`, `lib/validations/`, `lib/stores/`, `lib/constants/`
+- Interfaces: PascalCase, typically prefixed with context or no prefix for general types. Example: `interface ChatMessageProps`, `interface ApiCallOptions<TData, TResponse>`, `interface Message`
+- Type aliases: PascalCase. Example: `type MessageRole = "user" | "assistant"`, `type GuideStepId = "nav-accounts" | "nav-transactions"`
+- Database types: Exported from database.types.ts, follow snake_case from schema. Transformed to camelCase in application code when used
+- Generic type parameters: Single uppercase letter or descriptive PascalCase. Example: `<TData>`, `<TResponse>`
 
 ## Code Style
 
 **Formatting:**
-- No explicit formatter detected (no .prettierrc)
-- TypeScript strict mode enabled (`tsconfig.json`: `"strict": true`)
-- ES2017 target with ESNext modules
-- JSX: react-jsx (React 19 compatible)
-- Indentation: 2 spaces (inferred from code examples)
+- ESLint configuration: `eslint.config.mjs` using ESLint v9 flat config format
+- Core rules: `eslint-config-next/core-web-vitals` and `eslint-config-next/typescript`
+- No Prettier configuration detected; ESLint handles style enforcement via Next.js configuration
+- Target: ES2017, strict TypeScript enabled
+- Supported file types: `.ts`, `.tsx`, `.mts`
 
 **Linting:**
-- ESLint with next/core-web-vitals and next/typescript config: `eslint.config.mjs`
-- Uses flat config format (ESLint 9+)
-- Ignores: `.next/**`, `out/**`, `build/**`, `next-env.d.ts`
-- Run with: `npm run lint` (configured in package.json as `eslint`)
+- Tool: ESLint 9 with Next.js and TypeScript presets
+- Config file: `D:\My Project\Finauraa\eslint.config.mjs`
+- Run command: `npm run lint` (executes `eslint` with no arguments, applies config)
+- Auto-fix: Supported via ESLint standard flags
+- Rules enforced: Web Vitals (Core Web Vitals), TypeScript strict checks, Next.js best practices
+- Ignored patterns: `.next/**`, `out/**`, `build/**`, `next-env.d.ts`
 
 ## Import Organization
 
 **Order:**
-1. React/Next imports: `import React from "react"`, `import { NextRequest } from "next/server"`
-2. External library imports: `import { z } from "zod"`, `import Anthropic from "@anthropic-ai/sdk"`
-3. Internal absolute imports using `@/` alias: `import { cn } from "@/lib/utils"`, `import { ChatMessage } from "@/components/chat/chat-message"`
-4. Relative imports (when necessary): `import { RichContent } from "./rich-content"`
+1. React and core libraries: `import { React }`, `import { useState }`
+2. Next.js imports: `import { useRouter }`, `import { NextRequest, NextResponse }`
+3. Internal absolute imports: `import { createClient } from "@/lib/supabase/server"`
+4. Relative imports: `import { cn } from "@/lib/utils"`
+5. Type imports (can be interspersed): `import type { ClassValue }`
 
 **Path Aliases:**
-- `@/*` resolves to project root: `@/lib`, `@/components`, `@/app`, `@/hooks`
-- Allows clean, project-wide imports without relative paths
-
-**Example:**
-```typescript
-import { NextRequest, NextResponse } from "next/server";
-import { z } from "zod";
-import { createClient } from "@/lib/supabase/server";
-import { logConsentEvent } from "@/lib/audit";
-import { checkRateLimit } from "@/lib/ratelimit";
-import { createConsentSchema, formatZodError } from "@/lib/validations/consent";
-```
+- Base alias `@/*` maps to root directory (`./*`)
+- All imports use absolute imports with `@/` prefix
+- Examples in codebase:
+  - `import { cn } from "@/lib/utils"`
+  - `import { createClient } from "@/lib/supabase/server"`
+  - `import { ChatMessage } from "@/components/chat/chat-message"`
+  - `import { useApiCall } from "@/hooks/use-api-call"`
 
 ## Error Handling
 
 **Patterns:**
-- Try-catch blocks for all async operations and error-prone code
-- Explicit error type checking: `error instanceof Error ? error.message : "Unknown error"`
-- Function-level error handling rather than error boundaries (outside UI layer)
-- API routes return NextResponse with status codes: `NextResponse.json({ error: "..." }, { status: 400 })`
-- Console.error for server-side error logging
-- Validation errors formatted with Zod helper: `formatZodError(error)` returns structured error object
 
-**Pattern Example from `app/api/consents/route.ts`:**
+**API Routes (Next.js):**
+- Try-catch wrapping entire handler. Example from `D:\My Project\Finauraa\app\api\chat\route.ts`:
 ```typescript
-try {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+export async function POST(request: NextRequest) {
+  try {
+    // Main logic
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
 
-  if (!user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    if (!user) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    // More logic...
+  } catch (error) {
+    console.error("Chat API error:", error);
+
+    let errorMessage = "Something went wrong. Please try again.";
+    let statusCode = 500;
+
+    if (error instanceof Error) {
+      if (error.message.includes("API key")) {
+        errorMessage = "AI service configuration error. Please contact support.";
+      } else if (error.message.includes("rate") || error.message.includes("limit")) {
+        errorMessage = "AI service is busy. Please try again in a moment.";
+        statusCode = 503;
+      } else if (error.message.includes("timeout") || error.message.includes("network")) {
+        errorMessage = "Connection issue. Please check your internet and try again.";
+        statusCode = 504;
+      } else if (error.message.includes("content") || error.message.includes("safety")) {
+        errorMessage = "I couldn't process that request. Please try rephrasing.";
+        statusCode = 400;
+      }
+    }
+
+    return NextResponse.json(
+      { error: errorMessage, retryable: statusCode >= 500 },
+      { status: statusCode }
+    );
   }
-
-  const rateLimitResponse = await checkRateLimit("consent", user.id);
-  if (rateLimitResponse) return rateLimitResponse;
-
-  // ... logic
-} catch (error) {
-  console.error("Consents GET error:", error);
-  return NextResponse.json(
-    { error: "Internal server error" },
-    { status: 500 }
-  );
 }
 ```
+
+**Client-side Hooks:**
+- State-based error handling with try-catch. Example from `D:\My Project\Finauraa\hooks\use-api-call.ts`:
+```typescript
+const execute = useCallback(async (data?: TData): Promise<TResponse | null> => {
+  setState((prev) => ({ ...prev, loading: true, error: null }));
+
+  try {
+    const response = await fetch(url, { /* config */ });
+    const result = await response.json();
+
+    if (!response.ok) {
+      const errorMessage = result.error || result.message || `Request failed (${response.status})`;
+      setState((prev) => ({ ...prev, loading: false, error: errorMessage }));
+      onError?.(errorMessage);
+      return null;
+    }
+
+    // Success handling
+    setState({ data: transformedData, error: null, loading: false });
+    onSuccess?.(transformedData);
+    return transformedData;
+  } catch (err) {
+    const errorMessage = err instanceof Error ? err.message : "An unexpected error occurred";
+    setState((prev) => ({ ...prev, loading: false, error: errorMessage }));
+    onError?.(errorMessage);
+    return null;
+  }
+}, [/* deps */]);
+```
+
+**Security/Validation:**
+- Input sanitization with risk levels. From `D:\My Project\Finauraa\lib\ai\sanitize.ts`:
+```typescript
+export interface SanitizeResult {
+  sanitized: string;
+  wasModified: boolean;
+  injectionDetected: boolean;
+  riskLevel: "none" | "medium" | "high";
+}
+
+// HIGH RISK patterns - block these
+// MEDIUM RISK patterns - log but allow
+// Check patterns sequentially, break on first match
+```
+
+**Data Access Validation:**
+- Consent checks before accessing sensitive data. From `D:\My Project\Finauraa\app\api\finance\accounts\route.ts`:
+```typescript
+// BOBF/PDPL: Verify active consent before data access
+const consentCheck = await requireBankConsent(supabase, user.id, "/api/finance/accounts");
+if (!consentCheck.allowed) {
+  return consentCheck.response; // Returns appropriate error response
+}
+
+if (consentCheck.noBanksConnected) {
+  return NextResponse.json({ accounts: [], totalBalance: 0, noBanksConnected: true });
+}
+```
+
+**User-Facing Errors:**
+- Generic messages to prevent information leakage, but contextual where safe
+- Always check `response.ok` before assuming success
+- Provide retryable flag in error responses for client logic
+- Log detailed errors server-side only
 
 ## Logging
 
-**Framework:** console (console.log, console.error)
+**Framework:** `console` (no dedicated logging library detected)
 
 **Patterns:**
-- `console.error()` for errors: `console.error("Failed to send email:", error)`
-- `console.log()` for warnings/info: `console.log("RESEND_API_KEY not configured, skipping email")`
-- Structured logging with context: Include operation name and user ID when relevant
-- Security event logging via `logSecurityEvent()` in `lib/ai/sanitize.ts`
-- Audit trail via `logConsentEvent()` in `lib/audit.ts`
-
-**Examples:**
-```typescript
-// Error logging
-console.error("Failed to send consent expiry email:", error);
-console.error("Consents GET error:", error);
-
-// Info logging
-console.log("RESEND_API_KEY not configured, skipping email");
-
-// Conditional logging (when email key not set)
-if (!process.env.RESEND_API_KEY) {
-  console.log("RESEND_API_KEY not configured, skipping email");
-  return { success: false, error: "Email service not configured" };
-}
-```
+- Server-side: `console.error()` for exceptions, context logged with error
+- Example: `console.error("Chat API error:", error);`
+- Security events: `logSecurityEvent(userId, eventType, details)` from middleware
+- Example: `logSecurityEvent(user.id, "injection_attempt", { messagePreview, riskLevel })`
+- Success tracking: `logDataAccessSuccess()` for compliance auditing
+- Example: `await logDataAccessSuccess(user.id, "bank_account", consentId, endpoint, metadata)`
+- No client-side logging detected in components
 
 ## Comments
 
 **When to Comment:**
-- Block comments for major sections and algorithm explanations
-- Inline comments for non-obvious logic or workarounds
-- JSDoc comments for all public functions, types, and exports
-- Comments for PDPL/BOBF compliance requirements and security implications
+- Complex business logic or security-critical code
+- Non-obvious algorithm implementations
+- API behavior documentation
+- Compliance/regulatory markers (e.g., "BOBF/PDPL: ...")
 
 **JSDoc/TSDoc:**
-- Used extensively for functions and types
-- Format: `/** comment text */` on line(s) before function
-- Include description, parameter explanations, and return type notes
-
-**Pattern from codebase:**
+- Used for exported functions and hooks
+- Includes `@param`, `@returns`, `@example` tags where helpful
+- Example from `D:\My Project\Finauraa\lib\utils.ts`:
 ```typescript
 /**
- * GET /api/consents
- * List all consents for the authenticated user
- * PDPL Requirement: Users must be able to view their consents
+ * Format currency with appropriate decimal places based on currency
+ *
+ * @param amount - The amount to format
+ * @param currency - Currency code (default: BHD)
+ * @param options - Formatting options
+ *
+ * @example
+ * ```ts
+ * formatCurrency(1234.567) // "BHD 1,234.567"
+ * formatCurrency(1234.56, "USD") // "$1,234.56"
+ * ```
  */
-export async function GET(request: NextRequest) {
-  // ...
-}
-
-/**
- * Sanitize user input to prevent prompt injection
- */
-export function sanitizeUserInput(input: string): SanitizeResult {
-  // ...
-}
-
-/**
- * Email Notification Service
- * Uses Resend for transactional emails
- */
+export function formatCurrency(amount: number, currency: string = "BHD", options?: { /* */ }): string
 ```
+
+- Interface/type documentation minimal; used mainly for utility functions
+- Comments explaining "why" not "what" the code does
 
 ## Function Design
 
-**Size:** Functions kept reasonably small (most 20-50 lines)
+**Size:**
+- Majority of functions 50-100 lines maximum
+- API route handlers may exceed 100 lines due to validation stacking and data transformations
+- Hooks typically 150-200 lines for complex state management
 
 **Parameters:**
-- Use object/destructuring for multiple parameters
-- Typed parameters with explicit types
-- Optional parameters clearly marked with `?`
+- Prefer objects over multiple parameters for options. Example:
+```typescript
+export function useApiCall<TData = void, TResponse = unknown>(
+  options: ApiCallOptions<TData, TResponse>  // Single object parameter
+): ApiCallReturn<TData, TResponse>
+```
+- Generic type parameters for data transformations: `<TData, TResponse>`
+- Optional properties in interfaces using `?:`
 
 **Return Values:**
-- Explicit return types declared
-- Result objects for success/failure: `{ success: boolean; data?: T; error?: string }`
-- Validation returns discriminated union: `{ success: true; data: T } | { success: false; error: ZodError }`
-
-**Examples:**
+- Explicit type annotations on all exported functions
+- Union types for error states (null or data): `Promise<TResponse | null>`
+- Object returns for multiple related values. Example:
 ```typescript
-// Simple parameters
-export function formatCurrency(amount: number, currency: string = "BHD"): string {
-  // ...
-}
-
-// Destructured parameters
-export function ChatMessage({ message, onAction }: ChatMessageProps) {
-  // ...
-}
-
-// Result object return
-export async function sendConsentExpiryWarning(
-  email: string,
-  userName: string,
-  consentType: string,
-  providerName: string | null,
-  expiresAt: string
-): Promise<EmailResult> {
-  // Returns { success: true; id?: string } | { success: false; error?: string }
-}
-
-// Discriminated union return
-export function validateRequestBody<T>(
-  schema: z.ZodType<T>,
-  data: unknown
-): { success: true; data: T } | { success: false; error: z.ZodError } {
-  // ...
-}
+return {
+  data: transformedData,
+  error: null,
+  loading: false,
+  execute: executeFunction,
+  reset: resetFunction,
+  clearError: clearErrorFunction
+};
 ```
 
 ## Module Design
 
 **Exports:**
-- Named exports for functions and types (preferred)
-- Default exports used for React components in some cases
-- Re-exports for convenience in barrel files
-
-**Examples:**
+- Named exports preferred: `export function useApiCall() {}`
+- Single default export rare, avoided
+- Example from `D:\My Project\Finauraa\components\ui\button.tsx`:
 ```typescript
-// lib/email.ts - named exports
-export interface EmailResult { ... }
-export async function sendConsentExpiryWarning(...): Promise<EmailResult> { ... }
-export async function sendWelcomeEmail(...): Promise<EmailResult> { ... }
-
-// components/ui/button.tsx - named export + CVA variant export
 export { Button, buttonVariants }
-
-// lib/validations/consent.ts - multiple named exports
-export const createConsentSchema = z.object({ ... })
-export const validateRequestBody = function(...) { ... }
-export type CreateConsentInput = z.infer<typeof createConsentSchema>
 ```
 
 **Barrel Files:**
-- Present in `components/ui/` for component re-exports
-- Used in validation modules to group related schemas
+- Used in component subdirectories for organizing exports
+- Example: `D:\My Project\Finauraa\components\chat\index.ts` re-exports chat components
+- Not used extensively; most imports use direct paths
 
-## Async/Await
-
-**Pattern:** Async functions always used for server operations
-
-```typescript
-// Server component/route
-async function getCookie() {
-  return (await cookies()).get("name")?.value;
-}
-
-export async function middleware(request: NextRequest) {
-  return await updateSession(request);
-}
-
-// Client hook with async fetch
-const fetchSubscription = useCallback(async () => {
-  try {
-    const response = await fetch("/api/subscription");
-    // ...
-  } catch (error) {
-    // ...
-  }
-}, []);
-```
-
-## Hooks and React Patterns
-
-**Client vs Server:**
-- `"use client"` directive used in client-side files: hooks, client components
-- Server components preferred for data fetching
-- Middleware for auth updates
-
-**Hook Patterns:**
-- `useState` for local state
-- `useCallback` for memoized callbacks
-- `useEffect` for side effects
-- Custom hooks prefixed with `use-`: `useFeatureAccess()`, `useMobile()`
+**Utility Organization:**
+- Centralized in `lib/` directory:
+  - `lib/utils.ts` - Core utilities (cn, currency formatting)
+  - `lib/constants/` - Constants and category definitions
+  - `lib/ai/` - AI-related utilities (sanitization, privacy, rate limiting)
+  - `lib/supabase/` - Database client initialization
+  - `lib/validations/` - Input validation schemas
+- Hooks in `hooks/` directory:
+  - Organized by feature/domain: `use-api-call.ts`, `use-transactions.ts`, `use-family-group.ts`
+  - Typically 150-200 lines, handle state + side effects
 
 ---
 

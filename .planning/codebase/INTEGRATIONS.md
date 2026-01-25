@@ -4,179 +4,209 @@
 
 ## APIs & External Services
 
-**Open Banking:**
-- Tarabut Gateway (https://tarabutgateway.io) - Open Banking API for Bahrain financial institutions
-  - SDK/Client: Custom implementation in `lib/tarabut/client.ts`
-  - Auth: OAuth2 with `TARABUT_CLIENT_ID`, `TARABUT_CLIENT_SECRET`
-  - Endpoints: Token at `https://oauth.tarabutgateway.io/sandbox/token`, API at `https://api.sandbox.tarabutgateway.io`
-  - Capabilities: Account information, balances, transactions, insights (income, balance history, spending), consent management, IBAN verification, transaction categorization
-  - Used in: `app/api/tarabut/*` routes, `app/api/finance/*` routes
+**Open Banking & Financial Data:**
+- Tarabut Gateway (Open Banking) - Multi-bank account aggregation via PSD2/Open Banking
+  - SDK/Client: Custom client at `lib/tarabut/client.ts` (not npm package)
+  - Auth: `TARABUT_CLIENT_ID`, `TARABUT_CLIENT_SECRET`, `TARABUT_REDIRECT_URI`
+  - Endpoints: OAuth token at `https://oauth.tarabutgateway.io/sandbox/token`, API at `https://api.sandbox.tarabutgateway.io`
+  - Key Features:
+    - Account information service (AIS): Fetch accounts, balances, transactions
+    - Consent management: Intent creation, revocation, expiry tracking
+    - Insights API: Income summary, salary detection, balance history, spending categorization
+    - Transaction enrichment: Categories, merchant data, spending patterns
+  - Implementation: `lib/tarabut/client.ts` (TarabutClient class with 40+ methods)
+  - Usage: Bank connection workflows in `app/api/finance/connections/*`, cron sync in `app/api/cron/sync-banks`
 
 **Payment Processing:**
-- Stripe - Payment processing and subscription management
+- Stripe - Subscription payments, billing, invoicing
   - SDK/Client: `stripe` npm package v20.2.0
-  - Auth: API key via `STRIPE_SECRET_KEY`
-  - Webhook validation: `STRIPE_WEBHOOK_SECRET`
-  - Price IDs configured via env: Pro monthly/yearly, Family monthly/yearly
-  - Webhook endpoint: `app/api/webhooks/stripe/route.ts`
-  - Events handled: checkout.session.completed, customer.subscription.created/updated/deleted/paused/resumed, customer.subscription.trial_will_end, invoice.payment_succeeded/failed/upcoming, payment_intent.payment_failed
-  - Used in: `app/api/subscription/*` routes, checkout flows, billing management
+  - Auth: `STRIPE_SECRET_KEY` (server-side only), `STRIPE_WEBHOOK_SECRET`
+  - Public API Key: `NEXT_PUBLIC_STRIPE_*` (not used in current setup)
+  - Endpoints: Stripe API v2025-12-15.clover
+  - Key Features:
+    - Subscription management (Pro plan, Family plan with monthly/yearly)
+    - Customer portal for self-service billing
+    - Webhook events: `customer.subscription.updated`, `customer.subscription.deleted`, `invoice.payment_failed`
+    - Checkout sessions with redirect flow
+  - Implementation:
+    - Client initialization in `app/api/subscription/route.ts`, `app/api/webhooks/stripe/route.ts`
+    - Lazy initialization pattern (only when needed)
+  - Webhook handler: `app/api/webhooks/stripe/route.ts` (signature verification + event processing)
+  - Price IDs configured:
+    - Pro: `STRIPE_PRO_PRICE_ID_MONTHLY`, `STRIPE_PRO_PRICE_ID_YEARLY`
+    - Family: `STRIPE_FAMILY_PRICE_ID_MONTHLY`, `STRIPE_FAMILY_PRICE_ID_YEARLY`
 
-**AI & Language Model:**
-- Anthropic Claude (https://api.anthropic.com) - AI-powered financial insights and chatbot
+**AI & LLM:**
+- Anthropic Claude - Financial AI assistant and insights
   - SDK/Client: `@anthropic-ai/sdk` v0.71.2
-  - Auth: API key via `ANTHROPIC_API_KEY`
-  - Model: claude-sonnet-4-20250514
-  - Chat endpoint: `app/api/chat/route.ts`
-  - Features: Privacy-first and enhanced AI modes with data anonymization options
-  - Rate limiting: 30 requests per minute per user
-  - Monthly limits: Free (10), Pro (100), Family (200) queries/month
+  - Auth: `ANTHROPIC_API_KEY` (server-side only)
+  - Implementation: `app/api/chat/route.ts` (Anthropic class initialized with API key)
+  - Key Features:
+    - Multi-turn conversations for financial advice
+    - Context-aware responses using user's financial data
+    - Privacy modes: "privacy-first" (anonymized) or "enhanced" (full data)
+    - Rate limiting per subscription tier
+  - Integration with finance manager: `lib/ai/finance-manager.ts` provides comprehensive financial context
+  - Data privacy: `lib/ai/data-privacy.ts` handles anonymization and consent
 
-**Email & Notifications:**
-- Resend (https://resend.com) - Transactional email service
+**Email Service:**
+- Resend - Transactional emails
   - SDK/Client: `resend` npm package v6.8.0
-  - Auth: API key via `RESEND_API_KEY`
-  - Sender: Configured via `EMAIL_FROM` env var (default: "Finauraa <notifications@send.finauraa.com>")
-  - Used in: `lib/email.ts` for transactional emails
-  - Email types sent:
+  - Auth: `RESEND_API_KEY`
+  - Email Sender: `EMAIL_FROM` (default: "Finauraa <notifications@send.finauraa.com>")
+  - Implementation: `lib/email.ts` (lazy-initialized Resend client)
+  - Transactional Emails Sent:
     - Consent expiry warnings (7 days before expiration)
-    - Payment failure notifications
-    - Trial ending soon notifications
+    - Payment failed notifications
+    - Trial ending reminders
     - Data export ready notifications
     - Family group invitations
-    - Family member status changes (joined/removed)
+    - Member joined/removed notifications
 
 ## Data Storage
 
 **Databases:**
-- PostgreSQL via Supabase
-  - Connection: `NEXT_PUBLIC_SUPABASE_URL` (public) and `SUPABASE_SERVICE_ROLE_KEY` (admin)
-  - Client: `@supabase/supabase-js` v2.90.1 for client-side, `@supabase/ssr` v0.8.0 for server-side
-  - Server client created in: `lib/supabase/server.ts`
-  - Client created in: `lib/supabase/client.ts`
-  - Tables: profiles, bank_connections, transactions, messages, user_consents, billing_history, family_groups, family_members, savings_goals, budgets, and more
-  - RLS (Row-Level Security): Enforced for user data isolation
-  - Admin access: Used in webhook handlers and sensitive operations via service role key
+- Supabase PostgreSQL - Primary relational database
+  - Connection: `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY` (public), `SUPABASE_SERVICE_ROLE_KEY` (admin)
+  - Client Libraries:
+    - `@supabase/supabase-js` 2.90.1 - Core client (browser + Node.js)
+    - `@supabase/ssr` 0.8.0 - Server-side rendering optimized client
+  - Key Tables (inferred from code):
+    - `profiles` - User profiles with family_group_id
+    - `bank_connections` - Bank connection status tracking
+    - `bank_accounts` - Connected bank accounts (balance, currency, account_type)
+    - `transactions` - Individual transactions with merchant data, category, type
+    - `budgets` - User-created budgets with category and amount
+    - `savings_goals` - Personal savings goals with target tracking
+    - `family_groups` - Family group management
+    - `family_goal_members` - Family goal assignments
+  - Real-time subscriptions: Supported via Supabase RealtimeClient
+  - Row-level security (RLS): Enforced for multi-tenant data isolation
+  - Implementation:
+    - Browser client: `lib/supabase/client.ts` (createBrowserClient)
+    - Server client: `lib/supabase/server.ts` (createServerClient with cookie handling)
+    - Admin client: `lib/supabase/server.ts` (createAdminClient for service operations)
 
 **File Storage:**
-- Local filesystem with Next.js public directory (`public/`)
-- No external cloud storage integration detected
+- Supabase Storage or Local filesystem (not explicitly configured)
+- Data exports likely generated as files for email delivery
 
 **Caching:**
-- None detected in production (relies on Supabase connection pooling)
-- PWA offline cache via Workbox (browser-side)
+- SWR (Stale-While-Revalidate) - Client-side data fetching cache
+- Zustand - Client-side state persistence
 
 ## Authentication & Identity
 
 **Auth Provider:**
-- Supabase Auth - Built-in PostgreSQL-backed authentication
-  - Implementation: `lib/supabase/server.ts` and `lib/supabase/client.ts`
-  - Middleware: `middleware.ts` with session refresh via `lib/supabase/middleware.ts`
-  - Methods: Email/password authentication (standard Supabase)
-  - Session management: Cookie-based with Supabase SSR helper
-  - Auth routes: `app/auth/callback/route.ts`, `app/auth/signout/route.ts`
-  - Login/signup pages: `app/login/page.tsx`, `app/signup/page.tsx`
+- Supabase Auth - Custom authentication via PostgreSQL
+  - Implementation: Built into Supabase client
+  - Session management: Cookie-based with automatic refresh
+  - JWT tokens: Managed by Supabase
+  - User context available via `supabase.auth.getUser()`
 
-**Consent & Compliance:**
-- Custom consent tracking for BOBF/PDPL compliance
-  - Table: `user_consents`
-  - Consent types: bank_access, ai_data_access
-  - Data retention enforcement: `app/api/cron/data-retention/route.ts` (runs daily at 01:00 UTC)
-  - Consent expiry: `app/api/cron/expire-consents/route.ts` (runs daily at 00:00 UTC)
-  - Default retention: 30 days after consent revocation (configurable via `DATA_RETENTION_AFTER_REVOCATION_DAYS`)
+**Middleware:**
+- `middleware.ts` - Custom Next.js middleware for session/auth handling
+- `lib/consent-middleware.ts` - PDPL consent validation middleware
 
 ## Monitoring & Observability
 
 **Error Tracking:**
-- Sentry (via @sentry/nextjs v10.35.0)
-  - Configuration: Likely in `sentry.config.ts` or automatic Next.js integration
-  - Captures: Exceptions, performance, and user errors
+- Sentry - Error tracking and performance monitoring
+  - SDK: `@sentry/nextjs` v10.35.0
+  - Configured for Next.js (captures errors, performance metrics, session replays)
 
 **Logs:**
-- Console logging throughout codebase
-- No external log aggregation detected (logs go to stdout for Vercel)
-
-**Performance Monitoring:**
-- PWA performance via Workbox runtime caching metrics
+- Console logging (console.log, console.error)
+- Security event logging: `lib/audit.ts` (logSecurityEvent, logPaymentEvent functions)
+- Audit trails for:
+  - Payment events (subscription changes)
+  - Bank connection changes
+  - Consent management events
 
 ## CI/CD & Deployment
 
 **Hosting:**
-- Vercel (native Next.js platform)
-  - Configuration: `vercel.json` specifies cron jobs
+- Vercel - Serverless platform for Next.js deployment
+  - Automatic builds on git push
+  - Environment variables managed in Vercel dashboard
+  - Preview deployments for branches
 
 **CI Pipeline:**
-- Vercel CI (automatic on Git push)
-  - Build command: `npm run build`
-  - Start command: `npm start`
+- ESLint (no automated testing detected)
+- Next.js build (`next build --webpack`)
 
-**Cron Jobs (Vercel):**
-- `/api/cron/expire-consents` - Daily at 00:00 UTC - Expires consents past their expiration date
-- `/api/cron/data-retention` - Daily at 01:00 UTC - Deletes data for revoked consents per retention policy
+**Cron Jobs:**
+- Vercel Cron (defined in `vercel.json`)
+  - Expire consents check: Daily 00:00 UTC
+  - Data retention cleanup: Daily 01:00 UTC
+  - Bank data sync from Tarabut: Daily 06:00 UTC
+  - Auth: `CRON_SECRET` header validation
 
 ## Environment Configuration
 
-**Required env vars (from .env.example):**
+**Required env vars:**
 
-**Tarabut Open Banking:**
-- `TARABUT_CLIENT_ID` - OAuth client ID
+**Tarabut (Open Banking):**
+- `TARABUT_CLIENT_ID` - OAuth client identifier
 - `TARABUT_CLIENT_SECRET` - OAuth client secret
-- `TARABUT_REDIRECT_URI` - Callback URL after bank selection (e.g., https://www.finauraa.com/api/tarabut/callback)
+- `TARABUT_REDIRECT_URI` - Callback URL after bank connection
 
 **Supabase:**
-- `NEXT_PUBLIC_SUPABASE_URL` - Database URL (public)
-- `NEXT_PUBLIC_SUPABASE_ANON_KEY` - Anonymous key (public, safe in browser)
-- `SUPABASE_SERVICE_ROLE_KEY` - Admin key (secret, server-only)
+- `NEXT_PUBLIC_SUPABASE_URL` - Database/auth URL (public)
+- `NEXT_PUBLIC_SUPABASE_ANON_KEY` - Anon API key (public)
+- `SUPABASE_SERVICE_ROLE_KEY` - Admin API key (secret, server-only)
+
+**Anthropic:**
+- `ANTHROPIC_API_KEY` - Claude API access
 
 **Stripe:**
-- `STRIPE_SECRET_KEY` - Secret API key (sk_test_* in test mode)
-- `STRIPE_WEBHOOK_SECRET` - Webhook signing secret (whsec_*)
-- `STRIPE_PRO_PRICE_ID_MONTHLY` - Pro plan monthly price ID
-- `STRIPE_PRO_PRICE_ID_YEARLY` - Pro plan yearly price ID
+- `STRIPE_SECRET_KEY` - API secret key (server-only)
+- `STRIPE_WEBHOOK_SECRET` - Webhook signature secret
+- `STRIPE_PRO_PRICE_ID_MONTHLY` - Monthly subscription price ID
+- `STRIPE_PRO_PRICE_ID_YEARLY` - Yearly subscription price ID
 - `STRIPE_FAMILY_PRICE_ID_MONTHLY` - Family plan monthly price ID
 - `STRIPE_FAMILY_PRICE_ID_YEARLY` - Family plan yearly price ID
 
-**Claude AI:**
-- `ANTHROPIC_API_KEY` - Anthropic API key (sk_... format)
-
-**Email (Resend):**
-- `RESEND_API_KEY` - Resend API key (re_* format)
-- `EMAIL_FROM` - Sender email address (e.g., "Finauraa <notifications@send.finauraa.com>")
-
-**App Configuration:**
-- `NEXT_PUBLIC_APP_URL` - Frontend URL (e.g., http://localhost:3000, https://www.finauraa.com)
+**Resend (Email):**
+- `RESEND_API_KEY` - Email service API key
+- `EMAIL_FROM` - Sender email address
 
 **Feature Flags:**
-- `USE_DYNAMIC_FEATURES` - Set to "true" for database-driven feature limits, "false" for static config
-- `ADMIN_EMAILS` - Comma-separated list of admin email addresses for feature flag management
+- `USE_DYNAMIC_FEATURES` - Use database-driven feature limits ("true" or "false")
+- `ADMIN_EMAILS` - Comma-separated admin email list for feature flag management
 
-**Cron Jobs:**
-- `CRON_SECRET` - Secure random string for cron job authentication (prevents unauthorized access to `/api/cron/*`)
-
-**Compliance:**
-- `DATA_RETENTION_AFTER_REVOCATION_DAYS` - Days to retain data after consent revocation (default: 30)
+**App Configuration:**
+- `NEXT_PUBLIC_APP_URL` - Application URL (for Stripe redirects, email links)
+- `CRON_SECRET` - Secure token for cron job endpoints
+- `DATA_RETENTION_AFTER_REVOCATION_DAYS` - PDPL compliance retention period (default: 30)
 
 **Secrets location:**
-- Development: `.env.local` file (git-ignored)
+- Development: `.env.local` (not committed)
 - Production: Vercel Environment Variables dashboard
-- All secret keys should be stored as environment variables, never committed to git
+- Reference: `.env.example` in repository root
 
 ## Webhooks & Callbacks
 
 **Incoming:**
-- Stripe webhooks: `app/api/webhooks/stripe/route.ts`
-  - Events: subscription, invoice, payment intent status changes
-  - Verification: Stripe signature validation with `STRIPE_WEBHOOK_SECRET`
-  - Handler: Updates subscription status, billing history, sends notifications
+- **Stripe Webhooks:** `app/api/webhooks/stripe/route.ts`
+  - Path: `/api/webhooks/stripe`
+  - Events:
+    - `customer.subscription.updated`
+    - `customer.subscription.deleted`
+    - `invoice.payment_failed`
+    - `customer.subscription.trial_will_end`
+  - Validation: Signature verification with `STRIPE_WEBHOOK_SECRET`
+  - Actions: Update subscription status, send payment notifications, trigger trial ending emails
 
-- Tarabut callback: `app/api/tarabut/callback/route.ts`
-  - After user completes consent in Tarabut's hosted UI
-  - Updates bank connection status and bank details
+- **Tarabut Callback:** `app/api/tarabut/callback` (referenced in `.env.example`)
+  - Path: `/api/tarabut/callback`
+  - Purpose: Handle bank connection completion after user consent
+  - Flow: User selects bank → Tarabut Connect → redirect to callback → store connection
 
 **Outgoing:**
-- Stripe: No direct webhook subscriptions from app (Stripe sends webhooks to us)
-- Resend: Email sending is one-way (no callbacks expected)
-- Tarabut: OAuth redirect only (user browser redirected back to app)
+- **Email Notifications:** Sent via Resend to user email addresses
+- **Sentry:** Error events sent to error tracking service
+- **Data Export Downloads:** Generated files with signed URLs for user downloads
 
 ---
 

@@ -4,225 +4,193 @@
 
 ## Pattern Overview
 
-**Overall:** Next.js 16+ full-stack application with modular feature-driven API structure and client-side component hierarchy. The application follows a three-layer architecture: API routes (backend), shared libraries/utilities (business logic), and React components (UI).
+**Overall:** Layered Next.js 16 full-stack architecture with React 19 frontend and Node.js backend, organized around financial data processing and AI-powered chat interface.
 
 **Key Characteristics:**
-- Server Components with Suspense boundaries for optimized initial page loads
-- Next.js App Router with dynamic rendering enforced for auth-dependent pages
-- Feature-gated functionality per subscription tier (free/pro/family)
-- Consent-based access control for regulated data (BOBF/PDPL compliance)
-- Privacy-first AI architecture with two data modes (anonymized vs. enhanced)
+- API-first design: Client communicates exclusively through REST API routes (`/app/api`)
+- Server-side data fetching: All financial data aggregation happens in API layer, never exposed to client
+- React context + Zustand state management for UI state (filters, dialogs, etc.)
+- Supabase as primary data layer with RLS policies for multi-user safety
+- Anthropic Claude integration for AI chat with context-aware prompts
+- Consent-first architecture: All data access requires PDPL/BOBF consent verification
 
 ## Layers
 
-**Presentation Layer:**
-- Purpose: Render UI components and handle user interactions
-- Location: `D:\My Project\Finauraa\components\`, `D:\My Project\Finauraa\app\dashboard\`, `D:\My Project\Finauraa\app\`
-- Contains: React components (page layouts, UI primitives, feature-specific components), Hooks for state management
-- Depends on: API layer via fetch calls, Zustand stores, Library utilities
-- Used by: Page routes in Next.js app directory
+**Presentation (Frontend):**
+- Purpose: React components rendering UI, handling user interactions, managing local state
+- Location: `components/`, `app/` (pages and layouts), `hooks/`
+- Contains: React components (TSX), custom hooks, providers
+- Depends on: API routes via `useApiCall` hook, Zustand stores, React context
+- Used by: Browser client
 
-**API Layer:**
-- Purpose: Handle HTTP requests, enforce authentication, verify consent, coordinate business logic
-- Location: `D:\My Project\Finauraa\app\api\`
-- Contains: Route handlers (POST/GET/PUT/DELETE), API middleware functions
-- Depends on: Supabase client, consent middleware, feature gating utilities, business logic libraries
-- Used by: Client-side components, external services
+**API Gateway (Backend Routes):**
+- Purpose: Request routing, authentication, validation, consent middleware, data transformation
+- Location: `app/api/` directory structure mirrors domain (chat, finance, family, etc.)
+- Contains: Next.js route handlers exporting GET/POST/PUT/DELETE/PATCH functions
+- Depends on: Supabase client, middleware utilities, business logic libraries
+- Used by: Frontend components via fetch calls
 
-**Business Logic Layer:**
-- Purpose: Implement core domain logic, data transformations, privacy handling, rate limiting
-- Location: `D:\My Project\Finauraa\lib\`
-- Contains: Utilities for AI privacy (anonymization/enhancement), rate limiting, consent checking, feature gating, audit logging, email handling
-- Depends on: Supabase database
-- Used by: API routes, components
+**Business Logic (Domain Services):**
+- Purpose: Complex financial calculations, AI context building, data validation
+- Location: `lib/ai/`, `lib/supabase/`, `lib/validations/`, utility modules
+- Contains: Finance manager calculations, privacy handlers, data transformers
+- Depends on: Supabase client, type definitions
+- Used by: API routes for core processing
 
-**Data Access Layer:**
-- Purpose: Database operations and external service integrations
-- Location: `D:\My Project\Finauraa\lib\supabase\`, `D:\My Project\Finauraa\lib\tarabut\`, `D:\My Project\Finauraa\lib\ai\`
-- Contains: Supabase client factories (server/client), Tarabut open banking integration, AI service integration
-- Depends on: Supabase backend, Anthropic API, Tarabut API, Resend email service
-- Used by: Business logic layer
+**Data Access (Supabase):**
+- Purpose: PostgreSQL database with RLS, real-time subscriptions, auth
+- Location: Remote (Supabase), local migrations in `supabase/migrations/`
+- Contains: User authentication, financial data, relationships, audit logs
+- Depends on: Database schema, RLS policies
+- Used by: All API routes via Supabase client
 
-**Supporting Layers:**
-- **Middleware:** `D:\My Project\Finauraa\middleware.ts` and `D:\My Project\Finauraa\lib\supabase\middleware.ts` - Auth session management, route protection
-- **Constants/Configuration:** `D:\My Project\Finauraa\lib\constants\`, `D:\My Project\Finauraa\lib\features.ts` - Feature flags, subscription tiers, category definitions
-- **Types:** `D:\My Project\Finauraa\lib\types.ts`, `D:\My Project\Finauraa\lib\database.types.ts` - Shared type definitions
+**External Services:**
+- AI Model: Anthropic Claude for chat responses
+- Bank Integration: Tarabut API for bank account connections
+- Email: Resend for transactional emails
+- Payments: Stripe for subscription management
+- Error Tracking: Sentry for production monitoring
 
 ## Data Flow
 
-**User Authentication & Session:**
+**Chat Message Flow:**
 
-1. Request arrives at middleware (`D:\My Project\Finauraa\middleware.ts`)
-2. Middleware calls `updateSession()` in `D:\My Project\Finauraa\lib\supabase\middleware.ts`
-3. Session validated against Supabase auth
-4. If no user and not on auth page, redirect to `/login`
-5. If user and on auth page, redirect to `/`
-6. Response headers include updated auth cookies
-
-**Chat Message Processing:**
-
-1. Client sends POST to `/api/chat/route.ts` with message array
-2. Route handler in `D:\My Project\Finauraa\app\api\chat\route.ts`:
+1. User types message in chat input (`components/chat/chat-input.tsx`)
+2. Client sends POST to `/api/chat` with conversation ID and message history
+3. API handler (`app/api/chat/route.ts`):
    - Authenticates user via Supabase
-   - Checks rate limit (30 req/min) from `D:\My Project\Finauraa\lib\ai\rate-limit.ts`
-   - Checks monthly AI query limit based on subscription tier from `D:\My Project\Finauraa\lib\features.ts`
-   - Sanitizes conversation history with `D:\My Project\Finauraa\lib\ai\sanitize.ts`
-   - Determines user's AI data mode (privacy-first vs enhanced) from `D:\My Project\Finauraa\lib\ai\data-privacy.ts`
-   - Fetches appropriate context: anonymized (categories only) or enhanced (full transaction data) based on consent
-   - Formats context for system prompt
-   - Calls Anthropic Claude API with formatted messages
-   - Parses JSON response containing text message and rich content components
-3. Response includes rate limit headers, query usage info, and subscription tier
+   - Checks rate limits (30 req/min) and monthly query limits (tier-based)
+   - Fetches user's financial context (via `lib/ai/finance-manager.ts`)
+   - Sanitizes user input to prevent prompt injection
+   - Sends to Claude with system prompt containing user's financial data
+   - Returns JSON response with message text and rich content components
+4. Frontend renders message and any rich content cards
+5. Chat state persists: messages saved to `conversations` and `messages` tables
 
-**Financial Data Access:**
+**Financial Data Fetch Flow:**
 
-1. Client calls `/api/finance/accounts/route.ts` (or similar)
-2. Route handler:
-   - Authenticates user
-   - Calls `requireBankConsent()` from `D:\My Project\Finauraa\lib\consent-middleware.ts`
-   - Consent middleware checks if user has active `bank_access` consent
-   - If no bank connections, returns empty data (not error)
-   - If consent missing/expired, returns 403 Forbidden
-   - Logs data access in audit trail
-3. If allowed, queries Supabase for bank accounts/transactions
-4. Transforms database response to client format
-5. Returns data to client or empty array if no banks
+1. Component needs account data (e.g., `components/dashboard/accounts-content.tsx`)
+2. Uses `useApiCall` hook or direct fetch to GET `/api/finance/accounts`
+3. API handler (`app/api/finance/accounts/route.ts`):
+   - Verifies user is authenticated
+   - Checks `requireBankConsent()` middleware for PDPL compliance
+   - Returns empty data if user has no bank connections
+   - Queries `bank_accounts` table joined with `bank_connections`
+   - Transforms flat database records into typed response
+4. Frontend caches response via SWR
+5. If user needs data refreshed, calls `/api/finance/refresh` endpoint
 
-**Bank Connection Flow:**
+**Consent-Protected Data Access:**
 
-1. User clicks "Connect Bank" button in component
-2. Triggers `useBankConnection()` hook in `D:\My Project\Finauraa\hooks\use-bank-connection.tsx`
-3. Hook opens `BankConsentDialog` from `D:\My Project\Finauraa\components\dashboard\bank-consent-dialog.tsx`
-4. On confirm, calls `/api/tarabut/connect` POST route
-5. Route generates Tarabut authorization URL from `D:\My Project\Finauraa\lib\tarabut\client.ts`
-6. User redirected to Tarabut consent flow
-7. After authorization, Tarabut redirects to callback with auth code
-8. Callback route exchanges code for accounts, stores in `bank_connections` and `bank_accounts` tables
-9. Subscription tier checked - free users limited to 1 connection, pro to 5, family to 15
+1. API route calls `requireBankConsent(supabase, user.id)`
+2. Middleware checks `user_consents` table for active `bank_access` consent
+3. If no consent: returns 403 with redirect to consent flow
+4. If expired: returns 403 with renewal message
+5. If valid: allows request to proceed, logs access for audit trail
 
 **State Management:**
 
-- **Client-side state:** Zustand stores in `D:\My Project\Finauraa\lib\stores\` (e.g., transaction filter state)
-- **Page state:** React useState in component files for UI state, scroll position, selection
-- **Server state:** Supabase tables (source of truth for all persistent data)
-- **Session state:** Supabase auth cookies managed by middleware
+- **UI State (Zustand):** Filter preferences (`lib/stores/transaction-filter-store.ts`), dialog open/close
+- **Server State (SWR):** Financial data cached with 5-second dedup window, revalidates on stale
+- **Auth State (Supabase):** Managed via middleware, accessed via `createClient()` hook
+- **Real-time:** Not currently used; data is polled/refetched on demand
 
 ## Key Abstractions
 
-**Consent System:**
+**useApiCall Hook:**
+- Purpose: Standardized async request handling with loading/error/data states
+- Examples: `hooks/use-api-call.ts`, `hooks/use-transactions.ts`, `hooks/use-spending.ts`
+- Pattern: Returns `{ execute, loading, error, data, reset }` object; supports transform functions for request/response
 
-- Purpose: Enforce BOBF/PDPL compliance for personal financial data access
-- Examples: `D:\My Project\Finauraa\lib\consent-middleware.ts`, `D:\My Project\Finauraa\lib\validations\consent.ts`, `D:\My Project\Finauraa\lib\audit.ts`
-- Pattern: Consent checked before database queries; access logged for audit trail; `requireBankConsent()` function used in all finance API routes
+**Consent Middleware:**
+- Purpose: Ensure all financial data access is PDPL-compliant
+- Examples: `lib/consent-middleware.ts` with `requireBankConsent()` and `requireDataSharingConsent()`
+- Pattern: Called first in API route, returns result object with detailed error codes
 
-**Feature Gating:**
+**Finance Manager Context:**
+- Purpose: Aggregate user's financial data into structured format for AI
+- Examples: `lib/ai/finance-manager.ts` exports `getFinanceManagerContext()`, `formatFinanceManagerContext()`
+- Pattern: Fetches raw data from multiple tables, calculates insights (spending patterns, budget warnings), returns typed `FinanceManagerContext` object
 
-- Purpose: Enforce subscription tier limitations on features and usage
-- Examples: `D:\My Project\Finauraa\lib\features.ts`, `D:\My Project\Finauraa\lib\features-server.ts`, `D:\My Project\Finauraa\lib\features-db.ts`
-- Pattern: `getTierLimits(tier)` returns limits; `checkUsageLimit()` validates usage; routes check tier and return appropriate errors
+**Message Content Types:**
+- Purpose: Extensible system for AI to include interactive UI components in chat
+- Examples: `balance-card`, `spending-analysis`, `action-buttons`, `savings-goals`
+- Pattern: API returns `richContent` array of objects with `type` and optional `data`; frontend renders via `RichContent` component with switch statement
 
-**AI Data Privacy Modes:**
-
-- Purpose: Allow users to choose between privacy-first (anonymized) and enhanced (full data) AI interactions
-- Examples: `D:\My Project\Finauraa\lib\ai\data-privacy.ts`
-- Pattern: Two context builders - `getAnonymizedUserContext()` (categories only) and `getEnhancedUserContext()` (full data); user preference stored in `ai_data_mode` on profile; system prompt varies by mode
-
-**Rich Content Components:**
-
-- Purpose: AI responses can trigger structured UI renders beyond text
-- Examples: `D:\My Project\Finauraa\components\chat\rich-content.tsx`, component cards in `D:\My Project\Finauraa\components\chat\cards\`
-- Pattern: AI returns JSON with `message` (text) and `richContent` array; each item has `type` (e.g., "balance-card", "spending-analysis") and optional `data`; components render accordingly
-
-**Message Storage & Conversation History:**
-
-- Purpose: Persist conversations for retrieval and continued chat context
-- Examples: `D:\My Project\Finauraa\app\api\conversations\` routes
-- Pattern: Conversations table indexed by user_id; Messages table stores role/content/timestamp; Client-side drawer in `D:\My Project\Finauraa\components\chat\conversation-history-drawer.tsx` lists past conversations
+**Transaction Filter Store:**
+- Purpose: Preserve filter state across navigation without re-fetching
+- Examples: `lib/stores/transaction-filter-store.ts` using Zustand
+- Pattern: Centralized store with `setFilters()`, `updateFilter()`, `consumePendingFilter()` actions
 
 ## Entry Points
 
-**Web Application Root:**
-- Location: `D:\My Project\Finauraa\app\page.tsx`
-- Triggers: Browser navigation to `/`
-- Responsibilities: Renders main chat interface with `ChatContainer` component, sidebar navigation, suspense boundary
+**Public Home/Chat:**
+- Location: `app/page.tsx`
+- Triggers: User visits `/`
+- Responsibilities: Renders chat interface with conversation history sidebar, manages initial bank connection prompt
 
-**Dashboard Entry:**
-- Location: `D:\My Project\Finauraa\app\dashboard\page.tsx`
-- Triggers: Browser navigation to `/dashboard`
-- Responsibilities: Renders dashboard with account overview, transactions, budgets, sidebar, bottom nav
+**Dashboard:**
+- Location: `app/dashboard/page.tsx`
+- Triggers: User visits `/dashboard`
+- Responsibilities: Navigation hub for viewing accounts, transactions, budgets, goals
 
 **Authentication Pages:**
-- Location: `D:\My Project\Finauraa\app\login\page.tsx`, `D:\My Project\Finauraa\app\signup\page.tsx`
-- Triggers: Unauthenticated users or explicit navigation
-- Responsibilities: Supabase Auth UI integration
+- Location: `app/login/`, `app/signup/`, `app/forgot-password/`, `app/reset-password/`
+- Triggers: User navigates to auth routes
+- Responsibilities: Form handling via Supabase auth
 
-**API Endpoints:**
-- Chat: `D:\My Project\Finauraa\app\api\chat\route.ts` - POST messages for AI responses
-- Finance: `D:\My Project\Finauraa\app\api\finance\*\route.ts` - GET accounts, transactions, budgets, savings goals
-- Family: `D:\My Project\Finauraa\app\api\family\*\route.ts` - Family group management
-- Tarabut: `D:\My Project\Finauraa\app\api\tarabut\*\route.ts` - Bank connection flows
-- Consents: `D:\My Project\Finauraa\app\api\consents\*\route.ts` - Consent management
-- Cron: `D:\My Project\Finauraa\app\api\cron\*\route.ts` - Data retention, consent expiration cleanup
+**API Routes (All):**
+- Location: `app/api/**/*.ts` route.ts files
+- Triggers: Client-side fetch calls
+- Responsibilities: Request validation, auth checks, consent verification, data transformation
 
 ## Error Handling
 
-**Strategy:** Multi-layer error handling with specific status codes and user-friendly messages
+**Strategy:** Graceful degradation with detailed client-facing error messages; sensitive errors logged server-side.
 
 **Patterns:**
 
-**Authentication Errors (401):**
-- No user found: Return 401, client redirects to login
-- Example: `D:\My Project\Finauraa\app\api\chat\route.ts:151`
+1. **API Errors:**
+   - 401: Unauthorized (user not authenticated) - redirects to login
+   - 403: Forbidden (consent missing/expired/revoked) - shows consent prompt
+   - 400: Bad request (validation failure) - returns `{ error: "...", details: [...] }`
+   - 429: Rate limited (too many requests) - returns reset time
+   - 500: Server error - logs to Sentry, returns generic "something went wrong"
 
-**Authorization Errors (403):**
-- User lacks required consent
-- Consent expired or revoked
-- Example: `D:\My Project\Finauraa\lib\consent-middleware.ts` returns 403 with detailed error
+2. **Consent Errors:**
+   - Catch-all middleware in every finance API route
+   - Specific error codes: `CONSENT_REVOKED`, `CONSENT_EXPIRED`, `NO_CONSENT`, `NO_BANKS`
+   - Each code triggers different UI flow (re-consent, renewal, or initial setup)
 
-**Rate Limiting (429):**
-- Per-minute rate limit exceeded
-- Monthly AI query limit exceeded
-- Example: `D:\My Project\Finauraa\app\api\chat\route.ts:154-168` includes rate limit headers and reset time
-- Headers: `RateLimit-Limit`, `RateLimit-Remaining`, `RateLimit-Reset`
+3. **Injection/Security Errors:**
+   - `lib/ai/sanitize.ts` detects prompt injection in user messages
+   - High risk: blocks request, logs security event
+   - Medium risk: logs warning, allows through
 
-**Validation Errors (400):**
-- Missing required fields
-- Invalid request format
-- Prompt injection detected (sanitization fails)
-- Example: `D:\My Project\Finauraa\app\api\chat\route.ts:223-228`
-
-**Server Errors (500):**
-- Database query failures
-- External service failures
-- Wrapped with try-catch at route level
-- Example: `D:\My Project\Finauraa\app\api\chat\route.ts:330-359` includes specific error categorization and retryable flag
-
-**Presentation Errors:**
-- Toast notifications via Sonner: `D:\My Project\Finauraa\components\ui\sonner.tsx`
-- Empty states for no data: `D:\My Project\Finauraa\components\ui\empty-state.tsx`
-- Skeleton loaders for pending data: Components use animate-pulse classes
+4. **Rate Limit Errors:**
+   - Chat endpoint returns 429 with `{ remaining, limit, tier, upgradeRequired }`
+   - Frontend shows "too many requests" with upgrade prompt if needed
 
 ## Cross-Cutting Concerns
 
-**Logging:**
-- Security events logged: Injection attempts, rate limit violations, unusual input patterns
-- Function: `logSecurityEvent()` in `D:\My Project\Finauraa\lib\ai\sanitize.ts`
-- Audit trail: `logAuditEvent()` in `D:\My Project\Finauraa\lib\audit.ts` for all data access
-- Console errors in production catch blocks for debugging
+**Logging:** Console in development, Sentry in production for errors; audit trail in database for financial data access.
 
-**Validation:**
-- Input sanitization in `D:\My Project\Finauraa\lib\ai\sanitize.ts` - detects prompt injection attempts, classifies risk level (low/medium/high)
-- Zod validation in `D:\My Project\Finauraa\lib\validations\` for structured data (consent, family, etc.)
-- Type-safe database queries with Supabase TypeScript client
+**Validation:** Zod schemas in `lib/validations/` for request bodies (consents, family, etc.); type-safe via `validateRequestBody()` utility.
 
-**Authentication:**
-- Session managed via Supabase JWT in cookies
-- Middleware refreshes session on every request
-- User object available via `supabase.auth.getUser()` in API routes
-- Protected routes redirect to login if no user
+**Authentication:** Supabase auth (magic link, password, OAuth) via `createClient()` which handles session refresh; middleware in place on all protected routes.
 
-**Data Privacy & Consent:**
-- Consent middleware checks before all financial data access
-- Two AI modes respect user privacy preference
-- Anonymization functions transform exact amounts to categories
-- Audit trail tracks all financial data accesses with timestamps and endpoints
+**Security:**
+- All financial data behind consent checks and RLS policies
+- User input sanitized against prompt injection before Claude
+- API keys stored in env vars (never exposed)
+- CORS not needed (same-origin API)
+- PDPL audit logging on data access
+
+**Data Privacy:**
+- Two AI modes: privacy-first (anonymized) and enhanced (full context) based on user consent
+- `lib/ai/data-privacy.ts` handles context anonymization
+- System prompts differ based on mode with explicit "don't invent data" rules
+
+---
+
+*Architecture analysis: 2026-01-25*
