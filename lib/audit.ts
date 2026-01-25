@@ -29,7 +29,11 @@ export type AuditActionType =
   | "subscription_updated"
   | "subscription_canceled"
   | "payment_succeeded"
-  | "payment_failed";
+  | "payment_failed"
+  | "admin_action"
+  | "admin_grant"
+  | "admin_revoke"
+  | "admin_access_denied";
 
 export type AuditResourceType =
   | "profile"
@@ -42,7 +46,10 @@ export type AuditResourceType =
   | "subscription"
   | "payment"
   | "export"
-  | "deletion";
+  | "deletion"
+  | "admin"
+  | "feature_flag"
+  | "system_config";
 
 export type AuditPerformedBy = "user" | "system" | "admin" | "webhook" | "cron";
 
@@ -251,5 +258,45 @@ export async function logPaymentEvent(
     resourceId,
     performedBy: "webhook",
     requestDetails: details,
+  });
+}
+
+/**
+ * Log admin actions (admin performed privileged operation)
+ */
+export async function logAdminAction(
+  adminUserId: string,
+  action: "admin_action" | "admin_grant" | "admin_revoke",
+  resourceType: AuditResourceType,
+  resourceId?: string,
+  details?: Record<string, unknown>
+): Promise<string | null> {
+  return logAuditEvent({
+    userId: adminUserId,
+    actionType: action,
+    resourceType,
+    resourceId,
+    performedBy: "admin",
+    requestDetails: details,
+  });
+}
+
+/**
+ * Log admin access denied (non-admin attempted admin-only action)
+ */
+export async function logAdminAccessDenied(
+  userId: string,
+  attemptedAction: string,
+  details?: Record<string, unknown>
+): Promise<string | null> {
+  return logAuditEvent({
+    userId,
+    actionType: "admin_access_denied",
+    resourceType: "admin",
+    performedBy: "user",
+    requestDetails: {
+      attempted_action: attemptedAction,
+      ...details,
+    },
   });
 }
