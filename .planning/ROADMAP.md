@@ -46,10 +46,11 @@ Plans:
   2. Stripe webhook payloads are validated with Zod schemas before type casting
   3. Invalid webhook signatures are rejected with appropriate logging
   4. Malformed webhook payloads are rejected before reaching business logic
-**Plans**: TBD
+**Plans**: 2 plans
 
 Plans:
-- [ ] TBD after planning
+- [ ] 02-01-PLAN.md - Zod schemas for Stripe events + timing-safe HMAC utility
+- [ ] 02-02-PLAN.md - Integrate validation + idempotency + security tests
 
 ### Phase 3: API Security
 **Goal**: External API calls handle authentication securely with proper error handling
@@ -118,7 +119,7 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Critical Infrastructure Fixes | 2/2 | Complete ✓ | 2026-01-25 |
-| 2. Webhook Security | 0/TBD | Not started | - |
+| 2. Webhook Security | 0/2 | Planned | - |
 | 3. API Security | 0/TBD | Not started | - |
 | 4. AI Security | 0/TBD | Not started | - |
 | 5. User-Facing Features | 0/TBD | Not started | - |
@@ -126,4 +127,4 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6
 
 ---
 *Roadmap created: 2026-01-25*
-*Last updated: 2026-01-25 — Phase 1 complete*
+*Last updated: 2026-01-25 — Phase 2 planned*
