@@ -14,6 +14,45 @@ export type Database = {
   }
   public: {
     Tables: {
+      admin_users: {
+        Row: {
+          id: string
+          user_id: string
+          granted_by: string | null
+          granted_at: string
+          revoked_at: string | null
+          revoked_by: string | null
+          reason: string | null
+          is_active: boolean
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          granted_by?: string | null
+          granted_at?: string
+          revoked_at?: string | null
+          revoked_by?: string | null
+          reason?: string | null
+          is_active?: boolean
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          granted_by?: string | null
+          granted_at?: string
+          revoked_at?: string | null
+          revoked_by?: string | null
+          reason?: string | null
+          is_active?: boolean
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       bank_accounts: {
         Row: {
           account_id: string
