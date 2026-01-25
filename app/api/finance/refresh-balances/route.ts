@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createTarabutClient } from "@/lib/tarabut/client";
+import { tokenManager } from "@/lib/tarabut/token-manager";
 import { requireBankConsent } from "@/lib/consent-middleware";
 
 /**
@@ -47,6 +48,8 @@ export async function POST() {
         id,
         bank_id,
         bank_name,
+        access_token,
+        token_expires_at,
         bank_accounts (
           id,
           account_id
@@ -64,66 +67,69 @@ export async function POST() {
     }
 
     const client = createTarabutClient();
-    const tokenResponse = await client.getAccessToken(user.id);
-    const accessToken = tokenResponse.accessToken;
 
     let accountsUpdated = 0;
     const errors: string[] = [];
 
-    // Flatten all accounts from all connections
-    const allAccounts = connections.flatMap((conn) =>
-      (conn.bank_accounts || []).map((acc) => ({
-        ...acc,
-        connectionId: conn.id,
-        bankName: conn.bank_name,
-      }))
-    );
-
-    // Update balances for each account
-    for (const account of allAccounts) {
+    // Process each connection with its own token validation
+    for (const connection of connections) {
       try {
-        const balanceResponse = await client.getAccountBalance(
-          accessToken,
-          account.account_id
-        );
-        const balances = balanceResponse.balances || [];
-        const currentBalance =
-          balances.find((b) => b.type === "Current") || balances[0];
+        // Get valid token (refreshes if needed)
+        const tokenResult = await tokenManager.getValidToken(user.id, {
+          access_token: connection.access_token,
+          token_expires_at: connection.token_expires_at,
+        });
 
-        if (currentBalance) {
+        // Update database if token was refreshed
+        if (tokenResult.shouldUpdate) {
           await supabase
-            .from("bank_accounts")
+            .from("bank_connections")
             .update({
-              balance: currentBalance.amount.value,
-              available_balance: currentBalance.amount.value,
-              last_synced_at: new Date().toISOString(),
+              access_token: tokenResult.accessToken,
+              token_expires_at: tokenResult.expiresAt.toISOString(),
               updated_at: new Date().toISOString(),
             })
-            .eq("id", account.id);
-
-          accountsUpdated++;
+            .eq("id", connection.id);
         }
-      } catch (balanceError) {
-        console.error(
-          `Balance fetch error for ${account.account_id}:`,
-          balanceError
-        );
-        errors.push(`${account.bankName}: Failed to fetch balance`);
-      }
-    }
 
-    // Update connection tokens
-    for (const connection of connections) {
-      await supabase
-        .from("bank_connections")
-        .update({
-          access_token: accessToken,
-          token_expires_at: new Date(
-            Date.now() + tokenResponse.expiresIn * 1000
-          ).toISOString(),
-          updated_at: new Date().toISOString(),
-        })
-        .eq("id", connection.id);
+        const accessToken = tokenResult.accessToken;
+
+        // Update balances for this connection's accounts
+        for (const account of connection.bank_accounts || []) {
+          try {
+            const balanceResponse = await client.getAccountBalance(
+              accessToken,
+              account.account_id
+            );
+            const balances = balanceResponse.balances || [];
+            const currentBalance =
+              balances.find((b) => b.type === "Current") || balances[0];
+
+            if (currentBalance) {
+              await supabase
+                .from("bank_accounts")
+                .update({
+                  balance: currentBalance.amount.value,
+                  available_balance: currentBalance.amount.value,
+                  last_synced_at: new Date().toISOString(),
+                  updated_at: new Date().toISOString(),
+                })
+                .eq("id", account.id);
+
+              accountsUpdated++;
+            }
+          } catch (balanceError) {
+            console.error(
+              `Balance fetch error for ${account.account_id}:`,
+              balanceError
+            );
+            errors.push(`${connection.bank_name}: Failed to fetch balance`);
+          }
+        }
+      } catch (connectionError) {
+        console.error(`Error processing connection ${connection.id}:`, connectionError);
+        errors.push(`${connection.bank_name}: Failed to refresh token`);
+      }
     }
 
     return NextResponse.json({

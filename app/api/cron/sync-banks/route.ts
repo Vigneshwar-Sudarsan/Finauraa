@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createTarabutClient } from "@/lib/tarabut/client";
+import { tokenManager } from "@/lib/tarabut/token-manager";
 import { SYNC_CONFIG } from "@/lib/sync-config";
 
 /**
@@ -38,6 +39,8 @@ export async function GET(request: Request) {
         user_id,
         bank_id,
         bank_name,
+        access_token,
+        token_expires_at,
         bank_accounts (
           id,
           account_id,
@@ -153,6 +156,8 @@ async function syncUserBanks(
     id: string;
     bank_id: string;
     bank_name: string;
+    access_token: string;
+    token_expires_at: string;
     bank_accounts: Array<{
       id: string;
       account_id: string;
@@ -166,24 +171,29 @@ async function syncUserBanks(
     errors: [] as string[],
   };
 
-  try {
-    // Get access token for this user
-    const tokenResponse = await client.getAccessToken(userId);
-    const accessToken = tokenResponse.accessToken;
+  for (const connection of connections) {
+    try {
+      // Get valid token (refreshes if needed)
+      const tokenResult = await tokenManager.getValidToken(userId, {
+        access_token: connection.access_token,
+        token_expires_at: connection.token_expires_at,
+      });
 
-    for (const connection of connections) {
-      try {
-        // Update connection token
+      // Update database if token was refreshed
+      if (tokenResult.shouldUpdate) {
         await supabase
           .from("bank_connections")
           .update({
-            access_token: accessToken,
-            token_expires_at: new Date(
-              Date.now() + tokenResponse.expiresIn * 1000
-            ).toISOString(),
+            access_token: tokenResult.accessToken,
+            token_expires_at: tokenResult.expiresAt.toISOString(),
             updated_at: new Date().toISOString(),
           })
           .eq("id", connection.id);
+      }
+
+      const accessToken = tokenResult.accessToken;
+
+      try {
 
         // Process each account
         for (const account of connection.bank_accounts || []) {
@@ -288,10 +298,10 @@ async function syncUserBanks(
         );
         result.errors.push(`${connection.bank_name}: Connection sync failed`);
       }
+    } catch (tokenError) {
+      console.error(`Error getting token for connection ${connection.id}:`, tokenError);
+      result.errors.push(`${connection.bank_name}: Token refresh failed`);
     }
-  } catch (tokenError) {
-    console.error(`Error getting token for user ${userId}:`, tokenError);
-    result.errors.push(`User ${userId}: Token fetch failed`);
   }
 
   return result;
