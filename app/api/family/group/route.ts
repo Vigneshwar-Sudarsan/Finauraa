@@ -35,8 +35,12 @@ export async function GET() {
       return NextResponse.json({ error: "Profile not found" }, { status: 404 });
     }
 
-    // Check if user has family tier
-    if (profile.subscription_tier !== "family") {
+    // Check if user is a member of a family group (via family_group_id)
+    // This allows invited members who don't own the family tier to access the page
+    const isFamilyMember = !!profile.family_group_id;
+
+    // Check if user has family tier OR is already a family group member
+    if (profile.subscription_tier !== "family" && !isFamilyMember) {
       return NextResponse.json(
         { error: "Family tier subscription required", requiresUpgrade: true },
         { status: 403 }
@@ -246,7 +250,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Add owner as first member
+    // Add owner as first member (auto-enable spending consent for owner)
     const { error: memberError } = await supabase.from("family_members").insert({
       group_id: group.id,
       user_id: user.id,
@@ -256,6 +260,8 @@ export async function POST(request: NextRequest) {
       invited_at: new Date().toISOString(),
       joined_at: new Date().toISOString(),
       status: "active",
+      spending_consent_given: true,
+      spending_consent_at: new Date().toISOString(),
     });
 
     if (memberError) {

@@ -5,8 +5,18 @@
 
 import { Resend } from "resend";
 
-// Initialize Resend client
-const resend = new Resend(process.env.RESEND_API_KEY);
+// Lazy-initialized Resend client to avoid build-time errors
+let resend: Resend | null = null;
+
+function getResendClient(): Resend | null {
+  if (!process.env.RESEND_API_KEY) {
+    return null;
+  }
+  if (!resend) {
+    resend = new Resend(process.env.RESEND_API_KEY);
+  }
+  return resend;
+}
 
 // Email sender configuration
 const FROM_EMAIL = process.env.EMAIL_FROM || "Finauraa <notifications@send.finauraa.com>";
@@ -29,7 +39,8 @@ export async function sendConsentExpiryWarning(
   providerName: string | null,
   expiresAt: string
 ): Promise<EmailResult> {
-  if (!process.env.RESEND_API_KEY) {
+  const client = getResendClient();
+  if (!client) {
     console.log("RESEND_API_KEY not configured, skipping email");
     return { success: false, error: "Email service not configured" };
   }
@@ -46,7 +57,7 @@ export async function sendConsentExpiryWarning(
     : "Your bank data consent expires soon";
 
   try {
-    const { data, error } = await resend.emails.send({
+    const { data, error } = await client.emails.send({
       from: FROM_EMAIL,
       to: email,
       subject,
@@ -115,7 +126,8 @@ export async function sendPaymentFailedNotification(
   currency: string,
   failureReason?: string
 ): Promise<EmailResult> {
-  if (!process.env.RESEND_API_KEY) {
+  const client = getResendClient();
+  if (!client) {
     console.log("RESEND_API_KEY not configured, skipping email");
     return { success: false, error: "Email service not configured" };
   }
@@ -126,7 +138,7 @@ export async function sendPaymentFailedNotification(
   }).format(amount / 100); // Stripe amounts are in smallest unit
 
   try {
-    const { data, error } = await resend.emails.send({
+    const { data, error } = await client.emails.send({
       from: FROM_EMAIL,
       to: email,
       subject: "Payment Failed - Action Required",
@@ -198,7 +210,8 @@ export async function sendTrialEndingNotification(
   userName: string,
   trialEndDate: string
 ): Promise<EmailResult> {
-  if (!process.env.RESEND_API_KEY) {
+  const client = getResendClient();
+  if (!client) {
     console.log("RESEND_API_KEY not configured, skipping email");
     return { success: false, error: "Email service not configured" };
   }
@@ -211,7 +224,7 @@ export async function sendTrialEndingNotification(
   });
 
   try {
-    const { data, error } = await resend.emails.send({
+    const { data, error } = await client.emails.send({
       from: FROM_EMAIL,
       to: email,
       subject: "Your trial ends soon - Keep your Pro features",
@@ -278,13 +291,14 @@ export async function sendDataExportReadyNotification(
   userName: string,
   downloadUrl: string
 ): Promise<EmailResult> {
-  if (!process.env.RESEND_API_KEY) {
+  const client = getResendClient();
+  if (!client) {
     console.log("RESEND_API_KEY not configured, skipping email");
     return { success: false, error: "Email service not configured" };
   }
 
   try {
-    const { data, error } = await resend.emails.send({
+    const { data, error } = await client.emails.send({
       from: FROM_EMAIL,
       to: email,
       subject: "Your data export is ready",
@@ -344,13 +358,14 @@ export async function sendFamilyInvitationEmail(
   groupName: string,
   acceptUrl: string
 ): Promise<EmailResult> {
-  if (!process.env.RESEND_API_KEY) {
+  const client = getResendClient();
+  if (!client) {
     console.log("RESEND_API_KEY not configured, skipping email");
     return { success: false, error: "Email service not configured" };
   }
 
   try {
-    const { data, error } = await resend.emails.send({
+    const { data, error } = await client.emails.send({
       from: FROM_EMAIL,
       to: email,
       subject: `You've been invited to join ${groupName} on Finauraa`,
@@ -376,7 +391,7 @@ export async function sendFamilyInvitationEmail(
       </p>
     </div>
 
-    <p style="font-size: 16px;">As part of a Family Plan, you'll get access to:</p>
+    <p style="font-size: 16px;">As part of this family group, you'll get access to:</p>
     <ul style="font-size: 14px; color: #666;">
       <li>Your own private financial dashboard</li>
       <li>AI-powered spending insights</li>
@@ -423,13 +438,14 @@ export async function sendMemberJoinedNotification(
   memberName: string,
   groupName: string
 ): Promise<EmailResult> {
-  if (!process.env.RESEND_API_KEY) {
+  const client = getResendClient();
+  if (!client) {
     console.log("RESEND_API_KEY not configured, skipping email");
     return { success: false, error: "Email service not configured" };
   }
 
   try {
-    const { data, error } = await resend.emails.send({
+    const { data, error } = await client.emails.send({
       from: FROM_EMAIL,
       to: ownerEmail,
       subject: `${memberName} joined ${groupName}`,
@@ -455,7 +471,7 @@ export async function sendMemberJoinedNotification(
       </p>
     </div>
 
-    <p style="font-size: 16px;">They now have access to their own personal financial dashboard within your family plan.</p>
+    <p style="font-size: 16px;">They now have access to their own personal financial dashboard within your family group.</p>
 
     <div style="text-align: center; margin: 30px 0;">
       <a href="${APP_URL}/dashboard/settings/family" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 14px 28px; text-decoration: none; border-radius: 8px; font-weight: 600; display: inline-block;">Manage Family Group</a>
@@ -493,7 +509,8 @@ export async function sendMemberRemovedNotification(
   groupName: string,
   wasRemoved: boolean = true
 ): Promise<EmailResult> {
-  if (!process.env.RESEND_API_KEY) {
+  const client = getResendClient();
+  if (!client) {
     console.log("RESEND_API_KEY not configured, skipping email");
     return { success: false, error: "Email service not configured" };
   }
@@ -507,7 +524,7 @@ export async function sendMemberRemovedNotification(
     : `You have successfully left <strong>${groupName}</strong>.`;
 
   try {
-    const { data, error } = await resend.emails.send({
+    const { data, error } = await client.emails.send({
       from: FROM_EMAIL,
       to: memberEmail,
       subject,
@@ -531,12 +548,12 @@ export async function sendMemberRemovedNotification(
 
     <p style="font-size: 16px;">What this means:</p>
     <ul style="font-size: 14px; color: #666;">
-      <li>You no longer have access to the family plan benefits</li>
+      <li>You no longer have access to the family group benefits</li>
       <li>Your personal data and transaction history remain intact</li>
       <li>You can still use Finauraa with a free account</li>
     </ul>
 
-    <p style="font-size: 16px;">Want to continue with premium features? You can upgrade to your own Pro or Family plan.</p>
+    <p style="font-size: 16px;">Want to continue with premium features? You can upgrade to your own Pro plan.</p>
 
     <div style="text-align: center; margin: 30px 0;">
       <a href="${APP_URL}/dashboard/settings/subscription" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 14px 28px; text-decoration: none; border-radius: 8px; font-weight: 600; display: inline-block;">View Plans</a>

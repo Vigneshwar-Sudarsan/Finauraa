@@ -24,6 +24,7 @@ import {
   Clock,
 } from "@phosphor-icons/react";
 import { cn } from "@/lib/utils";
+import { formatDate } from "@/lib/date-utils";
 import { useBankConnection } from "@/hooks/use-bank-connection";
 
 interface BankConnection {
@@ -83,15 +84,6 @@ export function ConnectionsList() {
     } finally {
       setDeletingId(null);
     }
-  };
-
-  const formatDate = (dateString: string) => {
-    const date = new Date(dateString);
-    return date.toLocaleDateString("en-US", {
-      month: "short",
-      day: "numeric",
-      year: "numeric",
-    });
   };
 
   const getStatusIcon = (status: string) => {

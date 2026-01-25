@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { cn } from "@/lib/utils";
+import { cn, formatCurrency } from "@/lib/utils";
 
 interface BudgetCardProps {
   data?: Record<string, unknown>;
@@ -34,14 +34,6 @@ export function BudgetCard({ data, onAction, disabled }: BudgetCardProps) {
   const suggestedAmount = (data?.suggestedAmount as number) ?? 0;
 
   const label = CATEGORY_LABELS[category.toLowerCase()] ?? category;
-
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat("en-BH", {
-      style: "currency",
-      currency: currency,
-      minimumFractionDigits: 3,
-    }).format(amount);
-  };
 
   // If it's a setup card (interactive) and not disabled
   if (isSetup && !disabled) {
@@ -140,15 +132,6 @@ function BudgetSetupCard({
       setIsSubmitting(true);
       onSubmit(numAmount);
     }
-  };
-
-  const formatCurrency = (amt: number) => {
-    return new Intl.NumberFormat("en-BH", {
-      style: "currency",
-      currency: currency,
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 0,
-    }).format(amt);
   };
 
   return (

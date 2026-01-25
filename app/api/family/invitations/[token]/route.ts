@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { respondToInvitationSchema } from "@/lib/validations/family";
 import { validateRequestBody, formatZodError } from "@/lib/validations/consent";
+import { sendMemberJoinedNotification } from "@/lib/email";
 
 /**
  * GET /api/family/invitations/[token]
@@ -15,7 +16,7 @@ export async function GET(
     const { token } = await params;
     const supabase = await createClient();
 
-    // Fetch invitation by token
+    // Fetch invitation by token (includes cached inviter/group names for public display)
     const { data: invitation, error } = await supabase
       .from("family_members")
       .select(`
@@ -26,7 +27,9 @@ export async function GET(
         invited_by,
         invited_at,
         status,
-        invitation_expires_at
+        invitation_expires_at,
+        inviter_name,
+        group_name
       `)
       .eq("invitation_token", token)
       .single();
@@ -75,11 +78,18 @@ export async function GET(
       .eq("group_id", invitation.group_id)
       .eq("status", "active");
 
+    // Use cached names as fallback when RLS blocks access to related tables (for unauthenticated users)
     return NextResponse.json({
       invitation: {
         ...invitation,
-        group: group ? { ...group, member_count: count || 0 } : null,
-        inviter,
+        group: group
+          ? { ...group, member_count: count || 0 }
+          : invitation.group_name
+            ? { id: invitation.group_id, name: invitation.group_name, member_count: 0 }
+            : null,
+        inviter: inviter || (invitation.inviter_name
+          ? { id: invitation.invited_by, full_name: invitation.inviter_name, email: null }
+          : null),
       },
     });
   } catch (error) {
@@ -226,12 +236,37 @@ export async function POST(
       .update({ family_group_id: invitation.group_id })
       .eq("id", user.id);
 
-    // Fetch group name for response
+    // Fetch group details and owner info for notification
     const { data: group } = await supabase
       .from("family_groups")
-      .select("name")
+      .select("name, owner_id")
       .eq("id", invitation.group_id)
       .single();
+
+    // Fetch owner's profile to send notification
+    if (group?.owner_id) {
+      const { data: ownerProfile } = await supabase
+        .from("profiles")
+        .select("email, full_name")
+        .eq("id", group.owner_id)
+        .single();
+
+      const { data: memberProfile } = await supabase
+        .from("profiles")
+        .select("full_name, email")
+        .eq("id", user.id)
+        .single();
+
+      // Send notification to owner that a member joined
+      if (ownerProfile?.email) {
+        await sendMemberJoinedNotification(
+          ownerProfile.email,
+          ownerProfile.full_name || "there",
+          memberProfile?.full_name || memberProfile?.email || invitation.email,
+          group.name || "your family group"
+        );
+      }
+    }
 
     return NextResponse.json({
       message: `Successfully joined ${group?.name || "the family group"}`,

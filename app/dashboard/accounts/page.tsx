@@ -1,28 +1,9 @@
-import { Suspense } from "react";
 import { AppSidebar } from "@/components/app-sidebar";
 import { SidebarProvider, SidebarInset } from "@/components/ui/sidebar";
-import { DashboardContent } from "@/components/dashboard/dashboard-content";
+import { AccountsContent } from "@/components/dashboard/accounts-content";
 import { DashboardBottomNav } from "@/components/dashboard/dashboard-bottom-nav";
 
 export const dynamic = "force-dynamic";
-
-function AccountsLoading() {
-  return (
-    <div className="h-dvh w-full flex items-center justify-center">
-      <div className="flex items-center gap-2 text-muted-foreground">
-        <div className="size-2 bg-foreground/40 rounded-full animate-pulse" />
-        <div
-          className="size-2 bg-foreground/40 rounded-full animate-pulse"
-          style={{ animationDelay: "150ms" }}
-        />
-        <div
-          className="size-2 bg-foreground/40 rounded-full animate-pulse"
-          style={{ animationDelay: "300ms" }}
-        />
-      </div>
-    </div>
-  );
-}
 
 export default function AccountsPage() {
   return (
@@ -30,9 +11,7 @@ export default function AccountsPage() {
       <AppSidebar className="hidden md:flex" />
       <SidebarInset>
         <main className="h-dvh w-full flex flex-col overflow-hidden pb-16 md:pb-0">
-          <Suspense fallback={<AccountsLoading />}>
-            <DashboardContent />
-          </Suspense>
+          <AccountsContent />
         </main>
         <DashboardBottomNav />
       </SidebarInset>

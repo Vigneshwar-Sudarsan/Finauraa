@@ -1,14 +1,15 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { TierBadge, FeatureBadge } from "@/components/ui/tier-badge";
+import { useProfile } from "@/hooks/use-profile";
 import {
   User,
   Envelope,
@@ -30,36 +31,13 @@ import {
   Target,
 } from "@phosphor-icons/react";
 
-interface ProfileContentProps {
-  userId: string;
-  userEmail: string;
-}
-
-interface ProfileData {
-  full_name: string | null;
-  avatar_url: string | null;
-  email: string | null;
-  is_pro: boolean;
-  subscription_tier: "free" | "pro" | "family";
-  created_at: string;
-}
-
-interface AccountStats {
-  connectedBanks: number;
-  totalAccounts: number;
-  transactionCount: number;
-  oldestTransaction: string | null;
-  budgetCount: number;
-  goalsCount: number;
-}
-
-export function ProfileContent({ userId, userEmail }: ProfileContentProps) {
+export function ProfileContent() {
   const supabase = createClient();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const [profile, setProfile] = useState<ProfileData | null>(null);
-  const [stats, setStats] = useState<AccountStats | null>(null);
-  const [loading, setLoading] = useState(true);
+  // Use SWR hook for cached data
+  const { profile, stats, userId, userEmail, isLoading, mutate } = useProfile();
+
   const [saving, setSaving] = useState(false);
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
   const [exporting, setExporting] = useState(false);
@@ -69,65 +47,15 @@ export function ProfileContent({ userId, userEmail }: ProfileContentProps) {
   const [isEditingName, setIsEditingName] = useState(false);
   const [editedName, setEditedName] = useState("");
 
+  // Sync editedName with profile
   useEffect(() => {
-    fetchProfileData();
-  }, [userId]);
-
-  const fetchProfileData = async () => {
-    try {
-      // Fetch profile and subscription data in parallel
-      const [profileResult, subscriptionResult] = await Promise.all([
-        supabase
-          .from("profiles")
-          .select("*")
-          .eq("id", userId)
-          .single(),
-        fetch("/api/subscription").then(res => res.ok ? res.json() : null).catch(() => null)
-      ]);
-
-      if (profileResult.error) throw profileResult.error;
-
-      // Merge subscription tier from API (most accurate) with profile data
-      const profileData = {
-        ...profileResult.data,
-        subscription_tier: subscriptionResult?.subscription?.tier || profileResult.data.subscription_tier || "free"
-      };
-
-      setProfile(profileData);
-      setEditedName(profileData.full_name || "");
-
-      // Fetch stats
-      const [
-        { count: bankCount },
-        { count: accountCount },
-        { count: transactionCount },
-        { data: oldestTx },
-        { count: budgetCount },
-      ] = await Promise.all([
-        supabase.from("bank_connections").select("*", { count: "exact", head: true }).eq("user_id", userId),
-        supabase.from("bank_accounts").select("*", { count: "exact", head: true }).eq("user_id", userId),
-        supabase.from("transactions").select("*", { count: "exact", head: true }).eq("user_id", userId),
-        supabase.from("transactions").select("transaction_date").eq("user_id", userId).order("transaction_date", { ascending: true }).limit(1),
-        supabase.from("budgets").select("*", { count: "exact", head: true }).eq("user_id", userId),
-      ]);
-
-      setStats({
-        connectedBanks: bankCount || 0,
-        totalAccounts: accountCount || 0,
-        transactionCount: transactionCount || 0,
-        oldestTransaction: oldestTx?.[0]?.transaction_date || null,
-        budgetCount: budgetCount || 0,
-        goalsCount: 0, // Placeholder if savings_goals table exists
-      });
-    } catch (error) {
-      console.error("Error fetching profile:", error);
-    } finally {
-      setLoading(false);
+    if (profile?.full_name) {
+      setEditedName(profile.full_name);
     }
-  };
+  }, [profile?.full_name]);
 
   const handleSaveName = async () => {
-    if (!editedName.trim()) return;
+    if (!editedName.trim() || !userId) return;
 
     setSaving(true);
     try {
@@ -138,7 +66,8 @@ export function ProfileContent({ userId, userEmail }: ProfileContentProps) {
 
       if (error) throw error;
 
-      setProfile(prev => prev ? { ...prev, full_name: editedName.trim() } : null);
+      // Revalidate the cache
+      mutate();
       setIsEditingName(false);
     } catch (error) {
       console.error("Error saving name:", error);
@@ -154,7 +83,7 @@ export function ProfileContent({ userId, userEmail }: ProfileContentProps) {
 
   const handleAvatarChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (!file) return;
+    if (!file || !userId) return;
 
     // Validate file type
     if (!file.type.startsWith("image/")) {
@@ -194,7 +123,8 @@ export function ProfileContent({ userId, userEmail }: ProfileContentProps) {
 
       if (updateError) throw updateError;
 
-      setProfile(prev => prev ? { ...prev, avatar_url: publicUrl } : null);
+      // Revalidate the cache
+      mutate();
     } catch (error) {
       console.error("Error uploading avatar:", error);
       alert("Failed to upload avatar. Please try again.");
@@ -204,7 +134,7 @@ export function ProfileContent({ userId, userEmail }: ProfileContentProps) {
   };
 
   const handleExportData = async () => {
-    if (!profile || profile.subscription_tier === "free") {
+    if (!profile || profile.subscription_tier === "free" || !userId) {
       alert("Data export is a Pro feature. Upgrade to Pro for $7.99/month to export your financial data.");
       return;
     }
@@ -308,21 +238,84 @@ export function ProfileContent({ userId, userEmail }: ProfileContentProps) {
     return `${years} years, ${remainingMonths} months`;
   };
 
-  if (loading) {
+  if (isLoading) {
     return (
       <div className="space-y-6">
+        {/* Profile Header Card Skeleton */}
         <Card>
           <CardHeader>
-            <div className="h-6 bg-muted animate-pulse rounded w-32" />
-            <div className="h-4 bg-muted animate-pulse rounded w-48 mt-2" />
+            <div className="flex items-center gap-2">
+              <div className="h-5 w-5 bg-muted animate-pulse rounded" />
+              <div className="h-5 bg-muted animate-pulse rounded w-36" />
+            </div>
+            <div className="h-4 bg-muted animate-pulse rounded w-64 mt-2" />
+          </CardHeader>
+          <CardContent className="space-y-6">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center gap-6">
+              <div className="h-24 w-24 bg-muted animate-pulse rounded-full" />
+              <div className="flex-1 space-y-3">
+                <div className="space-y-1">
+                  <div className="h-3 w-16 bg-muted animate-pulse rounded" />
+                  <div className="h-6 w-40 bg-muted animate-pulse rounded" />
+                </div>
+                <div className="space-y-1">
+                  <div className="h-3 w-20 bg-muted animate-pulse rounded" />
+                  <div className="h-4 w-48 bg-muted animate-pulse rounded" />
+                </div>
+              </div>
+            </div>
+            <Separator />
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              {[1, 2, 3, 4].map((i) => (
+                <div key={i} className="space-y-1">
+                  <div className="h-3 w-12 bg-muted animate-pulse rounded" />
+                  <div className="h-5 w-20 bg-muted animate-pulse rounded" />
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Financial Overview Skeleton */}
+        <Card>
+          <CardHeader>
+            <div className="flex items-center gap-2">
+              <div className="h-5 w-5 bg-muted animate-pulse rounded" />
+              <div className="h-5 bg-muted animate-pulse rounded w-36" />
+            </div>
+            <div className="h-4 bg-muted animate-pulse rounded w-56 mt-2" />
           </CardHeader>
           <CardContent>
-            <div className="flex items-center gap-4">
-              <div className="h-20 w-20 bg-muted animate-pulse rounded-full" />
-              <div className="space-y-2">
-                <div className="h-5 bg-muted animate-pulse rounded w-40" />
-                <div className="h-4 bg-muted animate-pulse rounded w-32" />
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              {[1, 2, 3, 4].map((i) => (
+                <div key={i} className="p-4 bg-muted/30 rounded-lg space-y-2">
+                  <div className="h-3 w-16 bg-muted animate-pulse rounded" />
+                  <div className="h-7 w-12 bg-muted animate-pulse rounded" />
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Data & Privacy Skeleton */}
+        <Card>
+          <CardHeader>
+            <div className="flex items-center gap-2">
+              <div className="h-5 w-5 bg-muted animate-pulse rounded" />
+              <div className="h-5 bg-muted animate-pulse rounded w-28" />
+            </div>
+            <div className="h-4 bg-muted animate-pulse rounded w-48 mt-2" />
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="flex items-center justify-between py-2">
+              <div className="flex items-center gap-3">
+                <div className="h-5 w-5 bg-muted animate-pulse rounded" />
+                <div className="space-y-1">
+                  <div className="h-4 w-28 bg-muted animate-pulse rounded" />
+                  <div className="h-3 w-48 bg-muted animate-pulse rounded" />
+                </div>
               </div>
+              <div className="h-8 w-20 bg-muted animate-pulse rounded" />
             </div>
           </CardContent>
         </Card>
@@ -330,7 +323,7 @@ export function ProfileContent({ userId, userEmail }: ProfileContentProps) {
     );
   }
 
-  if (!profile) {
+  if (!profile || !userId) {
     return (
       <Card>
         <CardContent className="p-6">
@@ -450,10 +443,7 @@ export function ProfileContent({ userId, userEmail }: ProfileContentProps) {
             <div className="space-y-1">
               <Label className="text-xs text-muted-foreground uppercase tracking-wide">Plan</Label>
               <div className="flex items-center gap-2">
-                <Crown size={16} className={profile.subscription_tier !== "free" ? "text-yellow-500" : "text-muted-foreground"} weight={profile.subscription_tier !== "free" ? "fill" : "regular"} />
-                <Badge variant={profile.subscription_tier !== "free" ? "default" : "secondary"}>
-                  {profile.subscription_tier === "family" ? "Family" : profile.subscription_tier === "pro" ? "Pro" : "Free"}
-                </Badge>
+                <TierBadge tier={profile.subscription_tier || "free"} showIcon size="md" />
               </div>
             </div>
 
@@ -559,10 +549,7 @@ export function ProfileContent({ userId, userEmail }: ProfileContentProps) {
                 <div className="flex items-center gap-2">
                   <p className="font-medium text-sm">Export Your Data</p>
                   {profile.subscription_tier === "free" && (
-                    <Badge variant="secondary" className="text-[10px] flex items-center gap-1">
-                      <Crown size={10} weight="fill" />
-                      Pro
-                    </Badge>
+                    <FeatureBadge showIcon size="sm" />
                   )}
                 </div>
                 <p className="text-xs text-muted-foreground">Download all your financial data as JSON</p>

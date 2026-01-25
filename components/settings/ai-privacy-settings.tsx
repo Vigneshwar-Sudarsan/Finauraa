@@ -1,53 +1,31 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { toast } from "sonner";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Skeleton } from "@/components/ui/skeleton";
+import { FeatureBadge } from "@/components/ui/tier-badge";
 import { EnhancedAIConsentDialog } from "./enhanced-ai-consent-dialog";
 import { AIModeComparison } from "./ai-mode-comparison";
 import { ShieldCheck, Sparkle, Info, Crown, Lock } from "@phosphor-icons/react";
 import { Switch } from "@/components/ui/switch";
 import { useFeatureAccess } from "@/hooks/use-feature-access";
+import { useAIMode } from "@/hooks/use-ai-mode";
 
-interface AIPrivacySettingsProps {
-  userId: string;
-}
-
-export function AIPrivacySettings({ userId }: AIPrivacySettingsProps) {
+export function AIPrivacySettings() {
   const router = useRouter();
   const { canAccess, tier, isLoading: featureLoading } = useFeatureAccess();
+  const { mode, hasConsent, isLoading: loading, mutate } = useAIMode();
 
-  const [mode, setMode] = useState<'privacy-first' | 'enhanced'>('privacy-first');
-  const [hasConsent, setHasConsent] = useState(false);
   const [showConsentDialog, setShowConsentDialog] = useState(false);
-  const [loading, setLoading] = useState(true);
   const [updating, setUpdating] = useState(false);
 
   // Check if user can access enhanced AI based on subscription
   const canUseEnhancedAI = canAccess("enhancedAI");
-
-  // Fetch current AI mode
-  useEffect(() => {
-    fetchAIMode();
-  }, []);
-
-  const fetchAIMode = async () => {
-    try {
-      const response = await fetch('/api/user/ai-mode');
-      if (response.ok) {
-        const data = await response.json();
-        setMode(data.mode);
-        setHasConsent(data.hasConsent);
-      }
-    } catch (error) {
-      console.error('Error fetching AI mode:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const handleModeToggle = async () => {
     const newMode = mode === 'privacy-first' ? 'enhanced' : 'privacy-first';
@@ -79,19 +57,17 @@ export function AIPrivacySettings({ userId }: AIPrivacySettingsProps) {
       const data = await response.json();
 
       if (response.ok) {
-        setMode(newMode);
-        if (newMode === 'enhanced') {
-          setHasConsent(true);
-        }
+        // Revalidate the cache with new data
+        mutate();
         // Show success message
-        alert(data.message);
+        toast.success(data.message);
       } else {
         // Show error
-        alert(data.error || 'Failed to update AI mode');
+        toast.error(data.error || 'Failed to update AI mode');
       }
     } catch (error) {
       console.error('Error updating AI mode:', error);
-      alert('An error occurred while updating your AI settings');
+      toast.error('An error occurred while updating your AI settings');
     } finally {
       setUpdating(false);
     }
@@ -108,12 +84,113 @@ export function AIPrivacySettings({ userId }: AIPrivacySettingsProps) {
 
   if (loading) {
     return (
-      <Card>
-        <CardHeader>
-          <CardTitle>AI Privacy Settings</CardTitle>
-          <CardDescription>Loading...</CardDescription>
-        </CardHeader>
-      </Card>
+      <>
+        {/* Main Settings Card Skeleton */}
+        <Card>
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <div>
+                <div className="flex items-center gap-2">
+                  <Skeleton className="size-5 rounded" />
+                  <Skeleton className="h-6 w-40" />
+                </div>
+                <Skeleton className="h-4 w-72 mt-2" />
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            {/* Mode Options Skeleton */}
+            <div className="space-y-4">
+              {/* Privacy-First Mode Skeleton */}
+              <div className="p-4 rounded-lg border-2 border-primary bg-primary/5">
+                <div className="flex items-start justify-between">
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2 mb-2">
+                      <Skeleton className="size-5 rounded" />
+                      <Skeleton className="h-5 w-36" />
+                      <Skeleton className="h-5 w-16" />
+                    </div>
+                    <Skeleton className="h-4 w-full max-w-md mb-3" />
+                    <div className="space-y-2">
+                      <Skeleton className="h-3 w-40" />
+                      <Skeleton className="h-3 w-36" />
+                      <Skeleton className="h-3 w-32" />
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Enhanced AI Mode Skeleton */}
+              <div className="p-4 rounded-lg border-2 border-border bg-muted/20">
+                <div className="flex items-start justify-between">
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2 mb-2">
+                      <Skeleton className="size-5 rounded" />
+                      <Skeleton className="h-5 w-32" />
+                      <Skeleton className="h-5 w-20" />
+                    </div>
+                    <Skeleton className="h-4 w-full max-w-lg mb-3" />
+                    <div className="space-y-2">
+                      <Skeleton className="h-3 w-36" />
+                      <Skeleton className="h-3 w-32" />
+                      <Skeleton className="h-3 w-40" />
+                      <Skeleton className="h-3 w-28" />
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Toggle Section Skeleton */}
+            <div className="flex items-center justify-between pt-4 border-t">
+              <div className="flex-1">
+                <Skeleton className="h-5 w-48" />
+                <Skeleton className="h-4 w-64 mt-2" />
+              </div>
+              <Skeleton className="h-6 w-11 rounded-full" />
+            </div>
+
+            {/* Info Box Skeleton */}
+            <div className="rounded-lg p-4 border bg-muted/30">
+              <div className="flex items-start gap-3">
+                <Skeleton className="size-5 rounded shrink-0 mt-0.5" />
+                <div className="flex-1 space-y-2">
+                  <Skeleton className="h-4 w-48" />
+                  <Skeleton className="h-3 w-full max-w-sm" />
+                  <Skeleton className="h-3 w-full max-w-md" />
+                  <Skeleton className="h-3 w-full max-w-xs" />
+                  <Skeleton className="h-3 w-44" />
+                </div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Comparison Card Skeleton */}
+        <Card>
+          <CardHeader>
+            <div className="flex items-center gap-2">
+              <Skeleton className="size-5 rounded" />
+              <Skeleton className="h-6 w-40" />
+            </div>
+            <Skeleton className="h-4 w-72 mt-1" />
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              <div className="grid gap-4 md:grid-cols-2">
+                {[1, 2].map((i) => (
+                  <div key={i} className="rounded-lg border p-4 space-y-3">
+                    <Skeleton className="h-5 w-32" />
+                    <Skeleton className="h-4 w-full" />
+                    <Skeleton className="h-4 w-3/4" />
+                    <Skeleton className="h-4 w-1/2" />
+                  </div>
+                ))}
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </>
     );
   }
 
@@ -180,19 +257,7 @@ export function AIPrivacySettings({ userId }: AIPrivacySettingsProps) {
                   <div className="flex items-center gap-2 mb-1">
                     <Sparkle className="h-5 w-5 text-primary" weight="duotone" />
                     <h3 className="font-semibold">Enhanced AI Mode</h3>
-                    <Badge variant={canUseEnhancedAI ? "default" : "secondary"} className="text-xs flex items-center gap-1">
-                      {canUseEnhancedAI ? (
-                        <>
-                          <Crown className="h-3 w-3" weight="fill" />
-                          {tier === "family" ? "Family" : "Pro"}
-                        </>
-                      ) : (
-                        <>
-                          <Lock className="h-3 w-3" weight="fill" />
-                          Pro & Family
-                        </>
-                      )}
-                    </Badge>
+                    <FeatureBadge showIcon size="sm" />
                   </div>
                   <p className="text-sm text-muted-foreground mb-3">
                     Share exact financial data with AI for specific insights like "You spent 287.500 BHD on groceries" and personalized recommendations. Requires explicit consent.

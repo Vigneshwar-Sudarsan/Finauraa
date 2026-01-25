@@ -2,10 +2,10 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { Separator } from "@/components/ui/separator";
 import { DashboardHeader } from "./dashboard-header";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { formatCurrency } from "@/lib/utils";
 import {
   Item,
   ItemMedia,
@@ -19,6 +19,7 @@ import {
 import { BankSelector } from "./bank-selector";
 import { EmptyState } from "@/components/ui/empty-state";
 import { useBankConnection } from "@/hooks/use-bank-connection";
+import { useBankConnections } from "@/hooks/use-bank-connections";
 import {
   Bank,
   CreditCard,
@@ -26,33 +27,8 @@ import {
   CaretRight,
   ArrowsClockwise,
   SpinnerGap,
+  CheckCircle,
 } from "@phosphor-icons/react";
-
-interface Account {
-  id: string;
-  account_id: string;
-  account_type: string;
-  account_number: string;
-  currency: string;
-  balance: number;
-  available_balance: number;
-}
-
-interface BankConnection {
-  id: string;
-  bank_id: string;
-  bank_name: string;
-  status: string;
-  accounts: Account[];
-}
-
-function formatCurrency(amount: number, currency: string = "BHD") {
-  return new Intl.NumberFormat("en-BH", {
-    style: "currency",
-    currency: currency,
-    minimumFractionDigits: 2,
-  }).format(amount);
-}
 
 function getAccountIcon(accountType: string) {
   const type = accountType.toLowerCase();
@@ -67,55 +43,28 @@ function getAccountIcon(accountType: string) {
 
 export function AccountsContent() {
   const router = useRouter();
-  const [banks, setBanks] = useState<BankConnection[]>([]);
+  const {
+    banks,
+    isLoading,
+    isSyncing,
+    syncStatus,
+    lastSyncedFormatted,
+    triggerSync,
+  } = useBankConnections();
   const [selectedBankId, setSelectedBankId] = useState<string | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [isRefreshing, setIsRefreshing] = useState(false);
 
   // Bank connection with consent dialog
   const { connectBank, isConnecting, ConsentDialog } = useBankConnection();
 
-  const fetchData = async () => {
-    try {
-      const response = await fetch("/api/finance/banks");
-      // Silently handle 403 - will show empty state with Connect Bank prompt
-      if (response.status === 403) {
-        setBanks([]);
-        return;
-      }
-      if (response.ok) {
-        const data = await response.json();
-        setBanks(data.banks ?? []);
-        // Auto-select first bank if available
-        if (data.banks && data.banks.length > 0 && !selectedBankId) {
-          setSelectedBankId(data.banks[0].id);
-        }
-      }
-    } catch (error) {
-      console.error("Failed to fetch data:", error);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
+  // Auto-select first bank when banks load
   useEffect(() => {
-    fetchData();
-  }, []);
-
-  const handleRefresh = async () => {
-    setIsRefreshing(true);
-    try {
-      const response = await fetch("/api/finance/refresh", { method: "POST" });
-      // Silently handle 403 - user will see appropriate state
-      if (response.status === 403) return;
-      if (response.ok) {
-        await fetchData();
-      }
-    } catch (error) {
-      console.error("Refresh failed:", error);
-    } finally {
-      setIsRefreshing(false);
+    if (banks.length > 0 && !selectedBankId) {
+      setSelectedBankId(banks[0].id);
     }
+  }, [banks, selectedBankId]);
+
+  const handleRefresh = () => {
+    triggerSync(true); // Force full refresh
   };
 
   const handleAccountClick = (accountId: string) => {
@@ -137,14 +86,33 @@ export function AccountsContent() {
       {/* Header */}
       <DashboardHeader
         title="Connected Banks"
+        subtitle={
+          banks.length > 0 ? (
+            <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
+              {isSyncing ? (
+                <>
+                  <SpinnerGap size={12} className="animate-spin" />
+                  <span>Syncing...</span>
+                </>
+              ) : syncStatus === "synced" ? (
+                <>
+                  <CheckCircle size={12} className="text-emerald-500" />
+                  <span>Synced</span>
+                </>
+              ) : (
+                <span>Last synced {lastSyncedFormatted}</span>
+              )}
+            </span>
+          ) : undefined
+        }
         actions={
           <Button
             variant="ghost"
             size="icon"
             onClick={handleRefresh}
-            disabled={isRefreshing || isLoading}
+            disabled={isSyncing || isLoading}
           >
-            {isRefreshing ? (
+            {isSyncing ? (
               <SpinnerGap size={20} className="animate-spin" />
             ) : (
               <ArrowsClockwise size={20} />
@@ -172,7 +140,7 @@ export function AccountsContent() {
       {/* Main content */}
       {(isLoading || banks.length > 0) && (
       <div className="flex-1 overflow-auto">
-        <div className="p-4 md:p-6 space-y-6 max-w-4xl mx-auto">
+        <div className="p-4 md:p-6 space-y-6 max-w-4xl mx-auto pb-24">
           {/* Banks */}
           <BankSelector
             banks={banks}
@@ -283,9 +251,9 @@ export function AccountsContent() {
               title="No accounts found"
               description="This bank doesn't have any accounts yet. Try refreshing or selecting a different bank."
               action={{
-                label: isRefreshing ? "Refreshing..." : "Refresh",
+                label: isSyncing ? "Refreshing..." : "Refresh",
                 onClick: handleRefresh,
-                loading: isRefreshing,
+                loading: isSyncing,
                 variant: "outline",
               }}
             />
@@ -294,7 +262,7 @@ export function AccountsContent() {
           {/* Refresh hint */}
           {!isLoading && displayedAccounts.length > 0 && (
             <p className="text-xs text-center text-muted-foreground">
-              Tap the refresh button to sync latest data from your banks
+              Data syncs automatically. Tap refresh for latest updates.
             </p>
           )}
         </div>

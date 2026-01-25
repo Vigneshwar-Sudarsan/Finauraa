@@ -1,30 +1,11 @@
 "use client";
 
-import { Suspense } from "react";
 import { useRouter } from "next/navigation";
 import { UpgradePlansContent } from "@/components/dashboard/upgrade-plans-content";
 import { Button } from "@/components/ui/button";
 import { CaretLeft } from "@phosphor-icons/react";
 
 export const dynamic = "force-dynamic";
-
-function PlansLoading() {
-  return (
-    <div className="flex-1 flex items-center justify-center">
-      <div className="flex items-center gap-2 text-muted-foreground">
-        <div className="size-2 bg-foreground/40 rounded-full animate-pulse" />
-        <div
-          className="size-2 bg-foreground/40 rounded-full animate-pulse"
-          style={{ animationDelay: "150ms" }}
-        />
-        <div
-          className="size-2 bg-foreground/40 rounded-full animate-pulse"
-          style={{ animationDelay: "300ms" }}
-        />
-      </div>
-    </div>
-  );
-}
 
 export default function UpgradePlansPage() {
   const router = useRouter();
@@ -46,10 +27,8 @@ export default function UpgradePlansPage() {
 
       {/* Main content */}
       <div className="flex-1 overflow-auto">
-        <div className="p-4 md:p-6 space-y-6 max-w-5xl mx-auto pb-24">
-          <Suspense fallback={<PlansLoading />}>
-            <UpgradePlansContent />
-          </Suspense>
+        <div className="p-4 md:p-6 space-y-6 max-w-4xl mx-auto pb-24">
+          <UpgradePlansContent />
         </div>
       </div>
     </div>

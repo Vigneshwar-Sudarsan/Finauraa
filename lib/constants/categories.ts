@@ -1,3 +1,10 @@
+/**
+ * @deprecated This file is deprecated. Use the useCategories hook from @/hooks/use-categories instead.
+ * The hook fetches categories from the Tarabut API when available and falls back to static categories.
+ *
+ * This file is kept for backwards compatibility with server-side code and type definitions.
+ */
+
 // Shared category definitions for spending, budgets, and manual transactions
 
 export const EXPENSE_CATEGORIES = [

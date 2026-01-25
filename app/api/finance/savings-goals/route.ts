@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { SubscriptionTier, getTierLimits } from "@/lib/features";
+import { getTierLimits } from "@/lib/features";
+import { getUserSubscription } from "@/lib/features-server";
 import { requireBankConsent } from "@/lib/consent-middleware";
 
 /**
@@ -30,10 +31,24 @@ export async function GET() {
       return NextResponse.json({ goals: [], noBanksConnected: true });
     }
 
+    // Select only personal goals (exclude family goals)
     const { data: goals, error } = await supabase
       .from("savings_goals")
-      .select("*")
+      .select(`
+        id,
+        name,
+        target_amount,
+        current_amount,
+        currency,
+        target_date,
+        category,
+        is_completed,
+        auto_contribute,
+        auto_contribute_percentage,
+        created_at
+      `)
       .eq("user_id", user.id)
+      .eq("scope", "personal")
       .order("created_at", { ascending: false });
 
     if (error) {
@@ -96,13 +111,9 @@ export async function POST(request: NextRequest) {
     }
 
     // Check subscription tier and savings goal limits
-    const { data: profile } = await supabase
-      .from("profiles")
-      .select("subscription_tier, is_pro")
-      .eq("id", user.id)
-      .single();
-
-    const tier: SubscriptionTier = profile?.subscription_tier || (profile?.is_pro ? "pro" : "free");
+    // getUserSubscription handles family membership - family members inherit Pro features
+    const subscription = await getUserSubscription();
+    const tier = subscription?.tier || "free";
     const tierLimits = getTierLimits(tier);
     const goalLimit = tierLimits.savingsGoals;
 
@@ -114,6 +125,7 @@ export async function POST(request: NextRequest) {
         .eq("user_id", user.id);
 
       if ((existingGoals || 0) >= goalLimit) {
+        // Family members and Pro users have unlimited goals, so only free tier sees upgrade message
         const upgradeMessage = tier === "free"
           ? "Upgrade to Pro for unlimited savings goals."
           : "You've reached the maximum savings goals for your plan.";
@@ -177,6 +189,7 @@ export async function POST(request: NextRequest) {
         is_completed: current_amount >= target_amount,
         auto_contribute,
         auto_contribute_percentage: auto_contribute ? auto_contribute_percentage : null,
+        scope: "personal",
       })
       .select()
       .single();

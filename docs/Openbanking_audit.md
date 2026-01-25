@@ -283,19 +283,20 @@ After your audit, provide:
 ## Tech Stack Reference
 
 - **Framework**: Next.js 16.1.3 (App Router with API Routes)
-- **Frontend**: React 19 + TypeScript
-- **Styling**: Tailwind CSS 4 + shadcn/ui + Radix UI
-- **Database**: Supabase (PostgreSQL with RLS)
+- **Frontend**: React 19.2.3 + TypeScript 5
+- **Styling**: Tailwind CSS 4 + shadcn/ui + Radix UI 1.4.3
+- **Database**: Supabase (PostgreSQL with RLS) - 21 tables
 - **Authentication**: Supabase Auth
-- **AI**: Anthropic Claude API (@anthropic-ai/sdk)
-- **Payments**: Stripe (subscriptions, webhooks)
-- **Rate Limiting**: Supabase (database-based)
-- **State Management**: Zustand
-- **Error Tracking**: Sentry
-- **Hosting**: Vercel
-- **PWA**: next-pwa (Progressive Web App support)
+- **AI**: Anthropic Claude API (@anthropic-ai/sdk v0.71.2)
+- **Payments**: Stripe v20.2.0 (subscriptions, webhooks)
+- **Rate Limiting**: Supabase (database-based via `rate_limits` table)
+- **State Management**: Zustand v5.0.10
+- **Error Tracking**: Sentry v10.35.0
+- **Hosting**: Vercel (with cron jobs)
+- **PWA**: @ducanh2912/next-pwa v10.2.9 (Progressive Web App support)
 - **Open Banking API**: Tarabut Gateway
-- **Email**: Resend (transactional emails)
+- **Email**: Resend v6.8.0 (transactional emails)
+- **Date Handling**: date-fns v4.1.0
 
 ---
 
@@ -309,7 +310,7 @@ After your audit, provide:
 
 ---
 
-## Implementation Status (January 2025)
+## Implementation Status (January 2026)
 
 ### ✅ Completed
 
@@ -401,7 +402,7 @@ All `/api/finance/*` routes now verify active `bank_access` consent before data 
 | `privacy-content.tsx` | ✅ | Full consent management UI |
 | Settings page privacy link | ✅ | Added to main settings |
 
-### ❌ Remaining TODOs
+### ✅ All Core TODOs Completed
 
 #### Frontend
 - [x] Consent capture screen improvements (show permissions explicitly during bank connection) ✅ (`BankConsentDialog` component)
@@ -413,7 +414,10 @@ All `/api/finance/*` routes now verify active `bank_access` consent before data 
 - [x] Fix RLS policies on `data_retention_policies` ✅ (Migration applied)
 - [x] Fix function search_path vulnerabilities ✅ (8 functions fixed)
 - [x] Fix overly permissive RLS on `audit_logs` and `billing_history` ✅ (Migration applied)
+
+#### Optional Enhancements
 - [ ] Enable leaked password protection (Requires Supabase Pro plan)
+- [ ] Add WebAuthn/passkey support for passwordless auth
 
 ---
 

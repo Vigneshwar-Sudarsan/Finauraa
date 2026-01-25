@@ -1,21 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import {
-  ShoppingCart,
-  Car,
-  Hamburger,
-  Lightning,
-  CreditCard,
-  House,
-  Heartbeat,
-  GameController,
-  Airplane,
-  DotsThree,
-  Money,
-  Briefcase,
-  Bank,
-} from "@phosphor-icons/react";
+import { useState, useEffect, memo } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Item,
@@ -27,7 +12,9 @@ import {
   ItemGroup,
   ItemSeparator,
 } from "@/components/ui/item";
-import { cn } from "@/lib/utils";
+import { cn, formatCurrency } from "@/lib/utils";
+import { formatTransactionDate } from "@/lib/date-utils";
+import { getCategoryIcon, getCategoryLabel } from "@/lib/constants/category-icons";
 
 interface Transaction {
   id: string;
@@ -45,60 +32,91 @@ interface Transaction {
   transaction_date: string;
 }
 
+// Memoized transaction item to prevent re-renders
+const TransactionItem = memo(function TransactionItem({
+  tx,
+  showSeparator,
+}: {
+  tx: Transaction;
+  showSeparator: boolean;
+}) {
+  const isCredit = tx.transaction_type === "credit";
+  const displayName = tx.merchant_name || tx.description || "Transaction";
+  const categoryLabel = getCategoryLabel(tx.category || "other");
+  const Icon = getCategoryIcon(tx.category);
+  const hasLogo = tx.merchant_logo || tx.category_icon;
+
+  return (
+    <>
+      {showSeparator && <ItemSeparator />}
+      <Item variant="default" size="sm">
+        <ItemMedia variant="icon">
+          {hasLogo ? (
+            <div
+              className={cn(
+                "size-10 rounded-xl flex items-center justify-center overflow-hidden",
+                isCredit ? "bg-emerald-500/10" : "bg-muted"
+              )}
+            >
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={tx.merchant_logo || tx.category_icon || ""}
+                alt={tx.merchant_name || tx.category}
+                className="size-6 object-contain"
+                onError={(e) => {
+                  e.currentTarget.style.display = 'none';
+                  e.currentTarget.nextElementSibling?.classList.remove('hidden');
+                }}
+              />
+              <Icon
+                size={20}
+                className={cn(
+                  "hidden",
+                  isCredit ? "text-emerald-600" : "text-muted-foreground"
+                )}
+              />
+            </div>
+          ) : (
+            <div
+              className={cn(
+                "size-10 rounded-xl flex items-center justify-center",
+                isCredit ? "bg-emerald-500/10" : "bg-muted"
+              )}
+            >
+              <Icon
+                size={20}
+                className={isCredit ? "text-emerald-600" : "text-muted-foreground"}
+              />
+            </div>
+          )}
+        </ItemMedia>
+        <ItemContent>
+          <ItemTitle className="truncate max-w-[180px] sm:max-w-[240px]">
+            {displayName}
+          </ItemTitle>
+          <ItemDescription>
+            {categoryLabel} · {formatTransactionDate(tx.transaction_date)}
+          </ItemDescription>
+        </ItemContent>
+        <ItemActions>
+          <p
+            className={cn(
+              "font-semibold tabular-nums",
+              isCredit ? "text-emerald-600" : ""
+            )}
+          >
+            {isCredit ? "+" : "-"}
+            {formatCurrency(tx.amount, tx.currency)}
+          </p>
+        </ItemActions>
+      </Item>
+    </>
+  );
+});
+
 interface TransactionsListProps {
   accountId?: string | null;
 }
-
-// Category icons mapping (consistent with transactions-content.tsx)
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const categoryIcons: Record<string, React.ComponentType<any>> = {
-  shopping: ShoppingCart,
-  groceries: ShoppingCart,
-  transport: Car,
-  transportation: Car,
-  food: Hamburger,
-  dining: Hamburger,
-  restaurants: Hamburger,
-  utilities: Lightning,
-  bills: Lightning,
-  subscriptions: CreditCard,
-  payments: CreditCard,
-  housing: House,
-  rent: House,
-  mortgages: House,
-  health: Heartbeat,
-  healthcare: Heartbeat,
-  entertainment: GameController,
-  travel: Airplane,
-  other: DotsThree,
-  "other expenses": DotsThree,
-  "other loans": CreditCard,
-  "salary & wages": Briefcase,
-  "retirement & pensions": Bank,
-  "other income": Money,
-  income: Money,
-  transfer: Bank,
-  coffee: Hamburger,
-  fuel: Car,
-};
-
-function getCategoryIcon(categoryName: string) {
-  const key = categoryName.toLowerCase();
-  return categoryIcons[key] || DotsThree;
-}
-
-const CATEGORY_LABELS: Record<string, string> = {
-  groceries: "Groceries",
-  dining: "Dining",
-  transport: "Transport",
-  shopping: "Shopping",
-  bills: "Bills",
-  entertainment: "Entertainment",
-  health: "Health",
-  coffee: "Coffee",
-  fuel: "Fuel",
-  other: "Other",
-};
 
 export function TransactionsList({ accountId }: TransactionsListProps) {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
@@ -132,28 +150,6 @@ export function TransactionsList({ accountId }: TransactionsListProps) {
 
     fetchTransactions();
   }, [accountId]);
-
-  const formatCurrency = (amount: number, currency: string) => {
-    return new Intl.NumberFormat("en-BH", {
-      style: "currency",
-      currency: currency,
-      minimumFractionDigits: 2,
-    }).format(amount);
-  };
-
-  const formatDate = (dateString: string) => {
-    const date = new Date(dateString);
-    const now = new Date();
-    const diffDays = Math.floor(
-      (now.getTime() - date.getTime()) / (1000 * 60 * 60 * 24)
-    );
-
-    if (diffDays === 0) return "Today";
-    if (diffDays === 1) return "Yesterday";
-    if (diffDays < 7) return date.toLocaleDateString("en-US", { weekday: "short" });
-
-    return date.toLocaleDateString("en-US", { month: "short", day: "numeric" });
-  };
 
   if (isLoading) {
     return (
@@ -211,81 +207,9 @@ export function TransactionsList({ accountId }: TransactionsListProps) {
       </CardHeader>
       <CardContent className="p-0">
         <ItemGroup>
-          {transactions.map((tx, index) => {
-            const isCredit = tx.transaction_type === "credit";
-            const displayName = tx.merchant_name || tx.description || "Transaction";
-            const categoryLabel =
-              CATEGORY_LABELS[tx.category?.toLowerCase()] || tx.category || "Other";
-            const Icon = getCategoryIcon(tx.category);
-            const hasLogo = tx.merchant_logo || tx.category_icon;
-
-            return (
-              <div key={tx.id}>
-                {index > 0 && <ItemSeparator />}
-                <Item variant="default" size="sm">
-                  <ItemMedia variant="icon">
-                    {hasLogo ? (
-                      <div
-                        className={cn(
-                          "size-10 rounded-xl flex items-center justify-center overflow-hidden",
-                          isCredit ? "bg-emerald-500/10" : "bg-muted"
-                        )}
-                      >
-                        {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img
-                          src={tx.merchant_logo || tx.category_icon || ""}
-                          alt={tx.merchant_name || tx.category}
-                          className="size-6 object-contain"
-                          onError={(e) => {
-                            e.currentTarget.style.display = 'none';
-                            e.currentTarget.nextElementSibling?.classList.remove('hidden');
-                          }}
-                        />
-                        <Icon
-                          size={20}
-                          className={cn(
-                            "hidden",
-                            isCredit ? "text-emerald-600" : "text-muted-foreground"
-                          )}
-                        />
-                      </div>
-                    ) : (
-                      <div
-                        className={cn(
-                          "size-10 rounded-xl flex items-center justify-center",
-                          isCredit ? "bg-emerald-500/10" : "bg-muted"
-                        )}
-                      >
-                        <Icon
-                          size={20}
-                          className={isCredit ? "text-emerald-600" : "text-muted-foreground"}
-                        />
-                      </div>
-                    )}
-                  </ItemMedia>
-                  <ItemContent>
-                    <ItemTitle className="truncate max-w-[180px] sm:max-w-[240px]">
-                      {displayName}
-                    </ItemTitle>
-                    <ItemDescription>
-                      {categoryLabel} · {formatDate(tx.transaction_date)}
-                    </ItemDescription>
-                  </ItemContent>
-                  <ItemActions>
-                    <p
-                      className={cn(
-                        "font-semibold tabular-nums",
-                        isCredit ? "text-emerald-600" : ""
-                      )}
-                    >
-                      {isCredit ? "+" : "-"}
-                      {formatCurrency(tx.amount, tx.currency)}
-                    </p>
-                  </ItemActions>
-                </Item>
-              </div>
-            );
-          })}
+          {transactions.map((tx, index) => (
+            <TransactionItem key={tx.id} tx={tx} showSeparator={index > 0} />
+          ))}
         </ItemGroup>
       </CardContent>
     </Card>

@@ -1,10 +1,19 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { DashboardHeader } from "./dashboard-header";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Button } from "@/components/ui/button";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { Badge } from "@/components/ui/badge";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import {
   Item,
   ItemMedia,
@@ -17,22 +26,13 @@ import {
 } from "@/components/ui/item";
 import { EmptyState } from "@/components/ui/empty-state";
 import { useBankConnection } from "@/hooks/use-bank-connection";
-import { cn } from "@/lib/utils";
+import { useFeatureAccess } from "@/hooks/use-feature-access";
+import { useSpending } from "@/hooks/use-spending";
+import { useBankConnections } from "@/hooks/use-bank-connections";
+import { cn, formatCurrency, formatCompactCurrency } from "@/lib/utils";
 import {
-  ShoppingCart,
-  Car,
-  Hamburger,
-  Lightning,
-  CreditCard,
-  House,
-  Heartbeat,
-  GameController,
-  Airplane,
-  DotsThree,
   TrendUp,
   TrendDown,
-  Money,
-  Briefcase,
   Bank,
   ChartPieSlice,
   ArrowUp,
@@ -40,11 +40,15 @@ import {
   Storefront,
   Plus,
   Gauge,
+  Lock,
 } from "@phosphor-icons/react";
+import { getCategoryIcon, formatCategoryName } from "@/lib/constants/category-icons";
 import {
   AddTransactionSheet,
   SetSpendingLimitSheet,
+  SpendingLimitsSection,
 } from "@/components/spending";
+import { FamilySpendingContent } from "./family-spending-content";
 
 interface SpendingCategory {
   id: string;
@@ -94,75 +98,24 @@ interface BankConnection {
   }[];
 }
 
-// Category icons mapping
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const categoryIcons: Record<string, React.ComponentType<any>> = {
-  shopping: ShoppingCart,
-  groceries: ShoppingCart,
-  transport: Car,
-  transportation: Car,
-  food: Hamburger,
-  dining: Hamburger,
-  restaurants: Hamburger,
-  utilities: Lightning,
-  bills: Lightning,
-  subscriptions: CreditCard,
-  payments: CreditCard,
-  housing: House,
-  rent: House,
-  mortgages: House,
-  health: Heartbeat,
-  healthcare: Heartbeat,
-  entertainment: GameController,
-  travel: Airplane,
-  other: DotsThree,
-  "other expenses": DotsThree,
-  "other loans": CreditCard,
-  "salary & wages": Briefcase,
-  "retirement & pensions": Bank,
-  "other income": Money,
-};
-
-function getCategoryIcon(categoryName: string) {
-  const key = categoryName.toLowerCase();
-  return categoryIcons[key] || DotsThree;
-}
-
-function formatCurrency(amount: number, currency: string = "BHD") {
-  return new Intl.NumberFormat("en-BH", {
-    style: "currency",
-    currency: currency,
-    minimumFractionDigits: 2,
-  }).format(amount);
-}
-
-function formatCompactCurrency(amount: number, currency: string = "BHD") {
-  if (amount >= 1000) {
-    return new Intl.NumberFormat("en-BH", {
-      style: "currency",
-      currency: currency,
-      notation: "compact",
-      maximumFractionDigits: 1,
-    }).format(amount);
-  }
-  return formatCurrency(amount, currency);
-}
-
-function formatCategoryName(name: string) {
-  return name
-    .split(" ")
-    .map((word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
-    .join(" ");
-}
+// Category icons and formatting now imported from @/lib/constants/category-icons
 
 export function SpendingContent() {
-  const [data, setData] = useState<SpendingData | null>(null);
-  const [budgets, setBudgets] = useState<Budget[]>([]);
-  const [banks, setBanks] = useState<BankConnection[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [isLoadingBudgets, setIsLoadingBudgets] = useState(true);
+  const router = useRouter();
+  const { data, budgets, isLoading, isBudgetsLoading, mutate, mutateBudgets } = useSpending();
+  const { banks } = useBankConnections();
   const [error, setError] = useState<string | null>(null);
   const [needsConsent, setNeedsConsent] = useState(false);
+  const [activeTab, setActiveTab] = useState<"my" | "family">("my");
+  const [mounted, setMounted] = useState(false);
+
+  // Prevent hydration mismatch by only rendering dynamic content after mount
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  // Feature access for Pro/Family features
+  const { canAccessFamilyFeatures, isLoading: featureLoading } = useFeatureAccess();
 
   // Bank connection with consent dialog
   const { connectBank, isConnecting, ConsentDialog } = useBankConnection();
@@ -172,68 +125,26 @@ export function SpendingContent() {
   const [setLimitOpen, setSetLimitOpen] = useState(false);
   const [selectedBudget, setSelectedBudget] = useState<Budget | null>(null);
   const [selectedCategory, setSelectedCategory] = useState<string | undefined>();
+  const [familyRefreshTrigger, setFamilyRefreshTrigger] = useState(0);
 
-  const fetchSpendingData = useCallback(async () => {
-    try {
-      const response = await fetch("/api/finance/insights/spending");
-      if (!response.ok) {
-        // Check if it's a consent/authorization issue
-        if (response.status === 403) {
-          setNeedsConsent(true);
-          setError("Bank connection required");
-        } else {
-          throw new Error("Failed to fetch spending data");
-        }
-        return;
-      }
-      const spendingData = await response.json();
-      setData(spendingData);
-      setNeedsConsent(false);
-    } catch (err) {
-      console.error("Failed to fetch spending data:", err);
-      setError("Unable to load spending data");
-    } finally {
-      setIsLoading(false);
+  // Handle tab change - redirect to upgrade if not Pro
+  const handleTabChange = (value: string) => {
+    // Don't redirect while feature access is still loading
+    if (value === "family" && !featureLoading && !canAccessFamilyFeatures) {
+      router.push("/dashboard/settings/subscription/plans");
+      return;
     }
-  }, []);
-
-  const fetchBudgets = useCallback(async () => {
-    try {
-      const response = await fetch("/api/finance/budgets");
-      // Silently handle 403 - main fetchSpendingData handles consent flow
-      if (response.status === 403) return;
-      if (!response.ok) throw new Error("Failed to fetch budgets");
-      const { budgets: budgetsData } = await response.json();
-      setBudgets(budgetsData || []);
-    } catch (err) {
-      console.error("Failed to fetch budgets:", err);
-    } finally {
-      setIsLoadingBudgets(false);
-    }
-  }, []);
-
-  const fetchBanks = useCallback(async () => {
-    try {
-      const response = await fetch("/api/finance/connections");
-      // Silently handle 403 - main fetchSpendingData handles consent flow
-      if (response.status === 403) return;
-      if (!response.ok) throw new Error("Failed to fetch connections");
-      const { connections } = await response.json();
-      setBanks(connections || []);
-    } catch (err) {
-      console.error("Failed to fetch banks:", err);
-    }
-  }, []);
-
-  useEffect(() => {
-    fetchSpendingData();
-    fetchBudgets();
-    fetchBanks();
-  }, [fetchSpendingData, fetchBudgets, fetchBanks]);
+    setActiveTab(value as "my" | "family");
+  };
 
   const handleRefreshAll = () => {
-    fetchSpendingData();
-    fetchBudgets();
+    if (activeTab === "family") {
+      // Trigger family spending refresh
+      setFamilyRefreshTrigger((prev) => prev + 1);
+    } else {
+      mutate();
+      mutateBudgets();
+    }
   };
 
   // Budget helpers
@@ -269,8 +180,103 @@ export function SpendingContent() {
     <div className="flex flex-col h-full">
       <DashboardHeader title="Spending" />
 
-      {/* Error State - Needs Bank Connection */}
-      {error && !isLoading && needsConsent && (
+      {/* Tab Navigation Row - Full width above content */}
+      <div className="px-4 md:px-6 pt-4 md:pt-6 pb-4 max-w-4xl mx-auto w-full">
+        <div className="flex items-center justify-between gap-4">
+          {/* Tabs - only render after mount to prevent hydration mismatch */}
+          {mounted ? (
+            <Tabs value={activeTab} onValueChange={handleTabChange}>
+              <TabsList>
+                <TabsTrigger value="my">
+                  My Spending
+                </TabsTrigger>
+                <TabsTrigger
+                  value="family"
+                  disabled={!canAccessFamilyFeatures && !featureLoading}
+                  className={cn(
+                    !canAccessFamilyFeatures && !featureLoading && "opacity-50"
+                  )}
+                >
+                  {!canAccessFamilyFeatures && !featureLoading && (
+                    <Lock size={14} />
+                  )}
+                  Family
+                </TabsTrigger>
+              </TabsList>
+            </Tabs>
+          ) : (
+            /* Static placeholder during SSR to prevent hydration mismatch */
+            <div className="w-[180px] h-9 bg-muted rounded-lg" />
+          )}
+
+          {/* Header Action Buttons */}
+          <div className="hidden sm:flex items-center gap-2">
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => {
+                setSelectedBudget(null);
+                setSelectedCategory(undefined);
+                setSetLimitOpen(true);
+              }}
+            >
+              <Gauge size={16} />
+              Set Limit
+            </Button>
+            <Button
+              size="sm"
+              onClick={() => setAddTransactionOpen(true)}
+            >
+              <Plus size={16} />
+              Add Transaction
+            </Button>
+          </div>
+        </div>
+      </div>
+
+      {/* Family Tab Content */}
+      {activeTab === "family" && (
+        featureLoading ? (
+          <div className="flex-1 overflow-auto p-4 md:p-6">
+            <div className="max-w-4xl mx-auto space-y-6">
+              {/* Overview card skeleton */}
+              <div className="rounded-xl border p-6 space-y-4">
+                <div className="flex items-center justify-between">
+                  <div className="space-y-2">
+                    <div className="h-3 w-28 bg-muted rounded animate-pulse" />
+                    <div className="h-8 w-36 bg-muted rounded animate-pulse" />
+                  </div>
+                  <div className="size-20 bg-muted rounded-full animate-pulse" />
+                </div>
+              </div>
+              {/* Members list skeleton */}
+              <div className="rounded-xl border p-4 space-y-3">
+                <div className="h-5 w-28 bg-muted rounded animate-pulse" />
+                {[1, 2, 3].map((i) => (
+                  <div key={i} className="flex items-center gap-3 py-2">
+                    <div className="size-10 bg-muted rounded-full animate-pulse" />
+                    <div className="flex-1 space-y-1">
+                      <div className="h-4 w-24 bg-muted rounded animate-pulse" />
+                      <div className="h-3 w-20 bg-muted rounded animate-pulse" />
+                    </div>
+                    <div className="h-4 w-16 bg-muted rounded animate-pulse" />
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        ) : canAccessFamilyFeatures ? (
+          <div className="flex-1 overflow-auto pb-24 sm:pb-0">
+            <FamilySpendingContent refreshTrigger={familyRefreshTrigger} />
+          </div>
+        ) : null
+      )}
+
+      {/* My Tab Content */}
+      {activeTab === "my" && (
+        <>
+          {/* Error State - Needs Bank Connection */}
+          {error && !isLoading && needsConsent && (
         <div className="flex-1 flex items-center justify-center">
           <EmptyState
             icon={<Bank size={28} className="text-muted-foreground" />}
@@ -320,127 +326,192 @@ export function SpendingContent() {
       {/* Main Content */}
       {(isLoading || (data && !error && (data.totalSpending > 0 || data.totalIncome > 0))) && (
       <div className="flex-1 overflow-auto pb-24 sm:pb-0">
-        <div className="p-4 md:p-6 space-y-6 max-w-6xl mx-auto">
+        <div className="p-4 md:p-6 space-y-6 max-w-4xl mx-auto">
 
           {/* Loading State */}
           {isLoading && (
-            <>
-              {/* Hero Card Skeleton */}
-              <Card className="overflow-hidden">
-                <CardContent className="p-0">
-                  <div className="bg-gradient-to-br from-primary/5 via-primary/10 to-primary/5 p-6">
-                    <div className="flex items-center justify-between">
-                      <div className="space-y-3">
-                        <div className="h-3 w-20 bg-muted rounded animate-pulse" />
-                        <div className="h-9 w-36 bg-muted rounded animate-pulse" />
-                        <div className="h-3 w-28 bg-muted rounded animate-pulse" />
-                      </div>
-                      <div className="size-28 rounded-full bg-muted animate-pulse" />
-                    </div>
-                  </div>
-                  <div className="p-4 grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <div className="h-3 w-16 bg-muted rounded animate-pulse" />
-                      <div className="h-6 w-24 bg-muted rounded animate-pulse" />
-                    </div>
-                    <div className="space-y-2 text-right">
-                      <div className="h-3 w-16 bg-muted rounded animate-pulse ml-auto" />
-                      <div className="h-6 w-24 bg-muted rounded animate-pulse ml-auto" />
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-
-              {/* Two Column Layout Skeleton */}
-              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                {/* Left Column */}
-                <div className="lg:col-span-2 space-y-6">
-                  {/* Categories Section Skeleton */}
-                  <Card>
-                    <CardHeader className="pb-2">
+            <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
+              {/* Left Column */}
+              <div className="lg:col-span-3 space-y-6">
+                {/* Hero Card Skeleton */}
+                <Card className="overflow-hidden">
+                  <CardContent className="p-0">
+                    <div className="bg-gradient-to-br from-primary/5 via-primary/10 to-primary/5 p-6">
                       <div className="flex items-center justify-between">
-                        <div className="h-5 w-44 bg-muted rounded animate-pulse" />
-                        <div className="h-4 w-24 bg-muted rounded animate-pulse" />
+                        <div className="space-y-3">
+                          <div className="h-3 w-24 bg-muted rounded animate-pulse" />
+                          <div className="h-9 w-36 bg-muted rounded animate-pulse" />
+                          <div className="h-6 w-28 bg-muted rounded-full animate-pulse" />
+                        </div>
+                        <div className="size-28 rounded-full bg-muted animate-pulse" />
                       </div>
-                    </CardHeader>
-                    <CardContent className="p-0">
-                      <ItemGroup>
-                        {[1, 2, 3, 4].map((i) => (
-                          <div key={i}>
-                            {i > 1 && <ItemSeparator />}
-                            <Item variant="default" size="sm">
-                              <ItemMedia variant="icon">
-                                <div className="size-10 rounded-xl bg-muted animate-pulse" />
-                              </ItemMedia>
-                              <ItemContent>
-                                <div className="h-4 w-24 bg-muted rounded animate-pulse" />
-                                <div className="h-3 w-32 bg-muted rounded animate-pulse mt-1" />
-                              </ItemContent>
-                              <ItemActions>
-                                <div className="text-right space-y-1">
-                                  <div className="h-4 w-20 bg-muted rounded animate-pulse" />
-                                  <div className="h-3 w-16 bg-muted rounded animate-pulse ml-auto" />
-                                </div>
-                              </ItemActions>
-                            </Item>
-                          </div>
-                        ))}
-                      </ItemGroup>
-                    </CardContent>
-                  </Card>
-                </div>
+                    </div>
+                    <div className="grid grid-cols-2 divide-x">
+                      <div className="p-4 space-y-2">
+                        <div className="flex items-center gap-2">
+                          <div className="size-6 rounded-full bg-muted animate-pulse" />
+                          <div className="h-3 w-14 bg-muted rounded animate-pulse" />
+                        </div>
+                        <div className="h-6 w-24 bg-muted rounded animate-pulse" />
+                      </div>
+                      <div className="p-4 space-y-2">
+                        <div className="flex items-center gap-2">
+                          <div className="size-6 rounded-full bg-muted animate-pulse" />
+                          <div className="h-3 w-16 bg-muted rounded animate-pulse" />
+                        </div>
+                        <div className="h-6 w-24 bg-muted rounded animate-pulse" />
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
 
-                {/* Right Column */}
-                <div className="space-y-6">
-                  {/* Income Sources Skeleton */}
-                  <Card>
-                    <CardHeader className="pb-2">
-                      <div className="h-5 w-28 bg-muted rounded animate-pulse" />
-                    </CardHeader>
-                    <CardContent className="p-0">
-                      <ItemGroup>
-                        {[1, 2].map((i) => (
-                          <div key={i}>
-                            {i > 1 && <ItemSeparator />}
-                            <Item variant="default" size="sm">
-                              <ItemMedia variant="icon">
-                                <div className="size-10 rounded-xl bg-muted animate-pulse" />
-                              </ItemMedia>
-                              <ItemContent>
+                {/* Categories Section Skeleton */}
+                <Card>
+                  <CardHeader className="pb-2">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <div className="size-5 bg-muted rounded animate-pulse" />
+                        <div className="h-5 w-40 bg-muted rounded animate-pulse" />
+                      </div>
+                      <div className="h-4 w-24 bg-muted rounded animate-pulse" />
+                    </div>
+                  </CardHeader>
+                  <CardContent className="p-0">
+                    <ItemGroup>
+                      {[1, 2, 3, 4].map((i) => (
+                        <div key={i}>
+                          {i > 1 && <ItemSeparator />}
+                          <Item variant="default" size="sm">
+                            <ItemMedia variant="icon">
+                              <div className="size-10 rounded-xl bg-muted animate-pulse" />
+                            </ItemMedia>
+                            <ItemContent>
+                              <div className="h-4 w-24 bg-muted rounded animate-pulse" />
+                              <div className="h-3 w-32 bg-muted rounded animate-pulse mt-1" />
+                            </ItemContent>
+                            <ItemActions>
+                              <div className="text-right space-y-1">
                                 <div className="h-4 w-20 bg-muted rounded animate-pulse" />
-                                <div className="h-3 w-16 bg-muted rounded animate-pulse mt-1" />
-                              </ItemContent>
-                              <ItemActions>
-                                <div className="h-4 w-16 bg-muted rounded animate-pulse" />
-                              </ItemActions>
-                            </Item>
-                          </div>
-                        ))}
-                      </ItemGroup>
-                    </CardContent>
-                  </Card>
-                </div>
+                                <div className="h-3 w-16 bg-muted rounded animate-pulse ml-auto" />
+                              </div>
+                            </ItemActions>
+                          </Item>
+                        </div>
+                      ))}
+                    </ItemGroup>
+                  </CardContent>
+                </Card>
               </div>
-            </>
+
+              {/* Right Column */}
+              <div className="lg:col-span-2 space-y-6">
+                {/* Spending Limits Skeleton */}
+                <Card>
+                  <CardHeader className="pb-2">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <div className="size-5 bg-muted rounded animate-pulse" />
+                        <div className="h-5 w-28 bg-muted rounded animate-pulse" />
+                      </div>
+                      <div className="h-8 w-16 bg-muted rounded animate-pulse" />
+                    </div>
+                  </CardHeader>
+                  <CardContent className="p-0">
+                    <ItemGroup>
+                      {[1, 2].map((i) => (
+                        <div key={i}>
+                          {i > 1 && <ItemSeparator />}
+                          <Item variant="default" size="sm">
+                            <ItemMedia variant="icon">
+                              <div className="size-10 rounded-xl bg-muted animate-pulse" />
+                            </ItemMedia>
+                            <ItemContent>
+                              <div className="h-4 w-20 bg-muted rounded animate-pulse" />
+                              <div className="h-3 w-32 bg-muted rounded animate-pulse mt-1" />
+                            </ItemContent>
+                            <ItemActions>
+                              <div className="text-right space-y-1">
+                                <div className="h-4 w-16 bg-muted rounded animate-pulse" />
+                                <div className="h-1.5 w-16 bg-muted rounded-full animate-pulse" />
+                              </div>
+                            </ItemActions>
+                          </Item>
+                        </div>
+                      ))}
+                    </ItemGroup>
+                  </CardContent>
+                </Card>
+
+                {/* Income Sources Skeleton */}
+                <Card>
+                  <CardHeader className="pb-2">
+                    <div className="flex items-center gap-2">
+                      <div className="size-5 bg-muted rounded animate-pulse" />
+                      <div className="h-5 w-28 bg-muted rounded animate-pulse" />
+                    </div>
+                  </CardHeader>
+                  <CardContent className="p-0">
+                    <ItemGroup>
+                      {[1, 2].map((i) => (
+                        <div key={i}>
+                          {i > 1 && <ItemSeparator />}
+                          <Item variant="default" size="sm">
+                            <ItemMedia variant="icon">
+                              <div className="size-10 rounded-xl bg-muted animate-pulse" />
+                            </ItemMedia>
+                            <ItemContent>
+                              <div className="h-4 w-24 bg-muted rounded animate-pulse" />
+                              <div className="h-3 w-16 bg-muted rounded animate-pulse mt-1" />
+                            </ItemContent>
+                            <ItemActions>
+                              <div className="h-4 w-16 bg-muted rounded animate-pulse" />
+                            </ItemActions>
+                          </Item>
+                        </div>
+                      ))}
+                    </ItemGroup>
+                  </CardContent>
+                </Card>
+
+                {/* Top Merchants Skeleton */}
+                <Card>
+                  <CardHeader className="pb-2">
+                    <div className="flex items-center gap-2">
+                      <div className="size-5 bg-muted rounded animate-pulse" />
+                      <div className="h-5 w-28 bg-muted rounded animate-pulse" />
+                    </div>
+                  </CardHeader>
+                  <CardContent className="p-0">
+                    <ItemGroup>
+                      {[1, 2, 3].map((i) => (
+                        <div key={i}>
+                          {i > 1 && <ItemSeparator />}
+                          <Item variant="default" size="sm">
+                            <ItemMedia variant="icon">
+                              <div className="size-10 rounded-xl bg-muted animate-pulse" />
+                            </ItemMedia>
+                            <ItemContent>
+                              <div className="h-4 w-28 bg-muted rounded animate-pulse" />
+                              <div className="h-3 w-14 bg-muted rounded animate-pulse mt-1" />
+                            </ItemContent>
+                            <ItemActions>
+                              <div className="h-4 w-16 bg-muted rounded animate-pulse" />
+                            </ItemActions>
+                          </Item>
+                        </div>
+                      ))}
+                    </ItemGroup>
+                  </CardContent>
+                </Card>
+              </div>
+            </div>
           )}
 
           {/* Data Loaded */}
           {data && !isLoading && (data.totalSpending > 0 || data.totalIncome > 0) && (
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-              {/* Left Column - Main Content (2/3 on desktop) */}
-              <div className="lg:col-span-2 space-y-6">
-                {/* Desktop Add Button */}
-                <div className="flex justify-end">
-                  <Button
-                    size="sm"
-                    onClick={() => setAddTransactionOpen(true)}
-                    className="hidden sm:flex"
-                  >
-                    <Plus size={16} />
-                    Add Transaction
-                  </Button>
-                </div>
-
+            <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
+              {/* Left Column - Main Content (60% on desktop) */}
+              <div className="lg:col-span-3 space-y-6">
                 {/* Hero Card - Financial Overview */}
                 <Card className="overflow-hidden">
                   <CardContent className="p-0">
@@ -682,8 +753,26 @@ export function SpendingContent() {
 
               </div>
 
-              {/* Right Column - Sidebar Content (1/3 on desktop) */}
-              <div className="space-y-6">
+              {/* Right Column - Sidebar Content (40% on desktop) */}
+              <div className="lg:col-span-2 space-y-6">
+                {/* Spending Limits */}
+                <SpendingLimitsSection
+                  budgets={budgets}
+                  currency={data.currency}
+                  isLoading={isBudgetsLoading}
+                  variant="personal"
+                  onAddLimit={() => {
+                    setSelectedBudget(null);
+                    setSelectedCategory(undefined);
+                    setSetLimitOpen(true);
+                  }}
+                  onEditLimit={(budget) => {
+                    setSelectedBudget(budget);
+                    setSelectedCategory(undefined);
+                    setSetLimitOpen(true);
+                  }}
+                />
+
                 {/* Income Sources */}
                 {data.totalIncome > 0 && data.incomeSources && data.incomeSources.length > 0 && (
                   <Card>
@@ -777,15 +866,34 @@ export function SpendingContent() {
         </div>
       </div>
       )}
+        </>
+      )}
 
-      {/* Mobile FAB */}
-      <Button
-        size="icon"
-        onClick={() => setAddTransactionOpen(true)}
-        className="fixed bottom-20 right-4 size-14 rounded-full shadow-lg sm:hidden z-50"
-      >
-        <Plus size={24} weight="bold" />
-      </Button>
+      {/* Mobile FAB with Dropdown */}
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button
+            size="icon"
+            className="fixed bottom-20 right-4 size-14 rounded-full shadow-lg sm:hidden z-50"
+          >
+            <Plus size={24} weight="bold" />
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end" side="top" className="mb-2 min-w-0 w-auto">
+          <DropdownMenuItem onClick={() => setAddTransactionOpen(true)} className="gap-2">
+            <Plus size={16} className="shrink-0" />
+            <span>Add Transaction</span>
+          </DropdownMenuItem>
+          <DropdownMenuItem onClick={() => {
+            setSelectedBudget(null);
+            setSelectedCategory(undefined);
+            setSetLimitOpen(true);
+          }} className="gap-2">
+            <Gauge size={16} className="shrink-0" />
+            <span>Set Limit</span>
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
 
       {/* Sheet Modals */}
       <AddTransactionSheet
@@ -794,18 +902,17 @@ export function SpendingContent() {
         onSuccess={handleRefreshAll}
         banks={banks}
         defaultCurrency={data?.currency || "BHD"}
+        isFamily={activeTab === "family"}
       />
 
       <SetSpendingLimitSheet
         open={setLimitOpen}
         onOpenChange={setSetLimitOpen}
-        onSuccess={() => {
-          fetchBudgets();
-          fetchSpendingData();
-        }}
+        onSuccess={handleRefreshAll}
         existingBudget={selectedBudget}
         selectedCategory={selectedCategory}
         defaultCurrency={data?.currency || "BHD"}
+        isFamily={activeTab === "family"}
       />
 
       {/* Bank Consent Dialog */}

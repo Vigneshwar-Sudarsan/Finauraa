@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect } from "react";
 import { useTransactionFilterStore } from "@/lib/stores/transaction-filter-store";
 import { DashboardHeader } from "./dashboard-header";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -8,6 +8,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { EmptyState } from "@/components/ui/empty-state";
 import { useBankConnection } from "@/hooks/use-bank-connection";
+import { useTransactions } from "@/hooks/use-transactions";
+import { useBankConnections } from "@/hooks/use-bank-connections";
 import {
   Item,
   ItemMedia,
@@ -18,31 +20,20 @@ import {
   ItemGroup,
   ItemSeparator,
 } from "@/components/ui/item";
-import { cn } from "@/lib/utils";
+import { cn, formatCurrency } from "@/lib/utils";
 import {
-  ShoppingCart,
-  Car,
-  Hamburger,
-  Lightning,
-  CreditCard,
-  House,
-  Heartbeat,
-  GameController,
-  Airplane,
-  DotsThree,
-  Money,
-  Briefcase,
-  Bank,
   Plus,
   Receipt,
   MagnifyingGlass,
   Funnel,
   Crown,
   Clock,
+  Bank,
 } from "@phosphor-icons/react";
 import Link from "next/link";
 import { AddTransactionSheet, TransactionFiltersSheet, type TransactionFilters } from "@/components/spending";
 import { format, isToday, isYesterday, isThisWeek, isThisMonth, parseISO } from "date-fns";
+import { getCategoryIcon, formatCategoryName } from "@/lib/constants/category-icons";
 
 interface Transaction {
   id: string;
@@ -72,57 +63,6 @@ interface BankConnection {
   }[];
 }
 
-// Category icons mapping
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const categoryIcons: Record<string, React.ComponentType<any>> = {
-  shopping: ShoppingCart,
-  groceries: ShoppingCart,
-  transport: Car,
-  transportation: Car,
-  food: Hamburger,
-  dining: Hamburger,
-  restaurants: Hamburger,
-  utilities: Lightning,
-  bills: Lightning,
-  subscriptions: CreditCard,
-  payments: CreditCard,
-  housing: House,
-  rent: House,
-  mortgages: House,
-  health: Heartbeat,
-  healthcare: Heartbeat,
-  entertainment: GameController,
-  travel: Airplane,
-  other: DotsThree,
-  "other expenses": DotsThree,
-  "other loans": CreditCard,
-  "salary & wages": Briefcase,
-  "retirement & pensions": Bank,
-  "other income": Money,
-  income: Money,
-  transfer: Bank,
-};
-
-function getCategoryIcon(categoryName: string) {
-  const key = categoryName.toLowerCase();
-  return categoryIcons[key] || DotsThree;
-}
-
-function formatCurrency(amount: number, currency: string = "BHD") {
-  return new Intl.NumberFormat("en-BH", {
-    style: "currency",
-    currency: currency,
-    minimumFractionDigits: 2,
-  }).format(amount);
-}
-
-function formatCategoryName(name: string) {
-  return name
-    .split(" ")
-    .map((word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
-    .join(" ");
-}
-
 function getDateGroup(dateStr: string): string {
   const date = parseISO(dateStr);
   if (isToday(date)) return "Today";
@@ -143,15 +83,13 @@ interface SubscriptionInfo {
 }
 
 export function TransactionsContent() {
-  const [transactions, setTransactions] = useState<Transaction[]>([]);
-  const [banks, setBanks] = useState<BankConnection[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const { transactions, subscription, isLoading, mutate } = useTransactions();
+  const { banks } = useBankConnections();
   const [error, setError] = useState<string | null>(null);
   const [needsConsent, setNeedsConsent] = useState(false);
   const [addTransactionOpen, setAddTransactionOpen] = useState(false);
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [pendingFilterApplied, setPendingFilterApplied] = useState(false);
-  const [subscription, setSubscription] = useState<SubscriptionInfo | null>(null);
 
   // Bank connection with consent dialog
   const { connectBank, isConnecting, ConsentDialog } = useBankConnection();
@@ -190,49 +128,6 @@ export function TransactionsContent() {
   const clearFilters = () => {
     clearStoreFilters();
   };
-
-  const fetchTransactions = useCallback(async () => {
-    try {
-      const response = await fetch("/api/finance/transactions");
-      if (!response.ok) {
-        // Check if it's a consent/authorization issue
-        if (response.status === 403) {
-          setNeedsConsent(true);
-          setError("Bank connection required");
-        } else {
-          throw new Error("Failed to fetch transactions");
-        }
-        return;
-      }
-      const data = await response.json();
-      setTransactions(data.transactions || []);
-      setSubscription(data.subscription || null);
-      setNeedsConsent(false);
-    } catch (err) {
-      console.error("Failed to fetch transactions:", err);
-      setError("Unable to load transactions");
-    } finally {
-      setIsLoading(false);
-    }
-  }, []);
-
-  const fetchBanks = useCallback(async () => {
-    try {
-      const response = await fetch("/api/finance/banks");
-      // Silently handle 403 - main fetchTransactions handles consent flow
-      if (response.status === 403) return;
-      if (!response.ok) throw new Error("Failed to fetch banks");
-      const { banks: banksData } = await response.json();
-      setBanks(banksData || []);
-    } catch (err) {
-      console.error("Failed to fetch banks:", err);
-    }
-  }, []);
-
-  useEffect(() => {
-    fetchTransactions();
-    fetchBanks();
-  }, [fetchTransactions, fetchBanks]);
 
   // Check if any filters are active
   const hasActiveFilters =
@@ -603,7 +498,7 @@ export function TransactionsContent() {
       <AddTransactionSheet
         open={addTransactionOpen}
         onOpenChange={setAddTransactionOpen}
-        onSuccess={fetchTransactions}
+        onSuccess={mutate}
         banks={banks}
         defaultCurrency={defaultCurrency}
       />

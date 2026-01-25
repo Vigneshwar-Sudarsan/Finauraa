@@ -263,7 +263,7 @@ export function formatContextForAI(context: AnonymizedContext): string {
     }
   }
 
-  if (context.budgetSummary) {
+  if (context.budgetSummary && context.budgetSummary.activeBudgets > 0) {
     contextStr += `\n- Active budgets: ${context.budgetSummary.activeBudgets}`;
     if (context.budgetSummary.budgetsExceeded.length > 0) {
       contextStr += `\n- Budgets exceeded: ${context.budgetSummary.budgetsExceeded.join(", ")}`;
@@ -271,7 +271,12 @@ export function formatContextForAI(context: AnonymizedContext): string {
     if (context.budgetSummary.budgetsNearLimit.length > 0) {
       contextStr += `\n- Budgets near limit (80%+): ${context.budgetSummary.budgetsNearLimit.join(", ")}`;
     }
+  } else {
+    contextStr += `\n- Active budgets: 0 (user has not set up any budgets)`;
   }
+
+  contextStr += `\n\n---END OF USER DATA---`;
+  contextStr += `\nIMPORTANT: This is ALL the data available. If something is not listed above (like a specific budget category), it does NOT exist.`;
 
   return contextStr;
 }
@@ -372,18 +377,31 @@ export async function getEnhancedUserContext(userId: string): Promise<EnhancedCo
     progress: Math.round(((g.current_amount || 0) / g.target_amount) * 100)
   }));
 
-  // Calculate monthly income and expenses
-  const thirtyDaysAgo = new Date();
-  thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+  // Calculate monthly income and expenses (from last 90 days, averaged to monthly)
+  // Using same 90-day window for both ensures consistent data capture
+  const ninetyDaysAgo = new Date();
+  ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90);
 
-  const recentTransactions = transactions || [];
-  const monthlyIncome = recentTransactions
-    .filter(t => t.transaction_type === 'credit')
+  // Get all transactions from last 90 days
+  const { data: quarterTransactions } = await supabase
+    .from("transactions")
+    .select("amount, transaction_type")
+    .eq("user_id", userId)
+    .gte("transaction_date", ninetyDaysAgo.toISOString());
+
+  // Calculate income from 90 days and average to monthly
+  const quarterIncome = (quarterTransactions || [])
+    .filter(t => t.transaction_type === "credit")
     .reduce((sum, t) => sum + Math.abs(t.amount), 0);
 
-  const monthlyExpenses = recentTransactions
-    .filter(t => t.transaction_type === 'debit')
+  const monthlyIncome = Math.round((quarterIncome / 3) * 1000) / 1000;
+
+  // Calculate expenses from 90 days and average to monthly
+  const quarterExpenses = (quarterTransactions || [])
+    .filter(t => t.transaction_type === "debit")
     .reduce((sum, t) => sum + Math.abs(t.amount), 0);
+
+  const monthlyExpenses = Math.round((quarterExpenses / 3) * 1000) / 1000;
 
   return {
     hasBankConnected,
@@ -425,20 +443,24 @@ export function formatEnhancedContextForAI(context: EnhancedContext): string {
     contextStr += `\n- Net: ${(context.monthlyIncome - context.monthlyExpenses).toFixed(3)} BHD`;
   }
 
-  // Budgets with exact amounts
+  // Budgets with exact amounts - ALWAYS include this section
   if (context.budgets && context.budgets.length > 0) {
     contextStr += `\n\nBUDGETS (${context.budgets.length} active):`;
     context.budgets.forEach(b => {
       contextStr += `\n- ${b.category}: ${b.spent.toFixed(3)}/${b.limit.toFixed(3)} BHD (${b.percentageUsed}% used, ${b.remaining.toFixed(3)} BHD remaining)`;
     });
+  } else {
+    contextStr += `\n\nBUDGETS: None set up. User has not created any budgets yet.`;
   }
 
-  // Savings goals with exact progress
+  // Savings goals with exact progress - ALWAYS include this section
   if (context.savingsGoals && context.savingsGoals.length > 0) {
     contextStr += `\n\nSAVINGS GOALS:`;
     context.savingsGoals.forEach(g => {
       contextStr += `\n- ${g.name}: ${g.currentAmount.toFixed(3)}/${g.targetAmount.toFixed(3)} BHD (${g.progress}% complete)`;
     });
+  } else {
+    contextStr += `\n\nSAVINGS GOALS: None set up. User has not created any savings goals yet.`;
   }
 
   // Recent transactions (top 20 for context)
@@ -450,7 +472,8 @@ export function formatEnhancedContextForAI(context: EnhancedContext): string {
     });
   }
 
-  contextStr += `\n\nNote: You have access to exact amounts, merchants, and transaction details. Use this to provide specific, actionable financial insights.`;
+  contextStr += `\n\n---END OF USER DATA---`;
+  contextStr += `\nIMPORTANT: The data above is COMPLETE. If something is not listed (like a budget category or savings goal), it does NOT exist. Do NOT invent or assume data that is not explicitly shown above.`;
 
   return contextStr;
 }

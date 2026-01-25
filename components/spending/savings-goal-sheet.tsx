@@ -32,10 +32,10 @@ import {
   FieldError,
   FieldDescription,
 } from "@/components/ui/field";
-import { SpinnerGap, Trash, CalendarBlank } from "@phosphor-icons/react";
+import { SpinnerGap, Trash, CalendarBlank, Users, User, CheckCircle } from "@phosphor-icons/react";
 import { Switch } from "@/components/ui/switch";
-import { SAVINGS_GOAL_CATEGORIES } from "@/lib/constants/categories";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { useCategories } from "@/hooks/use-categories";
 import { cn } from "@/lib/utils";
 
 interface SavingsGoal {
@@ -51,12 +51,30 @@ interface SavingsGoal {
   is_completed: boolean;
 }
 
+interface FamilyMember {
+  userId: string;
+  name: string;
+  role: string;
+}
+
+interface AssignedMember {
+  id?: string;
+  user_id: string | null;
+  is_whole_family: boolean;
+  isWholeFamily?: boolean;
+  contribution_amount: number;
+  name: string;
+}
+
 interface SavingsGoalSheetProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onSuccess?: () => void;
   existingGoal?: SavingsGoal | null;
   defaultCurrency?: string;
+  isFamily?: boolean;
+  familyMembers?: FamilyMember[];
+  assignedMembers?: AssignedMember[];
 }
 
 export function SavingsGoalSheet({
@@ -65,8 +83,12 @@ export function SavingsGoalSheet({
   onSuccess,
   existingGoal,
   defaultCurrency = "BHD",
+  isFamily = false,
+  familyMembers = [],
+  assignedMembers = [],
 }: SavingsGoalSheetProps) {
   const isMobile = useIsMobile();
+  const { savingsCategories } = useCategories();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -78,11 +100,18 @@ export function SavingsGoalSheet({
   const [category, setCategory] = useState("");
   const [autoContribute, setAutoContribute] = useState(false);
   const [autoContributePercentage, setAutoContributePercentage] = useState("");
+  const [assignmentType, setAssignmentType] = useState<"whole_family" | "individual">("whole_family");
+  const [selectedMembers, setSelectedMembers] = useState<string[]>([]);
 
   const isEditing = !!existingGoal;
 
+  // Memoize assigned members to avoid infinite loops
+  const assignedMembersKey = JSON.stringify(assignedMembers.map(m => m.id || m.user_id));
+
   // Update form when editing an existing goal
   useEffect(() => {
+    if (!open) return;
+
     if (existingGoal) {
       setName(existingGoal.name);
       setTargetAmount(existingGoal.target_amount.toString());
@@ -92,10 +121,24 @@ export function SavingsGoalSheet({
       setAutoContributePercentage(
         existingGoal.auto_contribute_percentage?.toString() || ""
       );
+      // Set family assignment
+      if (isFamily && assignedMembers.length > 0) {
+        const hasWholeFamily = assignedMembers.some(m => m.is_whole_family || m.isWholeFamily);
+        setAssignmentType(hasWholeFamily ? "whole_family" : "individual");
+        setSelectedMembers(
+          assignedMembers
+            .filter(m => !m.is_whole_family && !m.isWholeFamily && m.user_id)
+            .map(m => m.user_id!)
+        );
+      } else {
+        setAssignmentType("whole_family");
+        setSelectedMembers([]);
+      }
     } else {
       resetForm();
     }
-  }, [existingGoal, open]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [existingGoal?.id, open, isFamily, assignedMembersKey]);
 
   const resetForm = () => {
     setName("");
@@ -104,6 +147,8 @@ export function SavingsGoalSheet({
     setCategory("");
     setAutoContribute(false);
     setAutoContributePercentage("");
+    setAssignmentType("whole_family");
+    setSelectedMembers([]);
     setError(null);
   };
 
@@ -134,12 +179,18 @@ export function SavingsGoalSheet({
     setIsSubmitting(true);
 
     try {
-      const url = isEditing
-        ? `/api/finance/savings-goals/${existingGoal.id}`
-        : "/api/finance/savings-goals";
+      // Build assigned members for family goals
+      const assigned_members = isFamily
+        ? assignmentType === "whole_family"
+          ? [{ isWholeFamily: true }]
+          : selectedMembers.map(userId => ({ userId }))
+        : undefined;
+
+      const baseUrl = isFamily ? "/api/finance/family/savings-goals" : "/api/finance/savings-goals";
+      const url = isEditing ? `${baseUrl}/${existingGoal.id}` : baseUrl;
 
       const response = await fetch(url, {
-        method: isEditing ? "PUT" : "POST",
+        method: isEditing ? (isFamily ? "PATCH" : "PUT") : "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           name: name.trim(),
@@ -149,6 +200,7 @@ export function SavingsGoalSheet({
           currency: defaultCurrency,
           auto_contribute: autoContribute,
           auto_contribute_percentage: autoContribute ? parsedPercentage : null,
+          ...(isFamily && { assigned_members }),
         }),
       });
 
@@ -174,7 +226,8 @@ export function SavingsGoalSheet({
     setError(null);
 
     try {
-      const response = await fetch(`/api/finance/savings-goals/${existingGoal.id}`, {
+      const baseUrl = isFamily ? "/api/finance/family/savings-goals" : "/api/finance/savings-goals";
+      const response = await fetch(`${baseUrl}/${existingGoal.id}`, {
         method: "DELETE",
       });
 
@@ -225,12 +278,16 @@ export function SavingsGoalSheet({
         <div className="border-b shrink-0">
           <DrawerHeader className={`pb-4 pt-4 ${!isMobile ? "text-left" : ""}`}>
             <DrawerTitle className={isMobile ? "text-center text-xl" : "text-xl"}>
-              {isEditing ? "Edit Savings Goal" : "Create Savings Goal"}
+              {isEditing
+                ? `Edit ${isFamily ? "Family " : ""}Savings Goal`
+                : `Create ${isFamily ? "Family " : ""}Savings Goal`}
             </DrawerTitle>
             <DrawerDescription className={`${isMobile ? "text-center" : ""} text-muted-foreground`}>
               {isEditing
-                ? "Update your savings goal details"
-                : "Set a target and track your progress"}
+                ? `Update your ${isFamily ? "family " : ""}savings goal details`
+                : isFamily
+                  ? "Set a target for your family to work towards together"
+                  : "Set a target and track your progress"}
             </DrawerDescription>
           </DrawerHeader>
         </div>
@@ -331,9 +388,9 @@ export function SavingsGoalSheet({
                       <SelectValue placeholder="Select category" />
                     </SelectTrigger>
                     <SelectContent>
-                      {SAVINGS_GOAL_CATEGORIES.map((cat) => (
-                        <SelectItem key={cat.value} value={cat.value}>
-                          {cat.label}
+                      {savingsCategories.map((cat) => (
+                        <SelectItem key={cat.id} value={cat.id}>
+                          {cat.name}
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -347,6 +404,106 @@ export function SavingsGoalSheet({
                     Save <span className="font-semibold text-primary">{defaultCurrency} {suggestedMonthlySavings}</span>/month to reach your goal
                   </p>
                 </div>
+              )}
+
+              {/* Family Member Assignment (only for family goals) */}
+              {isFamily && familyMembers.length > 0 && (
+                <Field>
+                  <FieldLabel>Assign To</FieldLabel>
+                  <div className="space-y-2">
+                    {/* Whole Family Option */}
+                    <button
+                      type="button"
+                      onClick={() => setAssignmentType("whole_family")}
+                      className={cn(
+                        "w-full flex items-center gap-3 p-3 rounded-lg border transition-colors text-left",
+                        assignmentType === "whole_family"
+                          ? "border-blue-500 bg-blue-500/5"
+                          : "border-border hover:bg-muted/50"
+                      )}
+                    >
+                      <div className={cn(
+                        "size-8 rounded-full flex items-center justify-center shrink-0",
+                        assignmentType === "whole_family" ? "bg-blue-500/10" : "bg-muted"
+                      )}>
+                        <Users size={16} className={assignmentType === "whole_family" ? "text-blue-500" : "text-muted-foreground"} />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="font-medium text-sm">Whole Family</p>
+                        <p className="text-xs text-muted-foreground">Everyone works towards this goal</p>
+                      </div>
+                      {assignmentType === "whole_family" && (
+                        <CheckCircle size={18} className="text-blue-500 shrink-0" weight="fill" />
+                      )}
+                    </button>
+
+                    {/* Individual Members Option */}
+                    <button
+                      type="button"
+                      onClick={() => setAssignmentType("individual")}
+                      className={cn(
+                        "w-full flex items-center gap-3 p-3 rounded-lg border transition-colors text-left",
+                        assignmentType === "individual"
+                          ? "border-blue-500 bg-blue-500/5"
+                          : "border-border hover:bg-muted/50"
+                      )}
+                    >
+                      <div className={cn(
+                        "size-8 rounded-full flex items-center justify-center shrink-0",
+                        assignmentType === "individual" ? "bg-blue-500/10" : "bg-muted"
+                      )}>
+                        <User size={16} className={assignmentType === "individual" ? "text-blue-500" : "text-muted-foreground"} />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="font-medium text-sm">Specific Members</p>
+                        <p className="text-xs text-muted-foreground">Assign to selected family members</p>
+                      </div>
+                      {assignmentType === "individual" && (
+                        <CheckCircle size={18} className="text-blue-500 shrink-0" weight="fill" />
+                      )}
+                    </button>
+
+                    {/* Member selection (when individual is selected) */}
+                    {assignmentType === "individual" && (
+                      <div className="pl-2 pt-2 space-y-1">
+                        {familyMembers.map((member) => (
+                          <button
+                            key={member.userId}
+                            type="button"
+                            onClick={() => {
+                              setSelectedMembers((prev) =>
+                                prev.includes(member.userId)
+                                  ? prev.filter((id) => id !== member.userId)
+                                  : [...prev, member.userId]
+                              );
+                            }}
+                            className={cn(
+                              "w-full flex items-center gap-3 p-2 rounded-lg transition-colors text-left",
+                              selectedMembers.includes(member.userId)
+                                ? "bg-blue-500/10"
+                                : "hover:bg-muted/50"
+                            )}
+                          >
+                            <div className={cn(
+                              "size-6 rounded-full border-2 flex items-center justify-center shrink-0 transition-colors",
+                              selectedMembers.includes(member.userId)
+                                ? "border-blue-500 bg-blue-500"
+                                : "border-muted-foreground/30"
+                            )}>
+                              {selectedMembers.includes(member.userId) && (
+                                <CheckCircle size={12} className="text-white" weight="bold" />
+                              )}
+                            </div>
+                            <span className="text-sm">{member.name}</span>
+                            {member.role === "owner" && (
+                              <span className="text-[10px] text-muted-foreground bg-muted px-1.5 py-0.5 rounded">Primary</span>
+                            )}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </Field>
               )}
 
               {/* Auto-contribute section */}

@@ -2,6 +2,9 @@
 
 import { useState, useEffect } from "react";
 import { ArrowDownLeft, ArrowUpRight } from "@phosphor-icons/react";
+import { formatCurrency } from "@/lib/utils";
+import { formatTransactionDate } from "@/lib/date-utils";
+import { getCategoryLabel } from "@/lib/constants/category-icons";
 
 interface TransactionsListProps {
   data?: Record<string, unknown>;
@@ -35,20 +38,6 @@ interface TransactionsData {
   };
 }
 
-// Minimal neutral category labels
-const CATEGORY_LABELS: Record<string, string> = {
-  groceries: "Groceries",
-  dining: "Dining",
-  transport: "Transport",
-  shopping: "Shopping",
-  bills: "Bills",
-  entertainment: "Entertainment",
-  health: "Health",
-  coffee: "Coffee",
-  fuel: "Fuel",
-  other: "Other",
-};
-
 export function TransactionsList({ data }: TransactionsListProps) {
   const [transactionsData, setTransactionsData] = useState<TransactionsData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -78,27 +67,6 @@ export function TransactionsList({ data }: TransactionsListProps) {
 
     fetchData();
   }, [limit, category]);
-
-  const formatCurrency = (amount: number, currency: string) => {
-    return new Intl.NumberFormat("en-BH", {
-      style: "currency",
-      currency: currency,
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2,
-    }).format(amount);
-  };
-
-  const formatDate = (dateString: string) => {
-    const date = new Date(dateString);
-    const now = new Date();
-    const diffDays = Math.floor((now.getTime() - date.getTime()) / (1000 * 60 * 60 * 24));
-
-    if (diffDays === 0) return "Today";
-    if (diffDays === 1) return "Yesterday";
-    if (diffDays < 7) return date.toLocaleDateString("en-US", { weekday: "short" });
-
-    return date.toLocaleDateString("en-US", { month: "short", day: "numeric" });
-  };
 
   if (isLoading) {
     return (
@@ -149,7 +117,7 @@ export function TransactionsList({ data }: TransactionsListProps) {
         {transactions.map((tx) => {
           const isCredit = tx.transaction_type === "credit";
           const displayName = tx.merchant_name || tx.description || "Transaction";
-          const categoryLabel = CATEGORY_LABELS[tx.category?.toLowerCase()] ?? tx.category ?? "Other";
+          const categoryLabel = getCategoryLabel(tx.category || "other");
           const hasLogo = tx.merchant_logo || tx.category_icon;
 
           return (
@@ -189,7 +157,7 @@ export function TransactionsList({ data }: TransactionsListProps) {
                 <div className="min-w-0">
                   <p className="text-sm font-medium truncate max-w-[160px]">{displayName}</p>
                   <p className="text-xs text-muted-foreground">
-                    {categoryLabel} · {formatDate(tx.transaction_date)}
+                    {categoryLabel} · {formatTransactionDate(tx.transaction_date)}
                   </p>
                 </div>
               </div>

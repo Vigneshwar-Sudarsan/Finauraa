@@ -1,7 +1,7 @@
 "use client";
 
 import { Plus, Bank, SpinnerGap, Check } from "@phosphor-icons/react";
-import { cn } from "@/lib/utils";
+import { cn, formatCurrency } from "@/lib/utils";
 import { useBankConnection } from "@/hooks/use-bank-connection";
 
 interface Account {
@@ -33,14 +33,6 @@ export function BankSelector({
 }: BankSelectorProps) {
   // Bank connection with consent dialog
   const { connectBank: handleAddBank, isConnecting, ConsentDialog } = useBankConnection();
-
-  const formatCurrency = (amount: number, currency: string) => {
-    return new Intl.NumberFormat("en-BH", {
-      style: "currency",
-      currency: currency,
-      minimumFractionDigits: 2,
-    }).format(amount);
-  };
 
   const getBankTotalBalance = (bank: BankConnection) => {
     return bank.accounts.reduce((sum, acc) => sum + acc.balance, 0);

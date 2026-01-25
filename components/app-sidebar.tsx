@@ -3,7 +3,6 @@
 import { useRouter, usePathname } from "next/navigation";
 import {
   Sparkle,
-  House,
   Wallet,
   PaperPlaneTilt,
   ChartPie,
@@ -28,6 +27,18 @@ import {
   SidebarSeparator,
 } from "@/components/ui/sidebar";
 import { createClient } from "@/lib/supabase/client";
+import { GuideSpot } from "@/components/chat/feature-guide";
+
+// Map of sidebar items to their guide step IDs
+type GuideStepId = "nav-accounts" | "nav-transactions" | "nav-spending" | "nav-goals" | "nav-settings";
+
+const guideStepMap: Record<string, GuideStepId> = {
+  Accounts: "nav-accounts",
+  Transactions: "nav-transactions",
+  Spending: "nav-spending",
+  Goals: "nav-goals",
+  Settings: "nav-settings",
+};
 
 // Main navigation items
 const navItems = [
@@ -93,7 +104,10 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
 
   const isActive = (url: string) => {
     if (url === "/") return pathname === "/";
-    if (url === "/dashboard") return pathname === "/dashboard";
+    // Accounts should be active on both /dashboard and /dashboard/accounts
+    if (url === "/dashboard/accounts") {
+      return pathname === "/dashboard" || pathname.startsWith("/dashboard/accounts");
+    }
     return pathname.startsWith(url);
   };
 
@@ -146,7 +160,9 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
           <SidebarMenu>
             {dashboardItems.map((item) => {
               const active = isActive(item.url);
-              return (
+              const guideId = guideStepMap[item.title];
+
+              const menuItem = (
                 <SidebarMenuItem key={item.title}>
                   <SidebarMenuButton
                     tooltip={item.title}
@@ -160,6 +176,17 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                   </SidebarMenuButton>
                 </SidebarMenuItem>
               );
+
+              // Wrap with GuideSpot if this item has a guide step
+              if (guideId) {
+                return (
+                  <GuideSpot key={item.title} id={guideId} side="right" align="center">
+                    {menuItem}
+                  </GuideSpot>
+                );
+              }
+
+              return menuItem;
             })}
           </SidebarMenu>
         </SidebarGroup>
@@ -167,16 +194,31 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
 
       <SidebarFooter>
         <SidebarMenu>
-          {footerItems.map((item) => (
-            <SidebarMenuItem key={item.title}>
-              <SidebarMenuButton tooltip={item.title} asChild>
-                <a href={item.url}>
-                  <item.icon size={20} />
-                  <span>{item.title}</span>
-                </a>
-              </SidebarMenuButton>
-            </SidebarMenuItem>
-          ))}
+          {footerItems.map((item) => {
+            const guideId = guideStepMap[item.title];
+
+            const menuItem = (
+              <SidebarMenuItem key={item.title}>
+                <SidebarMenuButton tooltip={item.title} asChild>
+                  <a href={item.url}>
+                    <item.icon size={20} />
+                    <span>{item.title}</span>
+                  </a>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+            );
+
+            // Wrap Settings with GuideSpot
+            if (guideId) {
+              return (
+                <GuideSpot key={item.title} id={guideId} side="right" align="center">
+                  {menuItem}
+                </GuideSpot>
+              );
+            }
+
+            return menuItem;
+          })}
           <SidebarMenuItem>
             <SidebarMenuButton tooltip="Log out" onClick={handleLogout}>
               <SignOut size={20} />

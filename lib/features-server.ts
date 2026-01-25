@@ -31,6 +31,9 @@ export interface UserSubscription {
 /**
  * Get user's subscription tier from the database
  * Use this in API routes and server components
+ *
+ * IMPORTANT: Family group members inherit Pro features even if their own tier is "free"
+ * This function returns the EFFECTIVE tier after considering family membership
  */
 export async function getUserSubscription(): Promise<UserSubscription | null> {
   const supabase = await createClient();
@@ -58,9 +61,27 @@ export async function getUserSubscription(): Promise<UserSubscription | null> {
     };
   }
 
-  // Determine tier (with backwards compatibility for is_pro)
-  const tier: SubscriptionTier =
+  // Determine base tier (with backwards compatibility for is_pro)
+  let tier: SubscriptionTier =
     profile.subscription_tier || (profile.is_pro ? "pro" : "free");
+
+  // Check if user is part of a family group - they inherit Pro features
+  // Family members get upgraded to "pro" effective tier regardless of their own subscription
+  if (profile.family_group_id && tier === "free") {
+    // Verify the user is an active member of the family group
+    const { data: membership } = await supabase
+      .from("family_members")
+      .select("status")
+      .eq("group_id", profile.family_group_id)
+      .eq("user_id", user.id)
+      .eq("status", "active")
+      .single();
+
+    if (membership) {
+      // User is an active family member - they get Pro features
+      tier = "pro";
+    }
+  }
 
   // Use dynamic limits from database if enabled
   const limits = USE_DYNAMIC_FEATURES

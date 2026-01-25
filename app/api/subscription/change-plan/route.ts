@@ -1,6 +1,21 @@
 import { NextRequest, NextResponse } from "next/server";
 import Stripe from "stripe";
 import { createClient } from "@/lib/supabase/server";
+import { createClient as createAdminClient } from "@supabase/supabase-js";
+import type { SupabaseClient } from "@supabase/supabase-js";
+
+// Lazy initialization for admin client
+let supabaseAdmin: SupabaseClient | null = null;
+
+function getSupabaseAdmin(): SupabaseClient {
+  if (!supabaseAdmin) {
+    supabaseAdmin = createAdminClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!
+    );
+  }
+  return supabaseAdmin;
+}
 
 // Lazy initialization to avoid build-time errors
 let stripe: Stripe | null = null;
@@ -17,16 +32,12 @@ function getStripe(): Stripe {
   return stripe;
 }
 
-// Stripe price IDs for each plan
+// Stripe price IDs for Pro plan
 function getPriceIds() {
   return {
     pro: {
       monthly: process.env.STRIPE_PRO_PRICE_ID_MONTHLY!,
       yearly: process.env.STRIPE_PRO_PRICE_ID_YEARLY!,
-    },
-    family: {
-      monthly: process.env.STRIPE_FAMILY_PRICE_ID_MONTHLY!,
-      yearly: process.env.STRIPE_FAMILY_PRICE_ID_YEARLY!,
     },
   };
 }
@@ -51,8 +62,8 @@ export async function POST(request: NextRequest) {
 
     const { plan, billing = "monthly" } = await request.json();
 
-    // Validate plan
-    if (!plan || !["pro", "family"].includes(plan)) {
+    // Validate plan - only Pro is available for purchase now
+    if (!plan || plan !== "pro") {
       return NextResponse.json(
         { error: "Invalid plan selected" },
         { status: 400 }
@@ -69,7 +80,7 @@ export async function POST(request: NextRequest) {
     // Get user's current subscription info
     const { data: profile } = await supabase
       .from("profiles")
-      .select("stripe_subscription_id, stripe_customer_id, subscription_tier, subscription_status")
+      .select("stripe_subscription_id, stripe_customer_id, subscription_tier, subscription_status, family_group_id")
       .eq("id", user.id)
       .single();
 
@@ -82,6 +93,23 @@ export async function POST(request: NextRequest) {
         },
         { status: 400 }
       );
+    }
+
+    // Family members can't change plans - they inherit from family owner
+    if (profile.family_group_id && profile.subscription_tier !== "family") {
+      const adminClient = getSupabaseAdmin();
+      const { data: familyGroup } = await adminClient
+        .from("family_groups")
+        .select("owner_id")
+        .eq("id", profile.family_group_id)
+        .single();
+
+      if (familyGroup && familyGroup.owner_id !== user.id) {
+        return NextResponse.json(
+          { error: "Family members cannot change subscription plans. Please contact your family group owner." },
+          { status: 403 }
+        );
+      }
     }
 
     // Check if user already has the same plan
@@ -100,7 +128,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Get new price ID
-    const newPriceId = getPriceIds()[plan as "pro" | "family"][billing as "monthly" | "yearly"];
+    const newPriceId = getPriceIds().pro[billing as "monthly" | "yearly"];
 
     if (!newPriceId) {
       return NextResponse.json(
@@ -115,7 +143,8 @@ export async function POST(request: NextRequest) {
     );
 
     // Determine if this is an upgrade or downgrade
-    const tierOrder = { free: 0, pro: 1, family: 2 };
+    // Note: family tier exists for backwards compatibility with existing subscribers
+    const tierOrder = { free: 0, pro: 1, family: 1 };
     const currentTierOrder = tierOrder[profile.subscription_tier as keyof typeof tierOrder] || 0;
     const newTierOrder = tierOrder[plan as keyof typeof tierOrder];
     const isUpgrade = newTierOrder > currentTierOrder;
@@ -243,7 +272,7 @@ export async function GET(request: NextRequest) {
     const plan = searchParams.get("plan");
     const billing = searchParams.get("billing") || "monthly";
 
-    if (!plan || !["pro", "family"].includes(plan)) {
+    if (!plan || plan !== "pro") {
       return NextResponse.json(
         { error: "Invalid plan" },
         { status: 400 }
@@ -253,7 +282,7 @@ export async function GET(request: NextRequest) {
     // Get user's current subscription info
     const { data: profile } = await supabase
       .from("profiles")
-      .select("stripe_subscription_id, subscription_tier")
+      .select("stripe_subscription_id, subscription_tier, family_group_id")
       .eq("id", user.id)
       .single();
 
@@ -264,8 +293,25 @@ export async function GET(request: NextRequest) {
       );
     }
 
+    // Family members can't preview plan changes - they inherit from family owner
+    if (profile.family_group_id && profile.subscription_tier !== "family") {
+      const adminClient = getSupabaseAdmin();
+      const { data: familyGroup } = await adminClient
+        .from("family_groups")
+        .select("owner_id")
+        .eq("id", profile.family_group_id)
+        .single();
+
+      if (familyGroup && familyGroup.owner_id !== user.id) {
+        return NextResponse.json(
+          { error: "Family members cannot change subscription plans. Please contact your family group owner." },
+          { status: 403 }
+        );
+      }
+    }
+
     // Get new price ID
-    const newPriceId = getPriceIds()[plan as "pro" | "family"][billing as "monthly" | "yearly"];
+    const newPriceId = getPriceIds().pro[billing as "monthly" | "yearly"];
 
     if (!newPriceId) {
       return NextResponse.json(
@@ -304,7 +350,8 @@ export async function GET(request: NextRequest) {
     });
 
     // Determine if this is an upgrade or downgrade
-    const tierOrder = { free: 0, pro: 1, family: 2 };
+    // Note: family tier exists for backwards compatibility with existing subscribers
+    const tierOrder = { free: 0, pro: 1, family: 1 };
     const currentTierOrder = tierOrder[profile.subscription_tier as keyof typeof tierOrder] || 0;
     const newTierOrder = tierOrder[plan as keyof typeof tierOrder];
     const isUpgrade = newTierOrder > currentTierOrder;

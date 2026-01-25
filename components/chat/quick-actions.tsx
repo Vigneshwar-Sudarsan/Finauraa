@@ -1,7 +1,7 @@
 "use client";
 
 import { Button } from "@/components/ui/button";
-import { CreditCard, ChartPie, Target, PaperPlaneTilt } from "@phosphor-icons/react";
+import { CreditCard, ChartPie, Target, Wallet } from "@phosphor-icons/react";
 
 interface QuickActionsProps {
   onAction: (action: string) => void;
@@ -14,7 +14,7 @@ export function QuickActions({ onAction, hasBankConnected = false }: QuickAction
         { icon: CreditCard, label: "Accounts", action: "show-accounts" },
         { icon: ChartPie, label: "Spending", action: "show-spending" },
         { icon: Target, label: "Goals", action: "show-goals" },
-        { icon: PaperPlaneTilt, label: "Send", action: "send-money" },
+        { icon: Wallet, label: "Budgets", action: "show-budgets" },
       ]
     : [
         { icon: CreditCard, label: "Connect Bank", action: "connect-bank" },

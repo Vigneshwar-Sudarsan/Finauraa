@@ -2,6 +2,7 @@
 
 import { Check, Bank } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/button";
+import { formatCurrency } from "@/lib/utils";
 
 interface BankConnectedProps {
   data?: Record<string, unknown>;
@@ -16,14 +17,6 @@ export function BankConnected({ data, onAction, disabled }: BankConnectedProps) 
   const balance = (data?.balance as number) ?? 0;
   const currency = (data?.currency as string) ?? "BHD";
   const transactionCount = (data?.transactionCount as number) ?? 0;
-
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat("en-BH", {
-      style: "currency",
-      currency: currency,
-      minimumFractionDigits: currency === "BHD" ? 3 : 2,
-    }).format(amount);
-  };
 
   return (
     <div className="w-full max-w-sm rounded-xl border border-border/60 bg-card p-4 space-y-3">

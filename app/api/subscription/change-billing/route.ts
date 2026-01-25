@@ -30,16 +30,12 @@ function getSupabaseAdmin(): SupabaseClient {
   return supabaseAdmin;
 }
 
-// Stripe price IDs for each plan
+// Stripe price IDs for Pro plan
 function getPriceIds() {
   return {
     pro: {
       monthly: process.env.STRIPE_PRO_PRICE_ID_MONTHLY!,
       yearly: process.env.STRIPE_PRO_PRICE_ID_YEARLY!,
-    },
-    family: {
-      monthly: process.env.STRIPE_FAMILY_PRICE_ID_MONTHLY!,
-      yearly: process.env.STRIPE_FAMILY_PRICE_ID_YEARLY!,
     },
   };
 }
@@ -49,8 +45,6 @@ function getPriceToBilling(): Record<string, { plan: string; billing: string }> 
   return {
     [process.env.STRIPE_PRO_PRICE_ID_MONTHLY!]: { plan: "pro", billing: "monthly" },
     [process.env.STRIPE_PRO_PRICE_ID_YEARLY!]: { plan: "pro", billing: "yearly" },
-    [process.env.STRIPE_FAMILY_PRICE_ID_MONTHLY!]: { plan: "family", billing: "monthly" },
-    [process.env.STRIPE_FAMILY_PRICE_ID_YEARLY!]: { plan: "family", billing: "yearly" },
   };
 }
 
@@ -84,7 +78,7 @@ export async function POST(request: NextRequest) {
     // Get user's current subscription info
     const { data: profile } = await supabase
       .from("profiles")
-      .select("stripe_subscription_id, stripe_customer_id, subscription_tier")
+      .select("stripe_subscription_id, stripe_customer_id, subscription_tier, family_group_id")
       .eq("id", user.id)
       .single();
 
@@ -100,6 +94,25 @@ export async function POST(request: NextRequest) {
         { error: "Free plan does not have billing cycles." },
         { status: 400 }
       );
+    }
+
+    // Family members can't change billing - they inherit from family owner
+    if (profile.family_group_id && profile.subscription_tier !== "family") {
+      // User has family_group_id but isn't the family tier owner
+      // Check if they're a member (not owner) of the family group
+      const adminClient = getSupabaseAdmin();
+      const { data: familyGroup } = await adminClient
+        .from("family_groups")
+        .select("owner_id")
+        .eq("id", profile.family_group_id)
+        .single();
+
+      if (familyGroup && familyGroup.owner_id !== user.id) {
+        return NextResponse.json(
+          { error: "Family members cannot change billing. Please contact your family group owner." },
+          { status: 403 }
+        );
+      }
     }
 
     // Get current subscription from Stripe
@@ -137,9 +150,15 @@ export async function POST(request: NextRequest) {
     }
 
     // Get the new price ID (same plan, different billing cycle)
-    const plan = profile.subscription_tier as "pro" | "family";
-    const PRICE_IDS = getPriceIds();
-    const newPriceId = getPriceIds()[plan][billing as "monthly" | "yearly"];
+    // Note: family tier users are treated as pro for billing purposes
+    const plan = profile.subscription_tier === "family" ? "pro" : profile.subscription_tier;
+    if (plan !== "pro") {
+      return NextResponse.json(
+        { error: "Only Pro subscribers can change billing cycle." },
+        { status: 400 }
+      );
+    }
+    const newPriceId = getPriceIds().pro[billing as "monthly" | "yearly"];
 
     if (!newPriceId) {
       return NextResponse.json(
@@ -276,7 +295,7 @@ export async function GET(request: NextRequest) {
     // Get user's current subscription info
     const { data: profile } = await supabase
       .from("profiles")
-      .select("stripe_subscription_id, subscription_tier")
+      .select("stripe_subscription_id, subscription_tier, family_group_id")
       .eq("id", user.id)
       .single();
 
@@ -287,8 +306,32 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const plan = profile.subscription_tier as "pro" | "family";
-    const newPriceId = getPriceIds()[plan]?.[billing as "monthly" | "yearly"];
+    // Family members can't preview billing changes - they inherit from family owner
+    if (profile.family_group_id && profile.subscription_tier !== "family") {
+      const adminClient = getSupabaseAdmin();
+      const { data: familyGroup } = await adminClient
+        .from("family_groups")
+        .select("owner_id")
+        .eq("id", profile.family_group_id)
+        .single();
+
+      if (familyGroup && familyGroup.owner_id !== user.id) {
+        return NextResponse.json(
+          { error: "Family members cannot change billing. Please contact your family group owner." },
+          { status: 403 }
+        );
+      }
+    }
+
+    // Note: family tier users are treated as pro for billing purposes
+    const plan = profile.subscription_tier === "family" ? "pro" : profile.subscription_tier;
+    if (plan !== "pro") {
+      return NextResponse.json(
+        { error: "Only Pro subscribers can preview billing changes" },
+        { status: 400 }
+      );
+    }
+    const newPriceId = getPriceIds().pro[billing as "monthly" | "yearly"];
 
     if (!newPriceId) {
       return NextResponse.json(
@@ -338,9 +381,9 @@ export async function GET(request: NextRequest) {
 
     const isUpgradeToYearly = billing === "yearly";
 
-    // Calculate savings for yearly
-    const monthlyPrice = plan === "pro" ? 7.99 : 15.99;
-    const yearlyPrice = plan === "pro" ? 79.99 : 159.99;
+    // Calculate savings for yearly (Pro plan pricing)
+    const monthlyPrice = 7.99;
+    const yearlyPrice = 79.99;
     const yearlySavings = (monthlyPrice * 12) - yearlyPrice;
 
     // For downgrade (yearly to monthly), calculate the credit amount

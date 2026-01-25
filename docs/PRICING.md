@@ -1,170 +1,232 @@
-# Finauraa Pricing & Cost Analysis
+# Finauraa Pricing & Feature Limits
 
-> Last updated: January 2025
-> Currency: BHD (Bahraini Dinar) - 1 USD ≈ 0.376 BHD
-> Note: Tarabut Gateway pricing is estimated. Update when actual pricing is confirmed.
+> Last updated: January 2026
+> Currency: USD (with BHD equivalent for Bahrain market)
+> Note: Family tier has been merged into Pro - all family features now included in Pro
+> Source of truth: `lib/features.ts` and `feature_flags` database table
 
 ## Plan Structure
 
-### Free Plan - 0 BHD/month
-| Feature | Limit |
-|---------|-------|
-| Bank connections | 1 |
-| AI queries | 5/month |
-| Transaction history | 30 days |
-| Savings goals | 1 |
-| Sync frequency | Manual only |
-| Spending insights | Basic |
-| Data export | ❌ |
-| Family sharing | ❌ |
+### Free Plan - $0/month
+| Feature | Limit | Feature Key |
+|---------|-------|-------------|
+| Bank connections | 3 | `bankConnections` |
+| AI queries | 5/month | `aiQueriesPerMonth` |
+| Transaction history | 30 days | `transactionHistoryDays` |
+| Savings goals | 3 | `savingsGoals` |
+| Spending limits | 2 | `spendingLimits` |
+| Sync frequency | Manual only | `syncFrequency` |
+| Spending insights | Basic | `advancedInsights` |
+| Data export | ❌ | `exports` |
+| Enhanced AI | ❌ | `enhancedAI` |
+| Budget alerts | ❌ | `budgetAlerts` |
+| Bill reminders | ❌ | `billReminders` |
+| Goal progress alerts | ❌ | `goalProgressAlerts` |
+| AI insights notifications | ❌ | `aiInsightsNotifications` |
+| Family members | 0 | `familyMembers` |
+| Family dashboard | ❌ | `familyDashboard` |
 
-### Pro Plan - 2.99 BHD/month (~$7.99 USD)
-| Feature | Limit |
-|---------|-------|
-| Bank connections | 5 |
-| AI queries | 100/month |
-| Transaction history | Unlimited |
-| Savings goals | Unlimited |
-| Sync frequency | Auto (daily) |
-| Spending insights | Advanced |
-| Data export | CSV & PDF |
-| Budget alerts | ✅ |
-| Priority support | ✅ |
-| Family sharing | ❌ |
+### Pro Plan - $7.99/month (~3.00 BHD)
+| Feature | Limit | Feature Key |
+|---------|-------|-------------|
+| Bank connections | Unlimited (-1) | `bankConnections` |
+| AI queries | Unlimited (-1) | `aiQueriesPerMonth` |
+| Transaction history | Unlimited (null) | `transactionHistoryDays` |
+| Savings goals | Unlimited (null) | `savingsGoals` |
+| Spending limits | Unlimited (null) | `spendingLimits` |
+| Sync frequency | Auto (daily) | `syncFrequency` |
+| Spending insights | Advanced | `advancedInsights` |
+| Data export | CSV & PDF | `exports`, `exportFormats` |
+| Enhanced AI | ✅ (with consent) | `enhancedAI` |
+| Budget alerts | ✅ | `budgetAlerts` |
+| Bill reminders | ✅ | `billReminders` |
+| Goal progress alerts | ✅ | `goalProgressAlerts` |
+| AI insights notifications | ✅ | `aiInsightsNotifications` |
+| Priority support | ✅ | `prioritySupport` |
+| Family members | Up to 5 | `familyMembers` |
+| Family dashboard | ✅ | `familyDashboard` |
+| Shared goals | ✅ | `sharedGoals` |
+| Shared spending limits | ✅ | `sharedSpendingLimits` |
 
-**Annual: 29.99 BHD/year** (2 months free, ~2.50 BHD/month)
-
-### Family Plan - 5.99 BHD/month (~$15.93 USD)
-| Feature | Limit |
-|---------|-------|
-| Bank connections | 15 (shared) |
-| AI queries | 200/month (shared) |
-| Transaction history | Unlimited |
-| Savings goals | Unlimited |
-| Sync frequency | Auto (daily) |
-| Spending insights | Advanced |
-| Data export | CSV & PDF |
-| Budget alerts | ✅ |
-| Priority support | ✅ |
-| Family members | Up to 7 |
-| Family dashboard | ✅ |
-
-**Annual: 59.99 BHD/year** (2 months free, ~5.00 BHD/month)
+**Annual: $79.99/year** (~$6.67/month, 17% savings)
 
 ---
 
-## Cost Breakdown
+## Feature Details
 
-> Note: Costs calculated in USD for API services, converted to BHD for final analysis
+### Bank Connections
+- **Free: 3** - Connect checking, savings, and one credit card
+- **Pro: Unlimited** - Connect all your accounts across multiple banks
 
-### Per-Bank Costs (Tarabut Gateway - ESTIMATED)
-| Sync Type | Cost per Bank/Month |
-|-----------|---------------------|
-| Manual sync | ~0.19 BHD |
-| Daily auto sync | ~0.23 BHD |
+### AI Queries
+- **Free: 5/month** - Basic trial of AI features
+- **Pro: Unlimited** - Full AI assistant access
+
+### Transaction History
+- **Free: 30 days** - Recent transactions only
+- **Pro: Unlimited** - Full historical access
+
+### Savings Goals
+- **Free: 3** - Track your main goals
+- **Pro: Unlimited** - As many goals as you need
+
+### Spending Limits
+- **Free: 2** - Basic category limits
+- **Pro: Unlimited** - Full budget control
+
+### Family Features (Pro Only)
+- **Up to 5 members** - Including the primary account holder
+- **Family dashboard** - View combined spending
+- **Shared goals** - Work together on savings
+- **Shared spending limits** - Family budgets
+- **Data consent** - Each member controls their data sharing
+
+### Enhanced AI (Pro Only)
+- Requires explicit user consent
+- Sends exact amounts and merchant data to AI
+- More specific financial insights
+- 7-day data retention by Anthropic
+- Revocable anytime
+
+---
+
+## Cost Analysis
 
 ### AI Costs (Claude API)
-- Cost per query: ~0.002 BHD
-- 100 queries: ~0.23 BHD
-- 200 queries: ~0.46 BHD
+| Tier | Queries | Estimated Cost/User |
+|------|---------|-------------------|
+| Free | 5/month | ~$0.03 |
+| Pro | ~150/month avg | ~$0.75 |
 
-### Fixed Costs per User
-| Item | Cost (BHD) |
-|------|------------|
-| Infrastructure (Supabase, Vercel) | ~0.07 |
-| Business costs | ~0.31 |
-| Stripe fee (on avg transaction) | ~0.20 |
-| **Total fixed** | **~0.58** |
+### Infrastructure Costs
+| Service | Monthly Cost |
+|---------|--------------|
+| Supabase (Pro) | $25 |
+| Vercel (Pro) | $20 |
+| Resend (Email) | $20 |
+| Domain | ~$2 |
+| **Total** | **~$67/month** |
+
+### Payment Processing
+- Stripe fee: 2.9% + $0.30 per transaction
+- Average fee on $7.99: ~$0.53
 
 ---
 
 ## Profitability Analysis
 
-### Free Plan (0 BHD/month)
-| Item | Cost (BHD) |
-|------|------------|
-| 1 bank × manual sync | -0.19 |
-| 5 AI queries | -0.01 |
-| Infrastructure | -0.04 |
-| **Net Cost** | **-0.24** |
+### Free Plan
+| Item | Cost |
+|------|------|
+| 3 banks × manual sync | ~$0.15 |
+| 5 AI queries | ~$0.03 |
+| Infrastructure share | ~$0.02 |
+| **Net Cost/User** | **-$0.20** |
 
-### Pro Plan (2.99 BHD/month)
-| Item | Cost (BHD) |
-|------|------------|
-| 5 banks × daily sync | -1.13 |
-| 100 AI queries | -0.23 |
-| Fixed costs | -0.58 |
-| Free user subsidy (5:1 ratio, 4 users) | -0.96 |
-| **Total Costs** | **-2.90** |
-| **Revenue** | **2.99** |
-| **Net Profit** | **+0.09** |
-| **Margin** | **~3%** |
+### Pro Plan (Monthly)
+| Item | Amount |
+|------|--------|
+| Revenue | $7.99 |
+| AI costs (~150 queries) | -$0.75 |
+| Infrastructure share | -$0.10 |
+| Stripe fee | -$0.53 |
+| Free user subsidy (5:1) | -$1.00 |
+| **Net Profit** | **~$5.61** |
+| **Margin** | **~70%** |
 
-### Family Plan (5.99 BHD/month)
-| Item | Cost (BHD) |
-|------|------------|
-| 15 banks × daily sync | -3.39 |
-| 200 AI queries | -0.46 |
-| Fixed costs | -0.58 |
-| **Total Costs** | **-4.43** |
-| **Revenue** | **5.99** |
-| **Net Profit** | **+1.56** |
-| **Margin** | **~26%** |
+### Pro Plan (Annual)
+| Item | Amount |
+|------|--------|
+| Revenue | $79.99 |
+| AI costs (12 months) | -$9.00 |
+| Infrastructure | -$1.20 |
+| Stripe fee | -$2.62 |
+| **Net Profit** | **~$67.17** |
+| **Margin** | **~84%** |
+
+---
+
+## Implementation Details
+
+### Database Schema
+```sql
+-- profiles table
+subscription_tier: "free" | "pro" | "family"  -- family kept for backwards compat
+subscription_status: "active" | "trialing" | "past_due" | "canceled"
+subscription_started_at: timestamptz
+subscription_ends_at: timestamptz
+trial_ends_at: timestamptz
+stripe_customer_id: text
+stripe_subscription_id: text
+family_group_id: uuid  -- links to family_groups table
+ai_data_mode: "privacy-first" | "enhanced"  -- AI privacy mode
+enhanced_ai_consent_given_at: timestamptz
+enhanced_ai_consent_ip: text
+is_admin: boolean  -- Admin access for feature flags
+```
+
+### Stripe Products
+- Pro Monthly: `STRIPE_PRO_PRICE_ID_MONTHLY`
+- Pro Yearly: `STRIPE_PRO_PRICE_ID_YEARLY`
+
+### Feature Gating (Two Systems)
+
+**1. Static Configuration (`lib/features.ts`):**
+- `TIER_LIMITS` - Master configuration object
+- `getTierLimits(tier)` - Get limits for a tier
+- `checkUsageLimit(tier, feature, usage)` - Validate usage limits
+- `isFeatureAvailable(tier, feature)` - Check boolean features
+- `hasFamilyFeatures(tier)` - Check if tier has family features
+
+**2. Dynamic Feature Flags (`feature_flags` table):**
+- Admin-editable via `/dashboard/settings/admin/feature-flags`
+- Categories: `usage_limit`, `boolean_feature`, `notification`, `ai`, `support`
+- Supports: boolean, number, string, array value types
+- Audit trail in `feature_flag_audit_log` table
+
+### Family Implementation
+- `family_groups` table: Group info with owner_id, name
+- `family_members` table: Members with roles (owner/admin/member)
+- Invitation system with email tokens (7-day expiry)
+- Spending consent per member (`spending_consent_given`)
+- Family members inherit Pro features from group owner
+- Each member maintains individual consent controls
+- Transaction scope: personal, family, or auto (smart default)
+
+---
+
+## Upgrade Paths
+
+### Free → Pro
+1. User hits a limit (banks, AI queries, goals)
+2. Clicks "Upgrade" button
+3. Redirected to Stripe checkout
+4. After payment, tier updates immediately
+5. All Pro features unlocked
+
+### Billing Changes
+- Monthly ↔ Annual: Prorate credit applied
+- Cancel: Access until period end
+- Downgrade: Features restricted at period end
 
 ---
 
 ## Target Users
 
-| Plan | Best For | Typical Usage |
-|------|----------|---------------|
-| **Free** | Trying the app | 1 person, 1 bank |
-| **Pro** | Bachelors, Couples | 1-2 people, 3-5 banks |
-| **Family** | Families with kids/parents | 3-8 people, 10-15 banks |
-
----
-
-## Feature Limits Rationale
-
-### Bank Connections
-- **Free: 1** - Basic trial experience
-- **Pro: 5** - Enough for individual (checking, savings, credit cards)
-- **Family: 15** - ~2 banks per family member average
-
-### AI Queries
-- **Free: 5/month** - Experience the value
-- **Pro: 100/month** - ~3/day for active user
-- **Family: 200/month** - Shared pool for family
-
-### Family Members
-- **Family: 7** - Covers large Bahraini families (parents, kids, grandparents)
-
----
-
-## Implementation Notes
-
-### Database Schema
-- `profiles.subscription_tier`: "free" | "pro" | "family"
-- `profiles.family_group_id`: UUID (for family plan)
-- `family_groups` table: id, owner_id, created_at
-- `family_members` table: group_id, user_id, role, joined_at
-
-### Stripe Products (to create)
-- `prod_finauraa_pro_monthly`: 2.99 BHD/month
-- `prod_finauraa_pro_annual`: 29.99 BHD/year
-- `prod_finauraa_family_monthly`: 5.99 BHD/month
-- `prod_finauraa_family_annual`: 59.99 BHD/year
-
-### Usage Tracking
-- Track AI queries in `messages` table
-- Track bank connections in `bank_connections` table
-- For Family plan: aggregate usage across all family members
-- Reset counters on billing cycle date
+| Plan | Best For |
+|------|----------|
+| **Free** | Trying the app, single bank users |
+| **Pro** | Individuals, couples, families up to 5 |
 
 ---
 
 ## Future Considerations
 
-1. **Volume discounts from Tarabut** - Negotiate as user base grows
-2. **Per-member pricing** - Alternative to flat Family rate
+1. **Volume pricing** - Negotiate lower Tarabut/Claude costs at scale
+2. **Business tier** - For freelancers and small businesses
 3. **Lifetime deal** - One-time payment for early adopters
-4. **Business plan** - For small business expense tracking
+4. **Regional pricing** - Adjust for different GCC markets
+
+---
+
+*Last Updated: January 2026*

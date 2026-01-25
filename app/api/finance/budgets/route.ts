@@ -29,12 +29,14 @@ export async function GET() {
       return NextResponse.json({ budgets: [], noBanksConnected: true });
     }
 
-    // Get all active budgets for the user
+    // Get all active personal budgets for the user - select only needed columns
+    // Filter by scope = 'personal' to exclude family budgets
     const { data: budgets, error: budgetsError } = await supabase
       .from("budgets")
-      .select("*")
+      .select("id, category, amount, currency, period, is_active, start_date, end_date, created_at")
       .eq("user_id", user.id)
       .eq("is_active", true)
+      .eq("scope", "personal")
       .order("created_at", { ascending: false });
 
     if (budgetsError) {
@@ -49,35 +51,40 @@ export async function GET() {
       return NextResponse.json({ budgets: [] });
     }
 
-    // Calculate spent amount for each budget from transactions
-    const budgetsWithSpent = await Promise.all(
-      budgets.map(async (budget) => {
-        // Get start of current month for monthly budgets
-        const now = new Date();
-        const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+    // Get start of current month for monthly budgets
+    const now = new Date();
+    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
 
-        // Fetch debit transactions for this category in the current period
-        const { data: transactions } = await supabase
-          .from("transactions")
-          .select("amount")
-          .eq("user_id", user.id)
-          .eq("transaction_type", "debit")
-          .eq("category", budget.category)
-          .gte("transaction_date", startOfMonth.toISOString());
+    // Get all budget categories
+    const categories = budgets.map((b) => b.category);
 
-        const spent = (transactions || []).reduce(
-          (sum, t) => sum + Math.abs(t.amount),
-          0
-        );
+    // Fetch all spending for budget categories in a single query
+    const { data: transactions } = await supabase
+      .from("transactions")
+      .select("category, amount")
+      .eq("user_id", user.id)
+      .eq("transaction_type", "debit")
+      .in("category", categories)
+      .gte("transaction_date", startOfMonth.toISOString())
+      .is("deleted_at", null);
 
-        return {
-          ...budget,
-          spent,
-          remaining: Math.max(0, budget.amount - spent),
-          percentage: budget.amount > 0 ? Math.round((spent / budget.amount) * 100) : 0,
-        };
-      })
-    );
+    // Aggregate spending by category
+    const spendingByCategory: Record<string, number> = {};
+    (transactions || []).forEach((t) => {
+      const cat = t.category;
+      spendingByCategory[cat] = (spendingByCategory[cat] || 0) + Math.abs(t.amount);
+    });
+
+    // Map budgets with calculated spent amounts
+    const budgetsWithSpent = budgets.map((budget) => {
+      const spent = spendingByCategory[budget.category] || 0;
+      return {
+        ...budget,
+        spent,
+        remaining: Math.max(0, budget.amount - spent),
+        percentage: budget.amount > 0 ? Math.round((spent / budget.amount) * 100) : 0,
+      };
+    });
 
     return NextResponse.json({ budgets: budgetsWithSpent });
   } catch (error) {
@@ -117,13 +124,14 @@ export async function POST(request: NextRequest) {
     // Normalize category to lowercase
     const normalizedCategory = category.toLowerCase();
 
-    // Check if budget already exists for this category
+    // Check if personal budget already exists for this category
     const { data: existingBudget } = await supabase
       .from("budgets")
       .select("id")
       .eq("user_id", user.id)
       .eq("category", normalizedCategory)
       .eq("is_active", true)
+      .eq("scope", "personal")
       .single();
 
     let result;
@@ -163,6 +171,7 @@ export async function POST(request: NextRequest) {
           currency,
           period: "monthly",
           is_active: true,
+          scope: "personal",
           start_date: startOfMonth.toISOString().split('T')[0],
         })
         .select()

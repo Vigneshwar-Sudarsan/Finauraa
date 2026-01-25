@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
   Item,
   ItemMedia,
@@ -17,7 +18,8 @@ import {
   ItemGroup,
   ItemSeparator,
 } from "@/components/ui/item";
-import { cn } from "@/lib/utils";
+import { cn, formatCurrency } from "@/lib/utils";
+import { formatDate } from "@/lib/date-utils";
 import {
   Crown,
   Bank,
@@ -35,6 +37,8 @@ import {
   CheckCircle,
   Warning,
   ArrowCounterClockwise,
+  Users,
+  SignOut,
 } from "@phosphor-icons/react";
 import {
   AlertDialog,
@@ -56,15 +60,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { toast } from "sonner";
-
-interface SubscriptionData {
-  tier: "free" | "pro" | "family";
-  status: "active" | "canceled" | "past_due" | "trialing" | "canceling" | "paused" | "incomplete";
-  billingCycle: "monthly" | "yearly";
-  startedAt: string | null;
-  endsAt: string | null;
-  trialEndsAt: string | null;
-}
+import { useSubscription } from "@/hooks/use-subscription";
 
 interface BillingChangePreview {
   currentBilling: string;
@@ -80,35 +76,9 @@ interface BillingChangePreview {
   savingsPercentage: number;
 }
 
-interface UsageData {
-  bankConnections: { used: number; limit: number | null };
-  transactions: { used: number; limit: number | null };
-  aiQueries: { used: number; limit: number };
-  exports: { used: number; limit: number };
-}
-
-interface BillingRecord {
-  id: string;
-  amount: number;
-  currency: string;
-  status: "succeeded" | "pending" | "failed" | "refunded";
-  description: string;
-  invoiceUrl: string | null;
-  createdAt: string;
-}
-
-interface PaymentMethod {
-  id: string;
-  type: "card";
-  brand: string;
-  last4: string;
-  expMonth: number;
-  expYear: number;
-  isDefault: boolean;
-  isSubscriptionPayment: boolean;
-}
-
 // Plan configuration for display (prices in USD)
+// Note: Family plan has been merged into Pro - existing family subscribers
+// are treated as Pro subscribers for display purposes
 const planInfo = {
   free: {
     name: "Free",
@@ -120,85 +90,57 @@ const planInfo = {
     name: "Pro",
     monthlyPrice: 7.99,
     yearlyPrice: 79.99,
-    description: "For singles & couples",
+    description: "Everything unlimited + family",
   },
+  // Keep family for backwards compatibility with existing subscribers
   family: {
-    name: "Family",
-    monthlyPrice: 15.99,
-    yearlyPrice: 159.99,
-    description: "For the whole family",
+    name: "Pro",  // Display as "Pro" since they have same features
+    monthlyPrice: 7.99,
+    yearlyPrice: 79.99,
+    description: "Everything unlimited + family",
   },
 };
-
-function formatCurrency(amount: number) {
-  return new Intl.NumberFormat("en-US", {
-    style: "currency",
-    currency: "USD",
-    minimumFractionDigits: 2,
-  }).format(amount);
-}
-
-function formatDate(dateString: string) {
-  return new Date(dateString).toLocaleDateString("en-US", {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-  });
-}
 
 export function SubscriptionContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const [isLoading, setIsLoading] = useState(true);
+  const { subscription, usage, billingHistory, paymentMethods, isLoading, mutate } = useSubscription();
   const [isSyncing, setIsSyncing] = useState(false);
   const [isActionLoading, setIsActionLoading] = useState(false);
   const [showSuccessMessage, setShowSuccessMessage] = useState(false);
-  const [subscription, setSubscription] = useState<SubscriptionData>({
-    tier: "free",
-    status: "active",
-    billingCycle: "monthly",
-    startedAt: null,
-    endsAt: null,
-    trialEndsAt: null,
-  });
   const [billingChangePreview, setBillingChangePreview] = useState<BillingChangePreview | null>(null);
   const [isLoadingBillingPreview, setIsLoadingBillingPreview] = useState(false);
   const [isBillingChangeLoading, setIsBillingChangeLoading] = useState(false);
   const [isBillingCycleUpdating, setIsBillingCycleUpdating] = useState(false);
   const [showBillingChangeDialog, setShowBillingChangeDialog] = useState(false);
-  const [usage, setUsage] = useState<UsageData>({
-    bankConnections: { used: 0, limit: 1 },
-    transactions: { used: 0, limit: 500 },
-    aiQueries: { used: 0, limit: 5 },
-    exports: { used: 0, limit: 0 },
-  });
-  const [billingHistory, setBillingHistory] = useState<BillingRecord[]>([]);
-  const [paymentMethods, setPaymentMethods] = useState<PaymentMethod[]>([]);
+  const [familyGroupInfo, setFamilyGroupInfo] = useState<{
+    name: string;
+    ownerName: string;
+  } | null>(null);
 
   // Check for success param from Stripe checkout redirect
   const isCheckoutSuccess = searchParams.get("success") === "true";
 
-  const fetchSubscriptionData = async () => {
-    try {
-      const subResponse = await fetch("/api/subscription");
-      if (subResponse.ok) {
-        const subData = await subResponse.json();
-        setSubscription(subData.subscription);
-        setUsage(prev => ({
-          bankConnections: subData.usage?.bankConnections ?? prev.bankConnections,
-          transactions: subData.usage?.transactions ?? prev.transactions,
-          aiQueries: subData.usage?.aiQueries ?? prev.aiQueries,
-          exports: subData.usage?.exports ?? prev.exports,
-        }));
-        setBillingHistory(subData.billingHistory || []);
-        setPaymentMethods(subData.paymentMethods || []);
-      }
-    } catch (error) {
-      console.error("Failed to fetch subscription:", error);
-    } finally {
-      setIsLoading(false);
+  // Fetch family group info if user is a family member
+  useEffect(() => {
+    if (subscription.isFamilyMember) {
+      const fetchFamilyInfo = async () => {
+        try {
+          const familyResponse = await fetch("/api/family/group");
+          if (familyResponse.ok) {
+            const familyData = await familyResponse.json();
+            setFamilyGroupInfo({
+              name: familyData.group?.name || "Family Group",
+              ownerName: familyData.group?.owner?.full_name || familyData.group?.owner?.email || "Group Owner",
+            });
+          }
+        } catch (familyError) {
+          console.error("Failed to fetch family group info:", familyError);
+        }
+      };
+      fetchFamilyInfo();
     }
-  };
+  }, [subscription.isFamilyMember]);
 
   // Sync subscription from Stripe (useful after checkout when webhook might be delayed)
   const syncSubscription = async () => {
@@ -207,7 +149,7 @@ export function SubscriptionContent() {
       const syncResponse = await fetch("/api/subscription/sync", { method: "POST" });
       if (syncResponse.ok) {
         // Re-fetch subscription data after sync
-        await fetchSubscriptionData();
+        await mutate();
       }
     } catch (error) {
       console.error("Failed to sync subscription:", error);
@@ -228,8 +170,6 @@ export function SubscriptionContent() {
         setTimeout(() => setShowSuccessMessage(false), 5000);
       };
       performSync();
-    } else {
-      fetchSubscriptionData();
     }
   }, [isCheckoutSuccess, router]);
 
@@ -261,7 +201,7 @@ export function SubscriptionContent() {
 
       if (response.ok) {
         toast.success(data.message);
-        await fetchSubscriptionData();
+        await mutate();
       } else {
         toast.error(data.error || "Failed to cancel subscription");
       }
@@ -270,7 +210,7 @@ export function SubscriptionContent() {
       toast.error("Failed to cancel subscription");
     } finally {
       setIsActionLoading(false);
-          }
+    }
   };
 
   const handleReactivateSubscription = async () => {
@@ -284,7 +224,7 @@ export function SubscriptionContent() {
 
       if (response.ok) {
         toast.success(data.message);
-        await fetchSubscriptionData();
+        await mutate();
       } else {
         toast.error(data.error || "Failed to reactivate subscription");
       }
@@ -293,7 +233,7 @@ export function SubscriptionContent() {
       toast.error("Failed to reactivate subscription");
     } finally {
       setIsActionLoading(false);
-          }
+    }
   };
 
   const fetchBillingChangePreview = async (newBilling: "monthly" | "yearly") => {
@@ -336,7 +276,7 @@ export function SubscriptionContent() {
         setIsBillingChangeLoading(false);
         // Show loading in the billing cycle card while fetching updated data
         setIsBillingCycleUpdating(true);
-        await fetchSubscriptionData();
+        await mutate();
         setIsBillingCycleUpdating(false);
       } else {
         toast.error(data.error || "Failed to change billing cycle");
@@ -346,8 +286,7 @@ export function SubscriptionContent() {
       console.error("Failed to change billing cycle:", error);
       toast.error("Failed to change billing cycle");
       setIsBillingChangeLoading(false);
-    } finally {
-          }
+    }
   };
 
   const currentPlan = planInfo[subscription.tier];
@@ -358,6 +297,7 @@ export function SubscriptionContent() {
   const isTrialing = subscription.status === "trialing";
   const isIncomplete = subscription.status === "incomplete";
   const isYearly = subscription.billingCycle === "yearly";
+  const isFamilyMember = subscription.isFamilyMember === true;
   const currentPrice = isFreePlan
     ? 0
     : isYearly
@@ -366,17 +306,96 @@ export function SubscriptionContent() {
 
   if (isLoading || isSyncing) {
     return (
-      <div className="flex flex-col items-center justify-center py-12 gap-3">
-        <div className="flex items-center gap-2 text-muted-foreground">
-          <SpinnerGap size={20} className="animate-spin" />
-          <span>{isSyncing ? "Updating your subscription..." : "Loading..."}</span>
+      <>
+        {/* Page Title Skeleton */}
+        <div>
+          <Skeleton className="h-7 w-32 mb-1" />
+          <Skeleton className="h-4 w-48" />
         </div>
+
+        {/* Current Plan Card Skeleton */}
+        <Card>
+          <CardContent className="p-6">
+            <div className="flex items-start justify-between">
+              <div className="flex items-center gap-4">
+                <Skeleton className="size-12 rounded-full" />
+                <div>
+                  <Skeleton className="h-6 w-24 mb-2" />
+                  <Skeleton className="h-4 w-32" />
+                </div>
+              </div>
+              <div className="text-right">
+                <Skeleton className="h-8 w-20 mb-1" />
+                <Skeleton className="h-4 w-16 ml-auto" />
+              </div>
+            </div>
+            <Separator className="my-4" />
+            <div className="flex items-center justify-between">
+              <Skeleton className="h-4 w-40" />
+              <div className="flex items-center gap-2">
+                <Skeleton className="h-9 w-28" />
+                <Skeleton className="h-9 w-28" />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Usage Stats Card Skeleton */}
+        <Card>
+          <CardHeader className="pb-2">
+            <Skeleton className="h-5 w-36 mb-1" />
+            <Skeleton className="h-4 w-28" />
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {[1, 2, 3].map((i) => (
+              <div key={i}>
+                <div className="flex items-center justify-between mb-1">
+                  <Skeleton className="h-4 w-32" />
+                  <Skeleton className="h-4 w-12" />
+                </div>
+                <Skeleton className="h-2 w-full" />
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+
+        {/* Billing History Card Skeleton */}
+        <Card>
+          <CardHeader className="pb-2">
+            <Skeleton className="h-5 w-28 mb-1" />
+            <Skeleton className="h-4 w-40" />
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-2">
+              {[1, 2].map((i) => (
+                <div key={i} className="flex items-center justify-between p-3 rounded-lg border">
+                  <div className="flex items-center gap-3">
+                    <Skeleton className="size-10 rounded-lg" />
+                    <div>
+                      <Skeleton className="h-4 w-32 mb-1" />
+                      <Skeleton className="h-3 w-24" />
+                    </div>
+                  </div>
+                  <Skeleton className="h-5 w-16" />
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Syncing message */}
         {isSyncing && (
-          <p className="text-sm text-muted-foreground text-center max-w-xs">
-            Please wait while we confirm your payment and activate your new plan.
-          </p>
+          <div className="flex flex-col items-center gap-2 py-4">
+            <div className="flex items-center gap-2 text-muted-foreground">
+              <SpinnerGap size={16} className="animate-spin" />
+              <span className="text-sm">Updating your subscription...</span>
+            </div>
+            <p className="text-xs text-muted-foreground text-center max-w-xs">
+              Please wait while we confirm your payment and activate your new plan.
+            </p>
+          </div>
         )}
-      </div>
+      </>
     );
   }
 
@@ -483,11 +502,58 @@ export function SubscriptionContent() {
       <div>
         <h1 className="text-xl font-semibold">Subscription</h1>
         <p className="text-sm text-muted-foreground">
-          Manage your plan and billing
+          {isFamilyMember ? "Your family membership" : "Manage your plan and billing"}
         </p>
       </div>
 
-      {/* Current Plan Card */}
+      {/* Family Member Info Card - Show for users who are part of a family group but don't own the subscription */}
+      {isFamilyMember && (
+        <Card className="border-primary/50 bg-primary/5">
+          <CardContent className="p-6">
+            <div className="flex items-start justify-between">
+              <div className="flex items-center gap-4">
+                <div className="size-12 rounded-full bg-primary/10 flex items-center justify-center">
+                  <Users size={24} className="text-primary" weight="fill" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <p className="font-semibold text-lg">Family Member</p>
+                    <Badge variant="default" className="bg-green-500">Active</Badge>
+                  </div>
+                  <p className="text-sm text-muted-foreground">
+                    You&apos;re part of {familyGroupInfo?.name || "a family group"}
+                  </p>
+                </div>
+              </div>
+              <div className="text-right">
+                <p className="text-lg font-medium text-primary">Pro Features</p>
+                <p className="text-sm text-muted-foreground">Included with membership</p>
+              </div>
+            </div>
+
+            <Separator className="my-4" />
+
+            <div className="flex items-center justify-between">
+              <div className="text-sm text-muted-foreground">
+                <p>Managed by {familyGroupInfo?.ownerName || "the group owner"}</p>
+                <p className="text-xs mt-1">Contact the group owner for billing questions</p>
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => router.push("/dashboard/settings/family")}
+                className="gap-2"
+              >
+                <Users size={16} />
+                View Family
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Current Plan Card - Only show for non-family members */}
+      {!isFamilyMember && (
           <Card className={cn(
             "relative overflow-hidden",
             !isFreePlan && "border-primary/50"
@@ -645,9 +711,10 @@ export function SubscriptionContent() {
               </div>
             </CardContent>
           </Card>
+      )}
 
-          {/* Billing Cycle Card - Only show for paid plans */}
-          {!isFreePlan && subscription.status === "active" && !isCanceling && (
+          {/* Billing Cycle Card - Only show for paid plans and non-family members */}
+          {!isFamilyMember && !isFreePlan && subscription.status === "active" && !isCanceling && (
             <Card>
               <CardHeader className="pb-2">
                 <CardTitle className="text-base">Billing Cycle</CardTitle>
@@ -895,8 +962,8 @@ export function SubscriptionContent() {
             </CardContent>
           </Card>
 
-          {/* Payment Method */}
-          {!isFreePlan && (
+          {/* Payment Method - Hide for family members */}
+          {!isFreePlan && !isFamilyMember && (
             <Card>
               <CardHeader className="pb-2">
                 <CardTitle className="text-base">Payment Method</CardTitle>
@@ -999,7 +1066,8 @@ export function SubscriptionContent() {
             </Card>
           )}
 
-          {/* Billing History */}
+          {/* Billing History - Hide for family members */}
+          {!isFamilyMember && (
           <Card>
             <CardHeader className="pb-2">
               <div className="flex items-center justify-between">
@@ -1096,8 +1164,45 @@ export function SubscriptionContent() {
               )}
             </CardContent>
           </Card>
+          )}
 
-          {/* FAQ Section */}
+          {/* FAQ Section - Show different content for family members */}
+          {isFamilyMember ? (
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-base">Family Membership FAQ</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div>
+                  <p className="font-medium text-sm">What features do I have access to?</p>
+                  <p className="text-sm text-muted-foreground">
+                    As a family member, you have full access to all Pro features including unlimited bank connections, AI queries, and data exports.
+                  </p>
+                </div>
+                <Separator />
+                <div>
+                  <p className="font-medium text-sm">Who manages the billing?</p>
+                  <p className="text-sm text-muted-foreground">
+                    Billing is managed by {familyGroupInfo?.ownerName || "the group owner"}. Contact them for any billing-related questions.
+                  </p>
+                </div>
+                <Separator />
+                <div>
+                  <p className="font-medium text-sm">Can I leave the family group?</p>
+                  <p className="text-sm text-muted-foreground">
+                    Yes, you can leave the family group at any time from the Family settings page. Your account will revert to the Free plan.
+                  </p>
+                </div>
+                <Separator />
+                <div>
+                  <p className="font-medium text-sm">What happens to my data if I leave?</p>
+                  <p className="text-sm text-muted-foreground">
+                    Your data is always yours. If you exceed Free tier limits after leaving, you can still view your data but may need to upgrade to add new connections.
+                  </p>
+                </div>
+              </CardContent>
+            </Card>
+          ) : (
           <Card>
             <CardHeader className="pb-2">
               <CardTitle className="text-base">Frequently Asked Questions</CardTitle>
@@ -1132,6 +1237,7 @@ export function SubscriptionContent() {
               </div>
             </CardContent>
           </Card>
+          )}
 
           {/* Support CTA */}
           <Card className="bg-muted/50">

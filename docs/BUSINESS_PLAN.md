@@ -11,8 +11,9 @@ Finauraa is an AI-powered personal finance application designed specifically for
 **Key Differentiators:**
 - Conversational-first interface (70% chat, 30% dashboard)
 - Bahrain-focused with BHD currency and local banks
-- Privacy-first AI architecture (aggregated data only)
+- Privacy-first AI architecture with optional enhanced mode
 - Open Banking integration via Tarabut Gateway
+- Family sharing built into Pro tier
 
 ---
 
@@ -41,15 +42,18 @@ An AI assistant that makes personal finance as easy as having a conversation.
 
 | Feature | Free | Pro |
 |---------|------|-----|
-| AI Financial Assistant | 30 queries/month | Unlimited |
-| Bank Connections | 1 bank | Unlimited |
-| Transaction History | 30 days | Full history |
-| Spending Categories | View only | View + Edit |
-| Budgets | - | Unlimited |
-| Savings Goals | - | Unlimited |
-| Send Money (PIS) | - | Yes |
-| Export (CSV/PDF) | - | Yes |
-| Monthly Reports | - | Yes |
+| AI Financial Assistant | 5/month | Unlimited |
+| Bank Connections | 3 | Unlimited |
+| Transaction History | 30 days | Unlimited |
+| Savings Goals | 3 | Unlimited |
+| Spending Limits | 2 | Unlimited |
+| Sync Frequency | Manual | Auto (daily) |
+| Spending Insights | Basic | Advanced |
+| Enhanced AI Mode | - | ✅ (with consent) |
+| Budget Alerts | - | ✅ |
+| Data Export | - | CSV & PDF |
+| Family Members | - | Up to 5 |
+| Family Dashboard | - | ✅ |
 
 ### User Experience
 - **Conversational-first**: Users interact primarily through chat
@@ -57,52 +61,61 @@ An AI assistant that makes personal finance as easy as having a conversation.
 - **Minimal cognitive load**: Clean, simple interface
 - **Progressive onboarding**: Connect bank through natural conversation
 
+### AI Privacy Modes
+1. **Privacy-First (Default)**: Anonymized data only
+   - Balance shown as "low/medium/high/very_high"
+   - Spending trend as "below/average/above average"
+   - No exact amounts sent to AI
+
+2. **Enhanced AI (Pro only)**: Full data with consent
+   - Exact balances and amounts
+   - Merchant-level analysis
+   - Specific budget recommendations
+   - Requires explicit user consent
+
 ---
 
 ## Pricing Strategy
 
-### Free Tier - BHD 0/month
+### Free Plan - $0/month
 **Purpose:** User acquisition, market penetration
 
 **Includes:**
-- Connect 1 bank account
-- 30 AI queries per month
-- View transactions (30 days)
-- Basic spending summary
-- Dashboard view
+- 3 bank connections
+- 5 AI queries per month
+- 30 days transaction history
+- 3 savings goals
+- 2 spending limits
+- Manual sync only
+- Basic spending insights
 
 **Limitations:**
-- No budgets or goals
-- No payment initiation
-- No exports
-- Limited transaction history
+- No budgets/budget alerts
+- No data export
+- No family sharing
+- No enhanced AI
 
-### Pro Tier - BHD 2.900/month (~$7.70 USD)
+### Pro Plan - $7.99/month
 **Purpose:** Revenue generation, power users
 
 **Includes:**
-- Everything in Free, plus:
-- Unlimited AI queries
 - Unlimited bank connections
+- Unlimited AI queries
 - Full transaction history
+- Unlimited savings goals
+- Unlimited spending limits
+- Auto daily sync
+- Advanced spending insights
+- Enhanced AI mode (with consent)
 - Unlimited budgets
-- Savings goals with tracking
-- Send money via chat (Tarabut PIS)
+- Budget alerts & notifications
 - Export to CSV/PDF
-- Monthly spending reports
-- Email support
-
-### Future: Business Tier - BHD 9.900/month (~$26 USD)
-**Purpose:** Freelancers, small business owners
-
-**Includes:**
-- Everything in Pro, plus:
-- Multiple profiles (personal + business)
-- Invoice tracking
-- Tax category tagging
-- Custom reports
+- Up to 5 family members
+- Family dashboard
+- Shared goals & budgets
 - Priority support
-- API access
+
+**Annual: $79.99/year** (17% savings, ~$6.67/month)
 
 ---
 
@@ -110,29 +123,29 @@ An AI assistant that makes personal finance as easy as having a conversation.
 
 ### Assumptions
 - Launch target: 1,000 users in first 6 months
-- Free to Pro conversion: 5% (conservative)
+- Free to Pro conversion: 5-10%
 - Pro user retention: 6 months average
 - Growth rate: 20% month-over-month after launch
 
 ### Year 1 Projections
 
-| Month | Total Users | Free (95%) | Pro (5%) | Monthly Revenue |
-|-------|-------------|------------|----------|-----------------|
-| 1 | 500 | 475 | 25 | BHD 72.50 |
-| 3 | 1,000 | 950 | 50 | BHD 145.00 |
-| 6 | 2,500 | 2,375 | 125 | BHD 362.50 |
-| 12 | 8,000 | 7,600 | 400 | BHD 1,160.00 |
+| Month | Total Users | Free | Pro | Monthly Revenue |
+|-------|-------------|------|-----|-----------------|
+| 1 | 500 | 475 | 25 | $200 |
+| 3 | 1,000 | 925 | 75 | $600 |
+| 6 | 2,500 | 2,250 | 250 | $2,000 |
+| 12 | 8,000 | 7,200 | 800 | $6,400 |
 
-**Year 1 Total Revenue: ~BHD 6,500 (~$17,250 USD)**
+**Year 1 Total Revenue: ~$25,000-35,000**
 
-### Year 2 Projections (with Business tier)
+### Year 2 Projections
 
-| Month | Total Users | Free | Pro | Business | Monthly Revenue |
-|-------|-------------|------|-----|----------|-----------------|
-| 18 | 20,000 | 18,400 | 800 | 200 | BHD 4,300.00 |
-| 24 | 50,000 | 46,000 | 2,000 | 500 | BHD 10,750.00 |
+| Month | Total Users | Free | Pro | Monthly Revenue |
+|-------|-------------|------|-----|-----------------|
+| 18 | 20,000 | 18,000 | 2,000 | $16,000 |
+| 24 | 50,000 | 45,000 | 5,000 | $40,000 |
 
-**Year 2 Total Revenue: ~BHD 85,000 (~$225,000 USD)**
+**Year 2 Total Revenue: ~$250,000-350,000**
 
 ---
 
@@ -150,74 +163,110 @@ Total per query:              ≈ $0.0055
 **Monthly AI Costs by User Type:**
 | User Type | Queries/Month | Cost/User |
 |-----------|---------------|-----------|
-| Free | 30 (capped) | $0.17 |
-| Pro | 150 (avg) | $0.83 |
-| Business | 300 (avg) | $1.65 |
+| Free | 5 (capped) | $0.03 |
+| Pro | ~150 (avg) | $0.75 |
 
-### Cost Optimization Strategies
-
-1. **Response Caching** (-35% cost)
-   - Cache common queries for 1 hour
-   - Cache transaction summaries daily
-
-2. **Tiered Models** (-50% cost)
-   - Simple queries → Claude Haiku ($0.25/1M)
-   - Complex analysis → Claude Sonnet ($3/1M)
-
-3. **Prompt Optimization** (-15% cost)
-   - Minimize system prompt tokens
-   - Efficient context management
-
-**Optimized Costs:**
-| User Type | Before | After Optimization |
-|-----------|--------|-------------------|
-| Free | $0.17 | $0.05 |
-| Pro | $0.83 | $0.25 |
-| Business | $1.65 | $0.50 |
-
-### Other Operating Costs
+### Infrastructure Costs
 
 | Item | Monthly Cost |
 |------|--------------|
 | Supabase (Pro) | $25 |
 | Vercel (Pro) | $20 |
-| Tarabut API | Variable (per transaction) |
+| Resend (Email) | $20 |
 | Domain & SSL | ~$2 |
-| **Total Infrastructure** | **~$50/month** |
+| **Total Infrastructure** | **~$67/month** |
 
-### Profit Margins (Optimized)
+### Profit Margins
 
-| Tier | Price | AI Cost | Infra (allocated) | Profit | Margin |
-|------|-------|---------|-------------------|--------|--------|
-| Free | $0 | $0.05 | $0.01 | -$0.06 | -100% |
-| Pro | $7.70 | $0.25 | $0.05 | $7.40 | 96% |
-| Business | $26 | $0.50 | $0.10 | $25.40 | 98% |
+| Tier | Price | Costs | Profit | Margin |
+|------|-------|-------|--------|--------|
+| Free | $0 | ~$0.20 | -$0.20 | -100% |
+| Pro Monthly | $7.99 | ~$2.38 | ~$5.61 | ~70% |
+| Pro Annual | $79.99 | ~$12.82 | ~$67.17 | ~84% |
 
 ---
 
 ## Technology Stack
 
 ### Frontend
-- Next.js 14 (App Router)
-- React 19
-- Tailwind CSS
+- Next.js 16.1.3 (App Router)
+- React 19.2.3
+- Tailwind CSS 4
 - shadcn/ui components
-- Vercel AI SDK
+- Radix UI primitives
+- Zustand (state management)
 
 ### Backend
-- Next.js API Routes
-- Supabase (PostgreSQL + Auth)
-- Supabase pgvector (AI embeddings)
+- Next.js API Routes (60+ endpoints)
+- Supabase (PostgreSQL + Auth + RLS)
+- Vercel Cron Jobs (consent expiry, data retention)
 
 ### External Services
-- **Tarabut Gateway**: Open Banking (Connect, Categorisation, Pay)
-- **Claude API**: AI conversations (Anthropic)
-- **Tap Payments**: Subscription billing (Bahrain-focused)
+- **Tarabut Gateway**: Open Banking (Connect, Categorisation)
+- **Claude API**: AI conversations (Anthropic SDK v0.71.2)
+- **Stripe**: Subscription billing (v20.2.0)
+- **Resend**: Transactional emails (v6.8.0)
+- **Sentry**: Error tracking & monitoring
 
 ### Infrastructure
-- Vercel (hosting)
-- Supabase (database + auth)
-- Cloudflare (CDN, optional)
+- Vercel (hosting + cron jobs)
+- Supabase (database + auth + RLS)
+- PWA support (installable app)
+
+---
+
+## Key Features Implemented
+
+### Chat & AI
+- Conversational finance assistant with Claude AI
+- Privacy-first mode (anonymized data)
+- Enhanced AI mode (full data with consent)
+- Rich content cards (balances, budgets, goals, transactions)
+- Financial health scoring (0-100 with A-F grades)
+- Cash flow predictions
+- Recurring expense detection
+
+### Banking Integration
+- Tarabut Gateway Open Banking
+- Multi-bank support (Bahraini banks)
+- Account sync (manual/daily auto)
+- Transaction categorization
+- Balance history tracking
+
+### Budgeting & Goals
+- Category-based budgets
+- Budget alerts at 85% and 100%
+- Savings goals with progress tracking
+- Goal contributions
+- AI-powered recommendations
+
+### Family Features (Pro)
+- Up to 5 family members
+- Family dashboard
+- Shared spending visibility
+- Shared goals and budgets
+- Individual consent controls
+
+### Compliance (Fully Implemented)
+- BOBF (Bahrain Open Banking Framework)
+- PDPL (Personal Data Protection Law)
+- Consent tracking with audit trail
+- Data export and deletion requests
+- 7-year audit log retention
+- Consent expiry notifications (7 days before)
+- Automated data retention cleanup (cron jobs)
+
+### Database Tables (21 Tables)
+| Category | Tables |
+|----------|--------|
+| Core | profiles, bank_connections, bank_accounts, transactions |
+| Chat | conversations, messages |
+| Finance | budgets, savings_goals |
+| Family | family_groups, family_members |
+| Compliance | user_consents, audit_logs, data_retention_policies, data_export_requests, data_deletion_requests |
+| Admin | feature_flags, feature_flag_audit_log, rate_limits, notifications |
+| Billing | billing_history |
+| Config | merchant_scope_defaults |
 
 ---
 
@@ -267,7 +316,7 @@ Total per query:              ≈ $0.0055
 2. Native Open Banking via Tarabut
 3. Conversational interface (unique UX)
 4. Local currency and bank support
-5. Privacy-first architecture
+5. Privacy-first architecture with optional enhanced mode
 
 ---
 
@@ -275,54 +324,12 @@ Total per query:              ≈ $0.0055
 
 | Risk | Likelihood | Impact | Mitigation |
 |------|------------|--------|------------|
-| Low user adoption | Medium | High | Strong marketing, free tier |
+| Low user adoption | Medium | High | Strong marketing, generous free tier |
 | Tarabut API issues | Low | High | Error handling, manual entry fallback |
-| AI costs exceed projections | Medium | Medium | Aggressive caching, model tiering |
+| AI costs exceed projections | Medium | Medium | Caching, rate limits, model tiering |
 | Security breach | Low | Critical | Security audits, encryption, RLS |
 | Regulatory changes | Low | Medium | Stay compliant, legal counsel |
 | Competition enters market | Medium | Medium | First-mover advantage, UX focus |
-
----
-
-## Team Requirements
-
-### MVP Launch (Current)
-- 1 Full-stack Developer (you)
-- Design support (AI-assisted)
-
-### Growth Phase
-- 1 Full-stack Developer
-- 1 Marketing/Growth hire
-- Part-time customer support
-
-### Scale Phase
-- 2-3 Developers
-- 1 Product Manager
-- 1 Marketing Manager
-- Customer support team
-
----
-
-## Funding Requirements
-
-### Bootstrap Phase (Current)
-- **Required:** BHD 0 (self-funded development)
-- **Timeline:** 3-4 months to MVP
-
-### Seed Phase (Post-Launch)
-- **Required:** BHD 20,000-50,000 (~$53,000-$133,000)
-- **Use of Funds:**
-  - Marketing and user acquisition
-  - Hire 1 additional developer
-  - Legal and compliance
-  - 12-month runway
-
-### Series A (Year 2)
-- **Required:** BHD 200,000-500,000 (~$530,000-$1.3M)
-- **Use of Funds:**
-  - Regional expansion (GCC)
-  - Team expansion
-  - B2B product development
 
 ---
 
@@ -353,26 +360,29 @@ Total per query:              ≈ $0.0055
 
 ### Q1 2026
 - [x] Project setup and architecture
-- [ ] MVP development complete
-- [ ] Tarabut sandbox integration
+- [x] MVP development complete
+- [x] Tarabut sandbox integration
+- [x] BOBF/PDPL compliance implementation
+- [x] Family sharing features
+- [x] Feature flags admin system
+- [x] Email notifications (Resend)
+- [x] PWA support
 - [ ] Beta launch (100 users)
 
 ### Q2 2026
 - [ ] Public launch
 - [ ] 1,000 users milestone
-- [ ] Pro tier launch
 - [ ] First paying customers
+- [ ] Payment Initiation Service (PIS) via Tarabut
 
 ### Q3 2026
 - [ ] 5,000 users milestone
-- [ ] Payment initiation feature
-- [ ] Mobile app (React Native)
+- [ ] Mobile app consideration
 - [ ] Break-even on operational costs
 
 ### Q4 2026
 - [ ] 10,000 users milestone
-- [ ] Business tier launch
-- [ ] Seed funding round
+- [ ] Business tier consideration
 - [ ] UAE expansion planning
 
 ---
@@ -391,8 +401,9 @@ Total per query:              ≈ $0.0055
 ### B. Regulatory Compliance
 - Central Bank of Bahrain (CBB) Open Banking Framework
 - Tarabut Gateway handles regulatory compliance
-- GDPR-like data protection principles
+- PDPL data protection compliance
 - User consent required for all data access
+- Audit trail for compliance verification
 
 ### C. Contact
 - Website: finauraa.com

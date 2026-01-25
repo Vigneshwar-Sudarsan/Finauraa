@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { Separator } from "@/components/ui/separator";
+import { formatCurrency } from "@/lib/utils";
 
 interface CategorySpending {
   category: string;
@@ -69,14 +70,7 @@ export function SpendingSummary({ accountId }: SpendingSummaryProps) {
     fetchData();
   }, [accountId]);
 
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat("en-BH", {
-      style: "currency",
-      currency: spending?.currency ?? "BHD",
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 0,
-    }).format(amount);
-  };
+  const currency = spending?.currency ?? "BHD";
 
   if (isLoading) {
     return (

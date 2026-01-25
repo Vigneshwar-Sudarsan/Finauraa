@@ -121,22 +121,16 @@ export async function POST() {
     }
 
     // Map price to tier
+    // Note: Family plan has been merged into Pro. All new subscriptions are Pro.
+    // Existing family subscribers will be mapped to "pro" tier.
     const priceId = subscription.items.data[0]?.price.id;
     const proPriceIds = [
       process.env.STRIPE_PRO_PRICE_ID_MONTHLY,
       process.env.STRIPE_PRO_PRICE_ID_YEARLY,
     ].filter(Boolean);
-    const familyPriceIds = [
-      process.env.STRIPE_FAMILY_PRICE_ID_MONTHLY,
-      process.env.STRIPE_FAMILY_PRICE_ID_YEARLY,
-    ].filter(Boolean);
 
-    let tier: "free" | "pro" | "family" = "pro"; // default to pro if we have an active sub
-    if (proPriceIds.includes(priceId)) {
-      tier = "pro";
-    } else if (familyPriceIds.includes(priceId)) {
-      tier = "family";
-    }
+    // All paid subscriptions are now Pro tier
+    const tier: "free" | "pro" = proPriceIds.includes(priceId) ? "pro" : "pro";
 
     // Map status
     const statusMap: Record<string, string> = {

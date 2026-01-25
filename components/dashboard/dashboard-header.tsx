@@ -4,13 +4,20 @@ import { SidebarTrigger } from "@/components/ui/sidebar";
 import { Separator } from "@/components/ui/separator";
 import { MobileNavButton } from "@/components/mobile-nav";
 import { ReactNode } from "react";
+import { useFeatureAccess } from "@/hooks/use-feature-access";
+import { Badge } from "@/components/ui/badge";
+import { Crown } from "@phosphor-icons/react";
+import { NotificationsDropdown } from "./notifications-dropdown";
 
 interface DashboardHeaderProps {
   title: string;
+  subtitle?: ReactNode;
   actions?: ReactNode;
 }
 
-export function DashboardHeader({ title, actions }: DashboardHeaderProps) {
+export function DashboardHeader({ title, subtitle, actions }: DashboardHeaderProps) {
+  const { isPro, isFamily, isLoading } = useFeatureAccess();
+
   return (
     <header
       className="flex h-14 shrink-0 items-center justify-between border-b px-4"
@@ -19,10 +26,20 @@ export function DashboardHeader({ title, actions }: DashboardHeaderProps) {
       <div className="flex items-center gap-2">
         <SidebarTrigger className="-ml-1" />
         <Separator orientation="vertical" className="!self-center h-4" />
-        <h1 className="font-semibold">{title}</h1>
+        <div className="flex flex-col">
+          <h1 className="font-semibold leading-tight">{title}</h1>
+          {subtitle && <div className="leading-tight">{subtitle}</div>}
+        </div>
       </div>
       <div className="flex items-center gap-2">
         {actions}
+        {!isLoading && (isPro || isFamily) && (
+          <Badge variant="secondary" className="text-[10px] flex items-center gap-1">
+            <Crown size={10} weight="fill" />
+            Pro
+          </Badge>
+        )}
+        <NotificationsDropdown />
         <MobileNavButton />
       </div>
     </header>

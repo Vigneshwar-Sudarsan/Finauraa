@@ -4,14 +4,19 @@ export type MessageRole = "user" | "assistant";
 export type MessageContentType =
   | "text"
   | "balance-card"
-  | "spending-card"
   | "bank-connected"
   | "spending-analysis"
   | "budget-card"
+  | "budget-overview"
   | "transactions-list"
-  | "payment-confirmation"
   | "action-buttons"
-  | "ai-mode-intro";
+  | "ai-mode-intro"
+  | "financial-health"
+  | "cash-flow"
+  | "savings-goals"
+  | "family-savings-goals"
+  | "savings-goal-setup"
+  | "recurring-expenses";
 
 export interface MessageContent {
   type: MessageContentType;

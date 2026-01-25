@@ -71,6 +71,17 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       );
     }
 
+    // Record contribution history entry
+    await supabase
+      .from("contribution_history")
+      .insert({
+        goal_id: id,
+        contributor_id: user.id,
+        recorded_by_id: user.id,
+        amount,
+        currency: existingGoal.currency || "BHD",
+      });
+
     // Calculate progress fields
     const progress_percentage = Math.min(
       100,

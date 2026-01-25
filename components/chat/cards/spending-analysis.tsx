@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Check } from "@phosphor-icons/react";
+import { formatCurrency } from "@/lib/utils";
 
 interface SpendingAnalysisProps {
   data?: Record<string, unknown>;
@@ -81,15 +82,6 @@ export function SpendingAnalysis({ data, onAction, disabled }: SpendingAnalysisP
   const period = spending?.period ?? "Last 90 days";
   const categories = spending?.categories ?? [];
   const topCategory = spending?.topCategory ?? "";
-
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat("en-BH", {
-      style: "currency",
-      currency: currency,
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 0,
-    }).format(amount);
-  };
 
   const maxAmount = Math.max(...categories.map((c) => c.amount), 1);
 

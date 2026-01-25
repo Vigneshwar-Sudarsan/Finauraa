@@ -19,7 +19,7 @@ import {
   ItemGroup,
   ItemSeparator,
 } from "@/components/ui/item";
-import { cn } from "@/lib/utils";
+import { cn, formatCurrency } from "@/lib/utils";
 import {
   Bank,
   CreditCard,
@@ -81,14 +81,6 @@ interface AccountData {
     spendingByCategory: { category: string; amount: number; percentage: number }[];
     transactionCount: number;
   };
-}
-
-function formatCurrency(amount: number, currency: string = "BHD") {
-  return new Intl.NumberFormat("en-BH", {
-    style: "currency",
-    currency: currency,
-    minimumFractionDigits: 2,
-  }).format(amount);
 }
 
 function getAccountIcon(accountType: string) {
@@ -189,7 +181,7 @@ export function AccountDetailContent({ accountId }: { accountId: string }) {
 
   if (isLoading) {
     return (
-      <div className="p-4 md:p-6 space-y-6 max-w-4xl mx-auto">
+      <div className="p-4 md:p-6 space-y-6 max-w-4xl mx-auto pb-24">
             {/* Account Card Skeleton */}
             <Card>
               <CardContent className="p-6">
@@ -306,7 +298,7 @@ export function AccountDetailContent({ accountId }: { accountId: string }) {
   const Icon = getAccountIcon(account.account_type);
 
   return (
-    <div className="p-4 md:p-6 space-y-6 max-w-4xl mx-auto">
+    <div className="p-4 md:p-6 space-y-6 max-w-4xl mx-auto pb-24">
       {/* Account Card */}
       <Card>
         <CardContent className="p-6">

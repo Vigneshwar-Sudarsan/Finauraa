@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
+import { formatCurrency } from "@/lib/utils";
 import {
   Item,
   ItemMedia,
@@ -28,32 +29,7 @@ import {
   Plus,
   Trash,
 } from "@phosphor-icons/react";
-
-interface Account {
-  id: string;
-  account_id: string;
-  account_type: string;
-  account_number: string;
-  currency: string;
-  balance: number;
-  available_balance: number;
-}
-
-interface BankConnection {
-  id: string;
-  bank_id: string;
-  bank_name: string;
-  status: string;
-  accounts: Account[];
-}
-
-function formatCurrency(amount: number, currency: string = "BHD") {
-  return new Intl.NumberFormat("en-BH", {
-    style: "currency",
-    currency: currency,
-    minimumFractionDigits: 2,
-  }).format(amount);
-}
+import { useBankConnections } from "@/hooks/use-bank-connections";
 
 function getAccountIcon(accountType: string) {
   const type = accountType.toLowerCase();
@@ -68,42 +44,26 @@ function getAccountIcon(accountType: string) {
 
 export default function ConnectedBanksPage() {
   const router = useRouter();
-  const [banks, setBanks] = useState<BankConnection[]>([]);
+  const { banks, isLoading, mutate } = useBankConnections();
   const [selectedBankId, setSelectedBankId] = useState<string | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [isConnecting, setIsConnecting] = useState(false);
   const [deletingBankId, setDeletingBankId] = useState<string | null>(null);
   const [showConsentDialog, setShowConsentDialog] = useState(false);
 
-  const fetchData = async () => {
-    try {
-      const response = await fetch("/api/finance/banks");
-      if (response.ok) {
-        const data = await response.json();
-        setBanks(data.banks ?? []);
-        // Auto-select first bank if available
-        if (data.banks && data.banks.length > 0 && !selectedBankId) {
-          setSelectedBankId(data.banks[0].id);
-        }
-      }
-    } catch (error) {
-      console.error("Failed to fetch data:", error);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
+  // Auto-select first bank when banks data changes
   useEffect(() => {
-    fetchData();
-  }, []);
+    if (banks.length > 0 && !selectedBankId) {
+      setSelectedBankId(banks[0].id);
+    }
+  }, [banks, selectedBankId]);
 
   const handleRefresh = async () => {
     setIsRefreshing(true);
     try {
       const response = await fetch("/api/finance/refresh", { method: "POST" });
       if (response.ok) {
-        await fetchData();
+        await mutate();
       }
     } catch (error) {
       console.error("Refresh failed:", error);
@@ -155,12 +115,13 @@ export default function ConnectedBanksPage() {
       });
 
       if (response.ok) {
-        // Remove the bank from state
-        setBanks(banks.filter(b => b.id !== bankId));
         // Reset selection if the deleted bank was selected
         if (selectedBankId === bankId) {
-          setSelectedBankId(banks.length > 1 ? banks.find(b => b.id !== bankId)?.id ?? null : null);
+          const remainingBanks = banks.filter(b => b.id !== bankId);
+          setSelectedBankId(remainingBanks.length > 0 ? remainingBanks[0].id : null);
         }
+        // Revalidate the cache
+        await mutate();
       }
     } catch (error) {
       console.error("Failed to disconnect:", error);
@@ -192,10 +153,33 @@ export default function ConnectedBanksPage() {
             Back
           </Button>
         </div>
-        <div className="flex-1 flex items-center justify-center">
-          <div className="flex items-center gap-2 text-muted-foreground">
-            <SpinnerGap size={20} className="animate-spin" />
-            <span>Loading...</span>
+        <div className="flex-1 overflow-auto p-4 md:p-6">
+          <div className="max-w-4xl mx-auto space-y-6">
+            {/* Title skeleton */}
+            <div className="space-y-1">
+              <div className="h-6 w-36 bg-muted rounded animate-pulse" />
+              <div className="h-4 w-56 bg-muted rounded animate-pulse" />
+            </div>
+            {/* Bank cards skeleton */}
+            <div className="flex gap-3 overflow-x-auto pb-2">
+              {[1, 2, 3].map((i) => (
+                <div key={i} className="min-w-[140px] h-20 bg-muted rounded-xl animate-pulse" />
+              ))}
+            </div>
+            {/* Accounts list skeleton */}
+            <div className="rounded-xl border p-4 space-y-3">
+              <div className="h-5 w-24 bg-muted rounded animate-pulse" />
+              {[1, 2, 3].map((i) => (
+                <div key={i} className="flex items-center gap-3 py-3">
+                  <div className="size-10 bg-muted rounded-xl animate-pulse" />
+                  <div className="flex-1 space-y-1">
+                    <div className="h-4 w-28 bg-muted rounded animate-pulse" />
+                    <div className="h-3 w-36 bg-muted rounded animate-pulse" />
+                  </div>
+                  <div className="h-4 w-20 bg-muted rounded animate-pulse" />
+                </div>
+              ))}
+            </div>
           </div>
         </div>
       </div>
@@ -264,7 +248,7 @@ export default function ConnectedBanksPage() {
       {/* Main content */}
       {banks.length > 0 && (
         <div className="flex-1 overflow-auto">
-          <div className="p-4 md:p-6 space-y-6 max-w-4xl mx-auto">
+          <div className="p-4 md:p-6 space-y-6 max-w-4xl mx-auto pb-24">
             {/* Page Title */}
             <div>
               <h1 className="text-xl font-semibold">Connected Banks</h1>
@@ -273,12 +257,12 @@ export default function ConnectedBanksPage() {
               </p>
             </div>
 
-            {/* Banks */}
+            {/* Banks - isLoading=false since page handles loading state */}
             <BankSelector
               banks={banks}
               selectedBankId={selectedBankId}
               onBankSelect={setSelectedBankId}
-              isLoading={isLoading}
+              isLoading={false}
             />
 
             {/* Accounts List */}
