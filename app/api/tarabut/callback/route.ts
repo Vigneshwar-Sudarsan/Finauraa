@@ -18,6 +18,12 @@ export async function GET(request: NextRequest) {
     const status = searchParams.get("status");
     const tgIntentId = searchParams.get("tgIntentId");
 
+    // Log ALL callback parameters to see what Tarabut sends
+    const allParams: Record<string, string> = {};
+    searchParams.forEach((value, key) => {
+      allParams[key] = value;
+    });
+    console.log("Tarabut callback - ALL params:", JSON.stringify(allParams, null, 2));
     console.log("Tarabut callback received:", { status, tgIntentId, error });
 
     // Create supabase client early for all operations
