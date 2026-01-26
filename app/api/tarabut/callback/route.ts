@@ -252,17 +252,95 @@ export async function GET(request: NextRequest) {
     const bankId = firstAccount.providerId || "unknown";
     const bankName = firstAccount.providerName || bankId;
 
-    // Update connection with actual bank info and access token
-    await supabase
+    // Check if there's an existing active connection for this bank (same provider)
+    // If so, we'll merge by updating the existing connection instead of creating a new one
+    const { data: existingConnection } = await supabase
       .from("bank_connections")
-      .update({
-        bank_id: bankId,
-        bank_name: bankName,
-        access_token: tokenResponse.accessToken,
-        token_expires_at: new Date(Date.now() + tokenResponse.expiresIn * 1000).toISOString(),
-        status: "active",
-      })
-      .eq("id", pendingConnection.id);
+      .select("id, consent_id")
+      .eq("user_id", user.id)
+      .eq("bank_id", bankId)
+      .eq("status", "active")
+      .neq("id", pendingConnection.id)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .single();
+
+    let connectionIdToUse = pendingConnection.id;
+
+    if (existingConnection) {
+      console.log("Found existing connection for same bank, merging:", existingConnection.id);
+
+      // Delete old accounts and transactions for the existing connection
+      const { data: oldAccounts } = await supabase
+        .from("bank_accounts")
+        .select("id")
+        .eq("connection_id", existingConnection.id);
+
+      if (oldAccounts && oldAccounts.length > 0) {
+        const oldAccountIds = oldAccounts.map(a => a.id);
+        await supabase
+          .from("transactions")
+          .delete()
+          .in("account_id", oldAccountIds);
+      }
+
+      await supabase
+        .from("bank_accounts")
+        .delete()
+        .eq("connection_id", existingConnection.id);
+
+      // Revoke old consent via Tarabut if it exists
+      if (existingConnection.consent_id) {
+        try {
+          await client.revokeConsent(tokenResponse.accessToken, existingConnection.consent_id);
+        } catch (e) {
+          console.error("Failed to revoke old consent:", e);
+        }
+
+        // Mark old consent as revoked in our database
+        await supabase
+          .from("user_consents")
+          .update({
+            consent_status: "revoked",
+            updated_at: new Date().toISOString(),
+          })
+          .eq("user_id", user.id)
+          .eq("tarabut_consent_id", existingConnection.consent_id);
+      }
+
+      // Update the existing connection with new consent info
+      await supabase
+        .from("bank_connections")
+        .update({
+          consent_id: pendingConnection.consent_id,
+          access_token: tokenResponse.accessToken,
+          token_expires_at: new Date(Date.now() + tokenResponse.expiresIn * 1000).toISOString(),
+          consent_expires_at: pendingConnection.consent_expires_at,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", existingConnection.id);
+
+      // Delete the pending connection since we're using the existing one
+      await supabase
+        .from("bank_connections")
+        .delete()
+        .eq("id", pendingConnection.id);
+
+      connectionIdToUse = existingConnection.id;
+      console.log("Merged into existing connection:", connectionIdToUse);
+    } else {
+      // No existing connection, update the pending connection as usual
+      await supabase
+        .from("bank_connections")
+        .update({
+          bank_id: bankId,
+          bank_name: bankName,
+          access_token: tokenResponse.accessToken,
+          token_expires_at: new Date(Date.now() + tokenResponse.expiresIn * 1000).toISOString(),
+          status: "active",
+        })
+        .eq("id", connectionIdToUse);
+    }
 
     // BOBF/PDPL: Update consent record to active status
     // First, find the pending consent
@@ -312,7 +390,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Log bank connection event
-    await logBankEvent(user.id, "bank_connected", pendingConnection.id, {
+    await logBankEvent(user.id, "bank_connected", connectionIdToUse, {
       bank_id: bankId,
       bank_name: bankName,
       accounts_count: filteredAccounts.length,
@@ -340,7 +418,7 @@ export async function GET(request: NextRequest) {
       // Insert/update account in database
       const accountData = {
         user_id: user.id,
-        connection_id: pendingConnection.id,
+        connection_id: connectionIdToUse,
         account_id: account.accountId,
         account_type: account.accountSubType || account.accountType || "Current",
         account_number: maskedNumber,
