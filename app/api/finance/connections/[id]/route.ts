@@ -138,6 +138,18 @@ export async function DELETE(
       );
     }
 
+    // Clean up the associated user_consent record
+    if (connection.consent_id) {
+      await supabase
+        .from("user_consents")
+        .update({
+          consent_status: "revoked",
+          updated_at: new Date().toISOString(),
+        })
+        .eq("user_id", user.id)
+        .eq("tarabut_consent_id", connection.consent_id);
+    }
+
     // Log bank disconnection
     await logBankEvent(user.id, "bank_disconnected", id, {
       bank_name: connection.bank_name,

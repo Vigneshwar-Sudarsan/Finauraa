@@ -148,6 +148,7 @@ export interface TarabutConsent {
   createdAt: string;
   expiresAt?: string;
   permissions?: string[];
+  accountIds?: string[]; // Account IDs covered by this consent
 }
 
 // ============ INSIGHTS API TYPES ============
