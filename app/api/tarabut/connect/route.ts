@@ -57,7 +57,8 @@ export async function POST(request: NextRequest) {
       .eq("user_id", user.id)
       .eq("status", "active");
 
-    if ((existingConnections || 0) >= bankLimit) {
+    // -1 means unlimited (Pro/Family tier)
+    if (bankLimit !== -1 && (existingConnections || 0) >= bankLimit) {
       // Family members and Pro users have the same limit, so only free tier can upgrade
       const upgradeMessage = tier === "free"
         ? "Upgrade to Pro for more bank connections."
