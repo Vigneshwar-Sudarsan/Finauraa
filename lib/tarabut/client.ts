@@ -49,7 +49,8 @@ export interface CreateIntentResponse {
 }
 
 export interface TarabutAccountConsent {
-  consentId: string;
+  id?: string; // Tarabut actually uses "id" in the response
+  consentId?: string; // For backwards compatibility
   expiryDate?: string;
   status: "ACTIVE" | "REVOKED" | "EXPIRED";
 }

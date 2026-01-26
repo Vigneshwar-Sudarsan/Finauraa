@@ -168,7 +168,7 @@ export async function GET(request: NextRequest) {
 
     // Filter accounts using multiple strategies (in order of accuracy):
     // 1. By accountIds from consent details (most accurate)
-    // 2. By consents array on each account
+    // 2. By most recent consent in account's consents array (Tarabut uses "id" not "consentId")
     // 3. By provider ID (fallback)
     let filteredAccounts = accountsResponse.accounts || [];
 
@@ -176,24 +176,53 @@ export async function GET(request: NextRequest) {
       // Strategy 1: Filter by account IDs from consent details
       filteredAccounts = filteredAccounts.filter(acc => consentAccountIds.includes(acc.accountId));
       console.log("Filtered by consent accountIds:", filteredAccounts.length);
-    } else if (consentId) {
-      // Strategy 2: Filter by consent ID in account's consents array
-      const accountsByConsent = filteredAccounts.filter(acc =>
-        acc.consents?.some(c => c.consentId === consentId && c.status === "ACTIVE")
-      );
+    } else {
+      // Strategy 2: Find the most recent consent across all accounts and filter by it
+      // Tarabut returns consents with "id" field (not "consentId") and "expiryDate"
+      // The most recent consent will have the latest expiry date
+      type AccountConsent = { id?: string; consentId?: string; expiryDate?: string; status: string };
 
-      if (accountsByConsent.length > 0) {
-        filteredAccounts = accountsByConsent;
-        console.log("Filtered by consent ID in accounts:", filteredAccounts.length);
-      } else if (consentProviderId) {
-        // Strategy 3: Fallback to provider ID
-        filteredAccounts = filteredAccounts.filter(acc => acc.providerId === consentProviderId);
-        console.log("Filtered by provider ID (fallback):", filteredAccounts.length);
+      let mostRecentConsent: { id: string; expiryDate: string } | null = null;
+
+      for (const acc of filteredAccounts) {
+        const accConsents = acc.consents as AccountConsent[] | undefined;
+        if (accConsents) {
+          for (const consent of accConsents) {
+            const cId = consent.id || consent.consentId;
+            if (cId && consent.status === "ACTIVE" && consent.expiryDate) {
+              if (!mostRecentConsent || consent.expiryDate > mostRecentConsent.expiryDate) {
+                mostRecentConsent = { id: cId, expiryDate: consent.expiryDate };
+              }
+            }
+          }
+        }
       }
-    } else if (consentProviderId) {
-      // No consent ID available, filter by provider
-      filteredAccounts = filteredAccounts.filter(acc => acc.providerId === consentProviderId);
-      console.log("Filtered by provider ID:", filteredAccounts.length);
+
+      console.log("Most recent consent found:", mostRecentConsent);
+
+      if (mostRecentConsent) {
+        // Filter accounts that have this most recent consent
+        const accountsByConsent = filteredAccounts.filter(acc => {
+          const accConsents = acc.consents as AccountConsent[] | undefined;
+          return accConsents?.some(c =>
+            (c.id === mostRecentConsent!.id || c.consentId === mostRecentConsent!.id) &&
+            c.status === "ACTIVE"
+          );
+        });
+
+        if (accountsByConsent.length > 0) {
+          filteredAccounts = accountsByConsent;
+          console.log("Filtered by most recent consent ID:", filteredAccounts.length);
+        } else if (consentProviderId) {
+          // Strategy 3: Fallback to provider ID
+          filteredAccounts = filteredAccounts.filter(acc => acc.providerId === consentProviderId);
+          console.log("Filtered by provider ID (fallback):", filteredAccounts.length);
+        }
+      } else if (consentProviderId) {
+        // No consent found, filter by provider
+        filteredAccounts = filteredAccounts.filter(acc => acc.providerId === consentProviderId);
+        console.log("Filtered by provider ID:", filteredAccounts.length);
+      }
     }
 
     console.log("Filtered accounts count:", filteredAccounts.length);
