@@ -48,6 +48,12 @@ export interface CreateIntentResponse {
   expiry: string;
 }
 
+export interface TarabutAccountConsent {
+  consentId: string;
+  expiryDate?: string;
+  status: "ACTIVE" | "REVOKED" | "EXPIRED";
+}
+
 export interface TarabutAccount {
   accountId: string;
   providerId: string;
@@ -58,6 +64,7 @@ export interface TarabutAccount {
   identification?: string;
   name?: string;
   lastUpdatedDateTime?: string;
+  consents?: TarabutAccountConsent[];
 }
 
 export interface TarabutBalance {

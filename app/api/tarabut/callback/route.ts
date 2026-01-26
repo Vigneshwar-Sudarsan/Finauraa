@@ -108,7 +108,7 @@ export async function GET(request: NextRequest) {
     const accountsResponse = await client.getAccounts(tokenResponse.accessToken);
     console.log("Fetched accounts:", accountsResponse.accounts?.length || 0);
 
-    // Log each account's details for debugging
+    // Log each account's details for debugging (including consents)
     accountsResponse.accounts?.forEach((acc, i) => {
       console.log(`Account ${i + 1}:`, {
         accountId: acc.accountId,
@@ -119,11 +119,16 @@ export async function GET(request: NextRequest) {
         identification: acc.identification,
         name: acc.name,
         currency: acc.currency,
+        consents: acc.consents,
       });
     });
 
-    // Get user's consents to filter accounts by the provider they just connected
-    let userConsents: { consents: Array<{ providerId: string; status: string }> } = { consents: [] };
+    // Get the consent ID from the pending connection (the intentId we stored)
+    const intentConsentId = pendingConnection.consent_id;
+    console.log("Intent/Consent ID from pending connection:", intentConsentId);
+
+    // Get user's consents to find the active consent for this connection
+    let userConsents: { consents: Array<{ consentId?: string; providerId: string; status: string }> } = { consents: [] };
     try {
       userConsents = await client.getConsents(tokenResponse.accessToken);
       console.log("User consents:", JSON.stringify(userConsents.consents, null, 2));
@@ -131,15 +136,37 @@ export async function GET(request: NextRequest) {
       console.error("Failed to get consents:", e);
     }
 
-    // Get the most recent active consent's providerId
-    const activeConsent = userConsents.consents?.find(c => c.status === "ACTIVE");
-    const consentProviderId = activeConsent?.providerId;
-    console.log("Active consent providerId:", consentProviderId);
+    // Find the active consent - prefer matching by intentId if available, otherwise most recent active
+    const activeConsent = userConsents.consents?.find(c =>
+      c.status === "ACTIVE" && (c.consentId === intentConsentId || !intentConsentId)
+    ) || userConsents.consents?.find(c => c.status === "ACTIVE");
 
-    // Filter accounts to only those from the consented provider
-    const filteredAccounts = consentProviderId
-      ? accountsResponse.accounts?.filter(acc => acc.providerId === consentProviderId) || []
-      : accountsResponse.accounts || [];
+    const consentId = activeConsent?.consentId;
+    const consentProviderId = activeConsent?.providerId;
+    console.log("Active consent:", { consentId, consentProviderId });
+
+    // Filter accounts - first try by consent ID (most accurate), then by provider ID
+    let filteredAccounts = accountsResponse.accounts || [];
+
+    if (consentId) {
+      // Filter by consent ID - only accounts that have this consent
+      const accountsByConsent = filteredAccounts.filter(acc =>
+        acc.consents?.some(c => c.consentId === consentId && c.status === "ACTIVE")
+      );
+
+      if (accountsByConsent.length > 0) {
+        filteredAccounts = accountsByConsent;
+        console.log("Filtered by consent ID:", filteredAccounts.length);
+      } else if (consentProviderId) {
+        // Fallback: filter by provider ID if consent filtering didn't work
+        filteredAccounts = filteredAccounts.filter(acc => acc.providerId === consentProviderId);
+        console.log("Filtered by provider ID (fallback):", filteredAccounts.length);
+      }
+    } else if (consentProviderId) {
+      // No consent ID available, filter by provider
+      filteredAccounts = filteredAccounts.filter(acc => acc.providerId === consentProviderId);
+      console.log("Filtered by provider ID:", filteredAccounts.length);
+    }
 
     console.log("Filtered accounts count:", filteredAccounts.length);
 
