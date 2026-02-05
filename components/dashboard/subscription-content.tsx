@@ -619,37 +619,37 @@ export function SubscriptionContent() {
 
               {/* Action buttons and subscription dates */}
               <Separator className="my-4" />
-              <div className="flex items-center justify-between text-sm">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between text-sm">
                 {!isFreePlan && (
-                  <>
+                  <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-muted-foreground">
                     {subscription.trialEndsAt && isTrialing && (
-                      <div className="flex items-center gap-2 text-muted-foreground">
+                      <div className="flex items-center gap-2">
                         <Clock size={16} />
                         <span>Trial ends {formatDate(subscription.trialEndsAt)}</span>
                       </div>
                     )}
                     {subscription.endsAt && (subscription.status === "canceled" || isCanceling) && (
-                      <div className="flex items-center gap-2 text-muted-foreground">
+                      <div className="flex items-center gap-2">
                         <CalendarBlank size={16} />
                         <span>{isCanceling ? "Cancels" : "Access until"} {formatDate(subscription.endsAt)}</span>
                       </div>
                     )}
                     {subscription.startedAt && subscription.status === "active" && !isCanceling && (
-                      <div className="flex items-center gap-2 text-muted-foreground">
+                      <div className="flex items-center gap-2">
                         <CalendarBlank size={16} />
                         <span>Member since {formatDate(subscription.startedAt)}</span>
                       </div>
                     )}
                     {subscription.endsAt && subscription.status === "active" && !isCanceling && (
-                      <div className="flex items-center gap-2 text-muted-foreground ml-4">
+                      <div className="flex items-center gap-2">
                         <Clock size={16} />
                         <span>Renews {formatDate(subscription.endsAt)}</span>
                       </div>
                     )}
-                  </>
+                  </div>
                 )}
                 {isFreePlan && <div />}
-                <div className="flex items-center gap-2">
+                <div className="flex flex-wrap items-center gap-2">
                   {!isFreePlan && subscription.status !== "canceled" && (
                     <Button variant="outline" size="sm" onClick={handleManageSubscription}>
                       Manage Billing
@@ -659,7 +659,7 @@ export function SubscriptionContent() {
                     <AlertDialog>
                       <AlertDialogTrigger asChild>
                         <Button variant="outline" size="sm" className="text-destructive hover:text-destructive">
-                          Cancel Plan
+                          Cancel
                         </Button>
                       </AlertDialogTrigger>
                       <AlertDialogContent>
@@ -990,13 +990,13 @@ export function SubscriptionContent() {
                       if (!subscriptionCard) return null;
 
                       return (
-                        <div className="flex items-center justify-between p-4 rounded-lg border border-primary/50 bg-primary/5">
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 rounded-lg border border-primary/50 bg-primary/5">
                           <div className="flex items-center gap-4">
-                            <div className="size-12 rounded-lg bg-background border flex items-center justify-center">
+                            <div className="size-12 rounded-lg bg-background border flex items-center justify-center shrink-0">
                               <CreditCard size={24} className="text-primary" weight="fill" />
                             </div>
-                            <div>
-                              <div className="flex items-center gap-2">
+                            <div className="min-w-0">
+                              <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
                                 <span className="font-medium capitalize">
                                   {subscriptionCard.brand}
                                 </span>
@@ -1004,7 +1004,7 @@ export function SubscriptionContent() {
                                   ending in {subscriptionCard.last4}
                                 </span>
                               </div>
-                              <div className="flex items-center gap-2 mt-0.5">
+                              <div className="flex flex-wrap items-center gap-x-2 gap-y-1 mt-0.5">
                                 <p className="text-sm text-muted-foreground">
                                   Expires {subscriptionCard.expMonth.toString().padStart(2, '0')}/{subscriptionCard.expYear.toString().slice(-2)}
                                 </p>
@@ -1016,7 +1016,7 @@ export function SubscriptionContent() {
                               </div>
                             </div>
                           </div>
-                          <Button variant="outline" size="sm" onClick={handleManageSubscription}>
+                          <Button variant="outline" size="sm" onClick={handleManageSubscription} className="shrink-0 self-end sm:self-auto">
                             Update Card
                           </Button>
                         </div>
