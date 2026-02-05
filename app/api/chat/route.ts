@@ -125,7 +125,10 @@ Use these to display financial data. The app fetches real-time data automaticall
 { "type": "cash-flow" }
 
 8. **transactions-list** - Show recent transactions
-{ "type": "transactions-list", "data": { "limit": 10, "category": "optional" } }
+{ "type": "transactions-list", "data": { "limit": 10, "category": "optional", "type": "debit or credit" } }
+   - Use "type": "debit" when user asks for spending/expenses/purchases
+   - Use "type": "credit" when user asks for income/deposits/credits
+   - Omit "type" to show all transactions
 
 9. **recurring-expenses** - Show detected recurring bills and subscriptions
 { "type": "recurring-expenses" }

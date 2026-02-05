@@ -44,6 +44,7 @@ export function TransactionsList({ data }: TransactionsListProps) {
 
   const limit = (data?.limit as number) ?? 10;
   const category = data?.category as string | undefined;
+  const type = data?.type as "credit" | "debit" | undefined; // Filter by transaction type
 
   useEffect(() => {
     const fetchData = async () => {
@@ -51,6 +52,9 @@ export function TransactionsList({ data }: TransactionsListProps) {
         const params = new URLSearchParams({ limit: limit.toString() });
         if (category) {
           params.set("category", category);
+        }
+        if (type) {
+          params.set("type", type);
         }
 
         const response = await fetch(`/api/finance/transactions?${params.toString()}`);
@@ -66,7 +70,7 @@ export function TransactionsList({ data }: TransactionsListProps) {
     };
 
     fetchData();
-  }, [limit, category]);
+  }, [limit, category, type]);
 
   if (isLoading) {
     return (
@@ -106,7 +110,9 @@ export function TransactionsList({ data }: TransactionsListProps) {
     <div className="w-full max-w-sm rounded-xl border border-border/60 bg-card p-4 space-y-3">
       {/* Header */}
       <div className="flex items-center justify-between">
-        <p className="text-sm font-medium">Recent Transactions</p>
+        <p className="text-sm font-medium">
+          {type === "debit" ? "Recent Spending" : type === "credit" ? "Recent Income" : "Recent Transactions"}
+        </p>
         <p className="text-xs text-muted-foreground">
           {transactionsData?.pagination.total ?? 0} total
         </p>
