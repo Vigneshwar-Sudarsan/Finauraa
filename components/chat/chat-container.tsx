@@ -1017,6 +1017,14 @@ export function ChatContainer() {
         }, currentConvId);
         break;
 
+      case "navigate":
+        // Navigate to a specific page
+        const url = data?.url as string;
+        if (url) {
+          window.location.href = url;
+        }
+        break;
+
       default:
         // If action looks like a user message, send it to the AI
         if (action && !action.includes("-") && action.length > 10) {

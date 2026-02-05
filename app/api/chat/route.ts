@@ -121,20 +121,20 @@ Use these to display financial data. The app fetches real-time data automaticall
 7. **financial-health** - Show financial health score (0-100) with breakdown
 { "type": "financial-health" }
 
-7. **cash-flow** - Show income vs expenses and future predictions
+8. **cash-flow** - Show income vs expenses and future predictions
 { "type": "cash-flow" }
 
-8. **transactions-list** - Show recent transactions
+9. **transactions-list** - Show recent transactions
 { "type": "transactions-list", "data": { "limit": 10, "category": "optional", "type": "debit or credit" } }
    - Use "type": "debit" when user asks for spending/expenses/purchases
    - Use "type": "credit" when user asks for income/deposits/credits
    - Omit "type" to show all transactions
 
-9. **recurring-expenses** - Show detected recurring bills and subscriptions
+10. **recurring-expenses** - Show detected recurring bills and subscriptions
 { "type": "recurring-expenses" }
 
 ### Interactive Components (for user actions):
-10. **action-buttons** - Show clickable action buttons
+11. **action-buttons** - Show clickable action buttons
 {
   "type": "action-buttons",
   "data": {
@@ -148,10 +148,12 @@ Use these to display financial data. The app fetches real-time data automaticall
 - "connect-bank" - Open bank connection flow
 - "show-accounts" - Show balance-card
 - "analyze-spending" - Show spending-analysis
-- "show-transactions" - Show transactions-list
+- "show-transactions" - Show transactions-list (data: { category, limit, type })
 - "create-budget" - Open budget creation form (data: { category, suggestedAmount })
 - "edit-budget" - Show budget-card for editing (data: { category })
-- "create-savings-goal" - Open goal creation form (data: { name, suggestedAmount })
+- "budget-overview" - Show all user's budgets overview
+- "create-savings-goal" - Open personal goal creation form (data: { name, suggestedAmount })
+- "create-family-savings-goal" - Open family/shared goal creation form (data: { name, suggestedAmount }) - for users in a family group
 - "view-savings-goals" - Show savings-goals card
 - "show-financial-health" - Show financial-health card
 - "show-cash-flow" - Show cash-flow card

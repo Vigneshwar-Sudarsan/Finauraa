@@ -120,11 +120,35 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Get total count for pagination
-    const { count: totalCount } = await supabase
+    // Get total count for pagination (with same filters as main query)
+    let countQuery = supabase
       .from("transactions")
       .select("id", { count: "exact", head: true })
-      .eq("user_id", user.id);
+      .eq("user_id", user.id)
+      .is("deleted_at", null);
+
+    // Apply same filters to count query
+    if (accountId) {
+      countQuery = countQuery.eq("account_id", accountId);
+    }
+    if (category) {
+      countQuery = countQuery.eq("category", category.toLowerCase());
+    }
+    if (type) {
+      countQuery = countQuery.eq("transaction_type", type.toLowerCase());
+    }
+    if (historyDaysLimit !== null) {
+      const countStartDate = new Date();
+      countStartDate.setDate(countStartDate.getDate() - historyDaysLimit);
+      countQuery = countQuery.gte("transaction_date", countStartDate.toISOString());
+    } else if (days) {
+      const daysNum = parseInt(days, 10);
+      const countStartDate = new Date();
+      countStartDate.setDate(countStartDate.getDate() - daysNum);
+      countQuery = countQuery.gte("transaction_date", countStartDate.toISOString());
+    }
+
+    const { count: totalCount } = await countQuery;
 
     // Log successful data access (only if we have a consentId)
     if (consentCheck.consentId) {
