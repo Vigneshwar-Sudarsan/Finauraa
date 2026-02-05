@@ -23,6 +23,7 @@ import {
   Trash,
 } from "@phosphor-icons/react";
 import { formatDistanceToNow } from "date-fns";
+import { toast } from "sonner";
 
 interface Notification {
   id: string;
@@ -139,13 +140,26 @@ export function NotificationsDropdown() {
         await deleteNotification(notification.id);
 
         if (action === "accept") {
+          // Show success message if already a member
+          if (result.alreadyMember) {
+            toast.success(result.message || "You're already a member of this group");
+          }
+
           // Redirect to family page
           setOpen(false);
           router.push("/dashboard/settings/family");
           router.refresh();
         }
       } else {
+        // Show error to user - invitation may have expired or been used
+        const errorMessage = result.error || "Failed to respond to invitation";
+        toast.error(errorMessage);
         console.error("Failed to respond to invitation:", result.error);
+
+        // If invitation not found or expired, remove the notification
+        if (response.status === 404 || response.status === 410) {
+          await deleteNotification(notification.id);
+        }
       }
     } catch (error) {
       console.error("Failed to respond to invitation:", error);

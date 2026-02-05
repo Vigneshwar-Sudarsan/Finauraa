@@ -175,21 +175,63 @@ export async function POST(
 
     // Check if user is already in a family group
     if (profile.family_group_id) {
+      // Check if they're already in THIS group (stale invitation scenario)
+      if (profile.family_group_id === invitation.group_id) {
+        // Clean up the pending invitation since they're already a member
+        await supabase
+          .from("family_members")
+          .update({
+            status: "removed",
+            invitation_token: null,
+          })
+          .eq("id", invitation.id);
+
+        // Fetch group name for the response
+        const { data: group } = await supabase
+          .from("family_groups")
+          .select("name")
+          .eq("id", invitation.group_id)
+          .single();
+
+        return NextResponse.json({
+          message: `You're already a member of ${group?.name || "this family group"}`,
+          groupId: invitation.group_id,
+          alreadyMember: true,
+        });
+      }
+
       return NextResponse.json(
         { error: "You are already a member of a family group. Leave your current group first." },
         { status: 400 }
       );
     }
 
-    // Check if user already has an active membership
+    // Check if user already has an active membership in another group
     const { data: existingMembership } = await supabase
       .from("family_members")
-      .select("id")
+      .select("id, group_id")
       .eq("user_id", user.id)
       .eq("status", "active")
       .single();
 
     if (existingMembership) {
+      // If already in this group, handle gracefully
+      if (existingMembership.group_id === invitation.group_id) {
+        await supabase
+          .from("family_members")
+          .update({
+            status: "removed",
+            invitation_token: null,
+          })
+          .eq("id", invitation.id);
+
+        return NextResponse.json({
+          message: "You're already a member of this family group",
+          groupId: invitation.group_id,
+          alreadyMember: true,
+        });
+      }
+
       return NextResponse.json(
         { error: "You are already a member of a family group" },
         { status: 400 }

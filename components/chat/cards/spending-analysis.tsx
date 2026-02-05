@@ -37,6 +37,23 @@ const CATEGORY_LABELS: Record<string, string> = {
   other: "Other",
 };
 
+// Categories that are fixed expenses and shouldn't be suggested for budgeting
+// These are typically loan payments, mortgages, rent - amounts you can't control month-to-month
+const NON_BUDGETABLE_CATEGORIES = [
+  "mortgages",
+  "mortgage",
+  "loans",
+  "loan",
+  "other loans",
+  "rent",
+  "insurance",
+  "taxes",
+  "tax",
+  "debt",
+  "credit card payment",
+  "loan payment",
+];
+
 export function SpendingAnalysis({ data, onAction, disabled }: SpendingAnalysisProps) {
   const [spending, setSpending] = useState<SpendingData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -82,6 +99,11 @@ export function SpendingAnalysis({ data, onAction, disabled }: SpendingAnalysisP
   const period = spending?.period ?? "Last 90 days";
   const categories = spending?.categories ?? [];
   const topCategory = spending?.topCategory ?? "";
+
+  // Find the top category that can be budgeted (not a fixed expense)
+  const topBudgetableCategory = categories.find(
+    (cat) => !NON_BUDGETABLE_CATEGORIES.includes(cat.category.toLowerCase())
+  )?.category ?? null;
 
   const maxAmount = Math.max(...categories.map((c) => c.amount), 1);
 
@@ -151,10 +173,10 @@ export function SpendingAnalysis({ data, onAction, disabled }: SpendingAnalysisP
       </div>
 
       {/* Insight */}
-      {topCategory && (
+      {topBudgetableCategory && (
         <p className="text-xs text-muted-foreground pt-2 border-t border-border/40">
-          Your biggest category is{" "}
-          <span className="font-medium text-foreground">{topCategory}</span>.
+          Your biggest discretionary category is{" "}
+          <span className="font-medium text-foreground">{topBudgetableCategory}</span>.
           Want me to set up a budget for it?
         </p>
       )}
@@ -167,13 +189,15 @@ export function SpendingAnalysis({ data, onAction, disabled }: SpendingAnalysisP
         </div>
       ) : (
         <div className="flex gap-2">
-          <Button
-            size="sm"
-            onClick={() => onAction?.("set-budget", { category: topCategory })}
-            className="flex-1 rounded-full"
-          >
-            Set budget
-          </Button>
+          {topBudgetableCategory && (
+            <Button
+              size="sm"
+              onClick={() => onAction?.("set-budget", { category: topBudgetableCategory })}
+              className="flex-1 rounded-full"
+            >
+              Set budget
+            </Button>
+          )}
           <Button
             variant="outline"
             size="sm"

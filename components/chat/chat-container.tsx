@@ -10,7 +10,7 @@ import { useBankConnection } from "@/hooks/use-bank-connection";
 import { Message, MessageContent } from "@/lib/types";
 import { generateId } from "@/lib/utils";
 import { Sparkle } from "@phosphor-icons/react";
-import { SavingsGoalSheet } from "@/components/spending";
+import { SavingsGoalSheet, SetSpendingLimitSheet } from "@/components/spending";
 
 // Skeleton loader for initial bank check
 function WelcomeSkeleton() {
@@ -112,6 +112,13 @@ export function ChatContainer() {
     isFamily?: boolean;
   } | null>(null);
   const [familyMembers, setFamilyMembers] = useState<Array<{ userId: string; name: string; role: string }>>([]);
+
+  // Budget Sheet state
+  const [budgetSheetOpen, setBudgetSheetOpen] = useState(false);
+  const [budgetSheetData, setBudgetSheetData] = useState<{
+    category?: string;
+    isFamily?: boolean;
+  } | null>(null);
 
   // Bank connection with consent dialog
   const { connectBank, isConnecting: isConnectingBank, ConsentDialog } = useBankConnection({
@@ -546,81 +553,26 @@ export function ChatContainer() {
         break;
 
       case "set-budget":
-        // Check if this is a submission (has amount) or initial setup request
-        if (data?.amount) {
-          // User submitted a budget amount - save it via API
-          const submittedCategory = data?.category as string;
-          const submittedAmount = data?.amount as number;
-          const submittedCurrency = data?.currency as string;
-          await addAndSaveMessage({
-            role: "user",
-            content: `Set ${submittedCategory} budget to ${submittedCurrency} ${submittedAmount}`,
-          }, currentConvId);
-
-          try {
-            const response = await fetch("/api/finance/budgets", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
-                category: submittedCategory,
-                amount: submittedAmount,
-                currency: submittedCurrency,
-              }),
-            });
-
-            if (!response.ok) {
-              throw new Error("Failed to save budget");
-            }
-
-            const result = await response.json();
-            const budget = result.budget;
-            const currentMonth = new Date().toLocaleDateString("en-US", { month: "long" });
-
-            await addAndSaveMessage({
-              role: "assistant",
-              content: `Done! I've set your ${submittedCategory} budget to ${submittedCurrency} ${submittedAmount}/month. I'll let you know if you're getting close to the limit.`,
-              richContent: [
-                {
-                  type: "budget-card",
-                  data: {
-                    category: budget.category,
-                    spent: budget.spent,
-                    limit: budget.amount,
-                    currency: budget.currency,
-                    month: currentMonth,
-                  },
-                },
-              ],
-            }, currentConvId);
-          } catch (err) {
-            console.error("Failed to save budget:", err);
-            await addAndSaveMessage({
-              role: "assistant",
-              content: "Sorry, I couldn't save the budget. Please try again.",
-              richContent: [
-                {
-                  type: "action-buttons",
-                  data: {
-                    actions: [{ label: "Try Again", action: "set-budget" }],
-                  },
-                },
-              ],
-            }, currentConvId);
-          }
+        // Open the budget sheet for the specified category
+        const setBudgetCategory = data?.category as string | undefined;
+        if (setBudgetCategory) {
+          setBudgetSheetData({ category: setBudgetCategory });
+          setBudgetSheetOpen(true);
         } else {
-          // Show interactive budget setup card
-          const category = data?.category as string;
+          // No category - show category selection
           await addAndSaveMessage({
             role: "assistant",
-            content: `Let's set up a budget for ${category}. How much would you like to spend per month?`,
+            content: "What category would you like to set a budget for?",
             richContent: [
               {
-                type: "budget-card",
+                type: "action-buttons",
                 data: {
-                  category: category?.toLowerCase() ?? "groceries",
-                  isSetup: true,
-                  suggestedAmount: 200,
-                  currency: "BHD",
+                  actions: [
+                    { label: "Groceries", action: "set-budget", data: { category: "groceries" } },
+                    { label: "Dining", action: "set-budget", data: { category: "dining" } },
+                    { label: "Shopping", action: "set-budget", data: { category: "shopping" } },
+                    { label: "Entertainment", action: "set-budget", data: { category: "entertainment" } },
+                  ],
                 },
               },
             ],
@@ -801,43 +753,55 @@ export function ChatContainer() {
       // === NEW FINANCE MANAGER ACTIONS ===
 
       case "create-budget":
-        // Create a new budget with optional suggested amount
-        const budgetCategory = (data?.category as string) || "general";
-        const suggestedAmount = (data?.suggestedAmount as number) || 200;
-        await addAndSaveMessage({
-          role: "assistant",
-          content: `Let's set up a budget for ${budgetCategory}. Based on your spending patterns, I'd suggest starting with ${suggestedAmount} BHD/month.`,
-          richContent: [
-            {
-              type: "budget-card",
-              data: {
-                category: budgetCategory.toLowerCase(),
-                isSetup: true,
-                suggestedAmount: suggestedAmount,
-                currency: "BHD",
+        // Create a new budget - open the budget sheet
+        const createBudgetCategory = data?.category as string | undefined;
+
+        if (!createBudgetCategory) {
+          // No category specified - show category selection
+          await addAndSaveMessage({
+            role: "assistant",
+            content: "What category would you like to set a budget for?",
+            richContent: [
+              {
+                type: "action-buttons",
+                data: {
+                  actions: [
+                    { label: "Groceries", action: "create-budget", data: { category: "groceries" } },
+                    { label: "Dining", action: "create-budget", data: { category: "dining" } },
+                    { label: "Shopping", action: "create-budget", data: { category: "shopping" } },
+                    { label: "Entertainment", action: "create-budget", data: { category: "entertainment" } },
+                  ],
+                },
               },
-            },
-          ],
-        }, currentConvId);
+            ],
+          }, currentConvId);
+        } else {
+          // Category specified - open the budget sheet
+          setBudgetSheetData({ category: createBudgetCategory });
+          setBudgetSheetOpen(true);
+        }
         break;
 
       case "edit-budget":
         // Edit an existing budget
-        const editCategory = (data?.category as string) || "general";
-        await addAndSaveMessage({
-          role: "assistant",
-          content: `Let's update your ${editCategory} budget:`,
-          richContent: [
-            {
-              type: "budget-card",
-              data: {
-                category: editCategory.toLowerCase(),
-                isSetup: true,
-                currency: "BHD",
+        const editBudgetCategory = data?.category as string | undefined;
+
+        if (!editBudgetCategory) {
+          // No category specified - show budget overview to select one
+          await addAndSaveMessage({
+            role: "assistant",
+            content: "Here are your current budgets. Which one would you like to edit?",
+            richContent: [
+              {
+                type: "budget-overview",
               },
-            },
-          ],
-        }, currentConvId);
+            ],
+          }, currentConvId);
+        } else {
+          // Open the budget sheet for editing
+          setBudgetSheetData({ category: editBudgetCategory });
+          setBudgetSheetOpen(true);
+        }
         break;
 
       case "budget-overview":
@@ -936,6 +900,20 @@ export function ChatContainer() {
           richContent: [
             {
               type: isCreatedFamilyGoal ? "family-savings-goals" : "savings-goals",
+            },
+          ],
+        }, currentConvId);
+        break;
+
+      case "budget-created":
+        // Budget was successfully created via the sheet
+        const createdBudgetCategory = (data?.category as string) || "your category";
+        await addAndSaveMessage({
+          role: "assistant",
+          content: `Done! I've set up your ${createdBudgetCategory} budget. I'll let you know if you're getting close to the limit. Here's your budget overview:`,
+          richContent: [
+            {
+              type: "budget-overview",
             },
           ],
         }, currentConvId);
@@ -1137,6 +1115,27 @@ export function ChatContainer() {
         defaultCurrency="BHD"
         isFamily={savingsGoalSheetData?.isFamily || false}
         familyMembers={savingsGoalSheetData?.isFamily ? familyMembers : []}
+      />
+
+      {/* Budget Sheet */}
+      <SetSpendingLimitSheet
+        open={budgetSheetOpen}
+        onOpenChange={(open) => {
+          setBudgetSheetOpen(open);
+          if (!open) {
+            setBudgetSheetData(null);
+          }
+        }}
+        onSuccess={() => {
+          // When budget is created from sheet, show success message in chat
+          handleAction("budget-created", {
+            category: budgetSheetData?.category || "your category",
+          });
+          setBudgetSheetData(null);
+        }}
+        selectedCategory={budgetSheetData?.category}
+        defaultCurrency="BHD"
+        isFamily={budgetSheetData?.isFamily || false}
       />
 
       {/* Bank Consent Dialog */}

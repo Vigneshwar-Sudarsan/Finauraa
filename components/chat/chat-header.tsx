@@ -5,6 +5,7 @@ import { MobileNavButton } from "@/components/mobile-nav";
 import { Button } from "@/components/ui/button";
 import { Plus, ClockCounterClockwise } from "@phosphor-icons/react";
 import { GuideSpot } from "./feature-guide";
+import { NotificationsDropdown } from "@/components/dashboard/notifications-dropdown";
 
 interface ChatHeaderProps {
   isPro?: boolean;
@@ -59,10 +60,13 @@ export function ChatHeader({
         )}
       </div>
 
-      {/* Right - Dashboard button */}
-      <GuideSpot id="dashboard-switch" side="bottom" align="end">
-        <MobileNavButton />
-      </GuideSpot>
+      {/* Right - Notifications + Dashboard button */}
+      <div className="flex items-center gap-1">
+        <NotificationsDropdown />
+        <GuideSpot id="dashboard-switch" side="bottom" align="end">
+          <MobileNavButton />
+        </GuideSpot>
+      </div>
     </header>
   );
 }

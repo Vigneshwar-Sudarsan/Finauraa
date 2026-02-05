@@ -124,7 +124,18 @@ function BudgetSetupCard({
   const [amount, setAmount] = useState(suggestedAmount > 0 ? suggestedAmount.toString() : "");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const presetAmounts = [50, 100, 150, 200, 300];
+  // Generate smart preset amounts based on suggested amount
+  // If suggestedAmount is provided, show amounts around it
+  // Otherwise, use generic defaults
+  const presetAmounts = suggestedAmount > 0
+    ? [
+        Math.max(50, Math.round((suggestedAmount * 0.5) / 50) * 50),  // 50% of suggested
+        Math.max(100, Math.round((suggestedAmount * 0.75) / 50) * 50), // 75% of suggested
+        suggestedAmount, // The suggested amount
+        Math.round((suggestedAmount * 1.25) / 50) * 50, // 125% of suggested
+        Math.round((suggestedAmount * 1.5) / 50) * 50,  // 150% of suggested
+      ].filter((v, i, a) => a.indexOf(v) === i) // Remove duplicates
+    : [50, 100, 150, 200, 300];
 
   const handleSubmit = () => {
     const numAmount = parseFloat(amount);

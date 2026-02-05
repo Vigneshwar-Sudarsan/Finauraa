@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
+import { createClient, createAdminClient } from "@/lib/supabase/server";
 import { checkRateLimit } from "@/lib/ratelimit";
 import { sendFamilyInvitationEmail } from "@/lib/email";
 import crypto from "crypto";
@@ -145,7 +145,9 @@ export async function POST(request: NextRequest) {
     }
 
     // Check if invited user already has an account - create in-app notification
-    const { data: invitedUserProfile } = await supabase
+    // Use admin client to bypass RLS when looking up by email (not user's own profile)
+    const adminSupabase = createAdminClient();
+    const { data: invitedUserProfile } = await adminSupabase
       .from("profiles")
       .select("id")
       .eq("email", email)
@@ -153,7 +155,8 @@ export async function POST(request: NextRequest) {
 
     if (invitedUserProfile) {
       // Create in-app notification for existing user
-      await supabase.from("notifications").insert({
+      // Use admin client because RLS policy only allows service role to insert notifications
+      const { error: notifError } = await adminSupabase.from("notifications").insert({
         user_id: invitedUserProfile.id,
         type: "family_invitation",
         title: "Family Group Invitation",
@@ -166,6 +169,10 @@ export async function POST(request: NextRequest) {
           expires_at: expiresAt.toISOString(),
         },
       });
+
+      if (notifError) {
+        console.error("Failed to create notification:", notifError);
+      }
     }
 
     // Send invitation email

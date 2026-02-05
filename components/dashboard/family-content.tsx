@@ -336,8 +336,8 @@ export function FamilyContent() {
         </CardContent>
       </Card>
 
-      {/* Pending Invitations */}
-      {pendingMembers.length > 0 && (
+      {/* Pending Invitations - Only visible to owner */}
+      {isOwner && pendingMembers.length > 0 && (
         <Card>
           <CardHeader>
             <CardTitle className="text-base">Pending Invitations</CardTitle>
