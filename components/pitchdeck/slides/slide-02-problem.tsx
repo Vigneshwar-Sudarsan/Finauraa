@@ -48,7 +48,7 @@ const problems = [
 
 export function Slide02Problem() {
   return (
-    <div className="w-full h-full flex flex-col items-center justify-start overflow-y-auto px-4 sm:px-12 lg:px-20 py-12 pb-24 sm:py-0 sm:pb-0 sm:justify-center">
+    <div className="w-full h-full flex flex-col items-center justify-start overflow-y-auto px-4 sm:px-12 lg:px-20 py-12 pb-32 sm:py-0 sm:pb-0 sm:justify-center">
       <div className="max-w-6xl w-full">
         <FadeIn>
           <div className="flex items-center gap-3 mb-3">
