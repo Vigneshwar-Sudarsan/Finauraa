@@ -51,7 +51,7 @@ export function PitchDeck() {
   const [showControls, setShowControls] = useState(true);
   const containerRef = useRef<HTMLDivElement>(null);
   const controlsTimeoutRef = useRef<NodeJS.Timeout>(null);
-  const touchStartXRef = useRef<number | null>(null);
+  const touchStartRef = useRef<{ x: number; y: number } | null>(null);
 
   const goToSlide = useCallback(
     (index: number) => {
@@ -87,11 +87,15 @@ export function PitchDeck() {
     }
   }, []);
 
-  // Auto-hide controls
+  // Auto-hide controls (longer timeout on mobile, controls always visible initially)
   const resetControlsTimeout = useCallback(() => {
     setShowControls(true);
     if (controlsTimeoutRef.current) clearTimeout(controlsTimeoutRef.current);
-    controlsTimeoutRef.current = setTimeout(() => setShowControls(false), 3000);
+    // Don't auto-hide on mobile (touch devices)
+    const isTouchDevice = "ontouchstart" in window;
+    if (!isTouchDevice) {
+      controlsTimeoutRef.current = setTimeout(() => setShowControls(false), 3000);
+    }
   }, []);
 
   // Keyboard navigation
@@ -153,19 +157,26 @@ export function PitchDeck() {
     return () => document.removeEventListener("fullscreenchange", handler);
   }, []);
 
-  // Touch/swipe support
+  // Touch/swipe support - only trigger on horizontal swipes, not vertical scrolls
   const handleTouchStart = (e: React.TouchEvent) => {
-    touchStartXRef.current = e.touches[0].clientX;
+    touchStartRef.current = {
+      x: e.touches[0].clientX,
+      y: e.touches[0].clientY,
+    };
   };
 
   const handleTouchEnd = (e: React.TouchEvent) => {
-    if (touchStartXRef.current === null) return;
-    const diff = touchStartXRef.current - e.changedTouches[0].clientX;
-    if (Math.abs(diff) > 50) {
-      if (diff > 0) next();
+    if (touchStartRef.current === null) return;
+    const diffX = touchStartRef.current.x - e.changedTouches[0].clientX;
+    const diffY = touchStartRef.current.y - e.changedTouches[0].clientY;
+
+    // Only trigger swipe if horizontal movement is greater than vertical
+    // and horizontal movement exceeds threshold
+    if (Math.abs(diffX) > 50 && Math.abs(diffX) > Math.abs(diffY) * 1.5) {
+      if (diffX > 0) next();
       else prev();
     }
-    touchStartXRef.current = null;
+    touchStartRef.current = null;
   };
 
   const SlideComponent = slides[currentSlide].component;
@@ -194,52 +205,83 @@ export function PitchDeck() {
             exit={{ opacity: 0 }}
             transition={{ duration: 0.2 }}
           >
-            {/* Bottom bar */}
-            <div className="absolute bottom-0 left-0 right-0 px-4 py-3 flex items-center justify-between bg-gradient-to-t from-black/60 to-transparent">
-              {/* Progress dots */}
-              <div className="flex items-center gap-1.5">
-                {slides.map((_, i) => (
-                  <button
-                    key={i}
-                    onClick={() => goToSlide(i)}
-                    className={`transition-all rounded-full ${
-                      i === currentSlide
-                        ? "w-6 h-2 bg-blue-500"
-                        : "w-2 h-2 bg-zinc-600 hover:bg-zinc-400"
-                    }`}
-                  />
-                ))}
+            {/* Mobile navigation arrows - large touch targets on sides */}
+            <button
+              onClick={prev}
+              disabled={currentSlide === 0}
+              className="sm:hidden absolute left-0 top-1/2 -translate-y-1/2 h-32 w-16 flex items-center justify-start pl-2 text-zinc-500 active:text-white disabled:opacity-0 transition-all z-10"
+              aria-label="Previous slide"
+            >
+              <CaretLeft className="w-8 h-8" weight="bold" />
+            </button>
+            <button
+              onClick={next}
+              disabled={currentSlide === slides.length - 1}
+              className="sm:hidden absolute right-0 top-1/2 -translate-y-1/2 h-32 w-16 flex items-center justify-end pr-2 text-zinc-500 active:text-white disabled:opacity-0 transition-all z-10"
+              aria-label="Next slide"
+            >
+              <CaretRight className="w-8 h-8" weight="bold" />
+            </button>
+
+            {/* Bottom bar - with safe area for mobile browser nav */}
+            <div className="absolute bottom-0 left-0 right-0 px-4 pt-3 pb-[calc(1.5rem+env(safe-area-inset-bottom))] sm:pb-3 flex items-center justify-between bg-gradient-to-t from-black/80 sm:from-black/60 to-transparent">
+              {/* Progress bar for mobile / dots for desktop */}
+              <div className="flex-1 sm:flex-none flex items-center gap-1.5">
+                {/* Mobile: Progress bar */}
+                <div className="sm:hidden flex-1 flex items-center gap-2">
+                  <div className="flex-1 h-1 bg-zinc-800 rounded-full overflow-hidden">
+                    <div
+                      className="h-full bg-blue-500 transition-all duration-300"
+                      style={{ width: `${((currentSlide + 1) / slides.length) * 100}%` }}
+                    />
+                  </div>
+                </div>
+                {/* Desktop: Progress dots */}
+                <div className="hidden sm:flex items-center gap-1.5">
+                  {slides.map((_, i) => (
+                    <button
+                      key={i}
+                      onClick={() => goToSlide(i)}
+                      className={`transition-all rounded-full ${
+                        i === currentSlide
+                          ? "w-6 h-2 bg-blue-500"
+                          : "w-2 h-2 bg-zinc-600 hover:bg-zinc-400"
+                      }`}
+                    />
+                  ))}
+                </div>
               </div>
 
               {/* Slide counter & controls */}
-              <div className="flex items-center gap-2">
-                <span className="text-xs text-zinc-500 font-mono mr-2">
+              <div className="flex items-center gap-2 sm:gap-2 ml-3">
+                <span className="text-xs text-zinc-400 sm:text-zinc-500 font-mono">
                   {currentSlide + 1}/{slides.length}
                 </span>
 
+                {/* Desktop nav buttons */}
                 <button
                   onClick={prev}
                   disabled={currentSlide === 0}
-                  className="p-2 rounded-lg bg-zinc-800/80 text-zinc-400 hover:text-white hover:bg-zinc-700/80 transition-all disabled:opacity-30 disabled:cursor-not-allowed"
+                  className="hidden sm:flex p-2 rounded-lg bg-zinc-800/80 text-zinc-400 hover:text-white hover:bg-zinc-700/80 transition-all disabled:opacity-30 disabled:cursor-not-allowed"
                 >
                   <CaretLeft className="w-4 h-4" weight="bold" />
                 </button>
                 <button
                   onClick={next}
                   disabled={currentSlide === slides.length - 1}
-                  className="p-2 rounded-lg bg-zinc-800/80 text-zinc-400 hover:text-white hover:bg-zinc-700/80 transition-all disabled:opacity-30 disabled:cursor-not-allowed"
+                  className="hidden sm:flex p-2 rounded-lg bg-zinc-800/80 text-zinc-400 hover:text-white hover:bg-zinc-700/80 transition-all disabled:opacity-30 disabled:cursor-not-allowed"
                 >
                   <CaretRight className="w-4 h-4" weight="bold" />
                 </button>
                 <button
                   onClick={() => setShowOverview(true)}
-                  className="p-2 rounded-lg bg-zinc-800/80 text-zinc-400 hover:text-white hover:bg-zinc-700/80 transition-all"
+                  className="p-2.5 sm:p-2 rounded-lg bg-zinc-800/80 text-zinc-400 hover:text-white hover:bg-zinc-700/80 transition-all"
                 >
-                  <List className="w-4 h-4" weight="bold" />
+                  <List className="w-5 h-5 sm:w-4 sm:h-4" weight="bold" />
                 </button>
                 <button
                   onClick={toggleFullscreen}
-                  className="p-2 rounded-lg bg-zinc-800/80 text-zinc-400 hover:text-white hover:bg-zinc-700/80 transition-all"
+                  className="hidden sm:flex p-2 rounded-lg bg-zinc-800/80 text-zinc-400 hover:text-white hover:bg-zinc-700/80 transition-all"
                 >
                   {isFullscreen ? (
                     <CornersIn className="w-4 h-4" weight="bold" />
@@ -250,7 +292,16 @@ export function PitchDeck() {
               </div>
             </div>
 
-            {/* Keyboard hint */}
+            {/* Mobile swipe hint - only on first slide */}
+            {currentSlide === 0 && (
+              <div className="sm:hidden absolute top-4 left-1/2 -translate-x-1/2 flex items-center gap-2 px-3 py-1.5 rounded-full bg-zinc-800/80 text-xs text-zinc-400">
+                <CaretLeft className="w-3 h-3" />
+                <span>Swipe or tap arrows</span>
+                <CaretRight className="w-3 h-3" />
+              </div>
+            )}
+
+            {/* Keyboard hint - desktop only */}
             <div className="absolute top-4 right-4 hidden sm:flex items-center gap-2 text-[10px] text-zinc-600">
               <kbd className="px-1.5 py-0.5 rounded border border-zinc-700 bg-zinc-800 text-zinc-500">
                 ←→

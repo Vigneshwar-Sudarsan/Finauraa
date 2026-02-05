@@ -5,7 +5,7 @@ import { EnvelopeSimple, Globe, ArrowRight } from "@phosphor-icons/react";
 
 export function Slide14CTA() {
   return (
-    <div className="relative w-full h-full flex flex-col items-center justify-start overflow-y-auto px-4 py-12 sm:py-0 sm:justify-center">
+    <div className="relative w-full h-full flex flex-col items-center justify-start overflow-y-auto px-4 py-12 pb-24 sm:py-0 sm:pb-0 sm:justify-center">
       {/* Background effects */}
       <div className="absolute top-1/3 -left-48 w-[500px] h-[500px] bg-blue-500/8 rounded-full blur-3xl" />
       <div className="absolute bottom-1/3 -right-48 w-[500px] h-[500px] bg-violet-500/8 rounded-full blur-3xl" />
