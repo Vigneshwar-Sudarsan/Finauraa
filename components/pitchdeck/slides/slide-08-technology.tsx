@@ -6,7 +6,7 @@ import { Brain, Eye, EyeSlash, Database, ShieldCheck, Lightning } from "@phospho
 const techStack = [
   { category: "Frontend", items: ["Next.js 16", "React 19", "Tailwind CSS 4", "shadcn/ui"] },
   { category: "Backend", items: ["Next.js API (68+ endpoints)", "Supabase PostgreSQL", "Row Level Security", "Vercel Cron"] },
-  { category: "AI", items: ["Claude 3.5 Sonnet", "Anthropic SDK", "13 Rich Content Cards", "Prompt Injection Detection"] },
+  { category: "AI", items: ["Claude Sonnet 4", "Anthropic SDK", "13 Rich Content Cards", "Prompt Injection Detection"] },
   { category: "Services", items: ["Tarabut Gateway", "Stripe Billing", "Resend Email", "Sentry Monitoring"] },
 ];
 

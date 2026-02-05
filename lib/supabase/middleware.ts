@@ -45,8 +45,10 @@ export async function updateSession(request: NextRequest) {
 
   const isApiRoute = request.nextUrl.pathname.startsWith("/api");
 
-  // Family invitation pages should be accessible without auth (they handle their own auth flow)
-  const isPublicPage = request.nextUrl.pathname.startsWith("/family/invite");
+  // Public pages accessible without auth
+  const isPublicPage =
+    request.nextUrl.pathname.startsWith("/family/invite") ||
+    request.nextUrl.pathname.startsWith("/pitchdeck");
 
   // Don't redirect API routes - they handle their own auth and return JSON errors
   if (!user && !isAuthPage && !isApiRoute && !isPublicPage) {
