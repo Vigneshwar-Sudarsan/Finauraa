@@ -55,7 +55,7 @@ Finauraa is a personal finance management application built with Next.js 14 (App
 
 ## Pages
 
-**Total: 20 pages**
+**Total: 21 pages**
 
 ### Main Application Pages
 
@@ -85,6 +85,12 @@ Finauraa is a personal finance management application built with Next.js 14 (App
 | Plans | `/dashboard/settings/subscription/plans` | Upgrade plans | `max-w-4xl` |
 | Family | `/dashboard/settings/family` | Family group management | `max-w-2xl` |
 
+### Public Pages
+
+| Page | Path | Description | Content Width |
+|------|------|-------------|---------------|
+| Pitch Deck | `/pitchdeck` | Investor presentation with 14 slides | Fullscreen |
+
 ### Auth Pages
 
 | Page | Path | Description |
@@ -96,7 +102,7 @@ Finauraa is a personal finance management application built with Next.js 14 (App
 
 ## Components
 
-**Total: ~110 components**
+**Total: ~127 components**
 
 ### Dashboard Components (`components/dashboard/`)
 
@@ -139,6 +145,32 @@ All shadcn/ui components plus custom additions:
 - `loading-button.tsx` - Button with loading state
 - `badge.tsx`, `avatar.tsx`, `progress.tsx`
 - And 30+ more shadcn primitives
+
+### Pitch Deck Components (`components/pitchdeck/`)
+
+| Component | File | Description |
+|-----------|------|-------------|
+| PitchDeck | `pitch-deck.tsx` | Main presentation controller with keyboard/touch/fullscreen |
+| SlideWrapper | `slide-wrapper.tsx` | Animated slide transitions using Motion |
+| FadeIn | `animated.tsx` | Fade-in animation wrapper |
+| StaggerContainer | `animated.tsx` | Staggered children animation |
+| StaggerItem | `animated.tsx` | Individual stagger item |
+| ScaleIn | `animated.tsx` | Scale-in animation wrapper |
+| GlowingBorder | `animated.tsx` | Glowing border effect |
+| Slide01Title | `slides/slide-01-title.tsx` | Title/hero slide |
+| Slide02Problem | `slides/slide-02-problem.tsx` | Problem statement slide |
+| Slide03Solution | `slides/slide-03-solution.tsx` | Solution overview slide |
+| Slide04Product | `slides/slide-04-product.tsx` | Product features & AI chat demo |
+| Slide05WhyNow | `slides/slide-05-why-now.tsx` | Market timing slide |
+| Slide06Market | `slides/slide-06-market.tsx` | TAM/SAM/SOM & market opportunity |
+| Slide07BusinessModel | `slides/slide-07-business-model.tsx` | Pricing & unit economics |
+| Slide08Technology | `slides/slide-08-technology.tsx` | AI privacy modes & tech stack |
+| Slide09Competition | `slides/slide-09-competition.tsx` | Competitive landscape |
+| Slide10Compliance | `slides/slide-10-compliance.tsx` | BOBF/PDPL/CBB compliance |
+| Slide11GTM | `slides/slide-11-gtm.tsx` | Go-to-market strategy |
+| Slide12Financials | `slides/slide-12-financials.tsx` | Revenue projections |
+| Slide13Roadmap | `slides/slide-13-roadmap.tsx` | Product roadmap & vision |
+| Slide14CTA | `slides/slide-14-cta.tsx` | Call to action / closing |
 
 ---
 
