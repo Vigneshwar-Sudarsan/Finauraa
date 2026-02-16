@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { requireBankConsent } from "@/lib/consent-middleware";
+import { getDefaultCurrency } from "@/lib/country-config";
 
 /**
  * POST /api/finance/transactions/manual
@@ -28,6 +29,15 @@ export async function POST(request: NextRequest) {
     // If noBanksConnected, we still allow manual transaction creation
     // (user can track cash spending without connecting a bank)
 
+    // Get user's region for default currency
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("country")
+      .eq("id", user.id)
+      .single();
+    const userRegion = profile?.country || "BH";
+    const defaultCurrency = getDefaultCurrency(userRegion);
+
     const body = await request.json();
     const {
       amount,
@@ -36,7 +46,7 @@ export async function POST(request: NextRequest) {
       description,
       merchant_name,
       transaction_date,
-      currency = "BHD",
+      currency = defaultCurrency,
       account_id, // Optional - can link to existing account
       transaction_scope = "auto", // personal, family, or auto
     } = body;

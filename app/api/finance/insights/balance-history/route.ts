@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { createTarabutClient } from "@/lib/tarabut/client";
+import { createTarabutClient, type TarabutRegion } from "@/lib/tarabut/client";
 import { tokenManager } from "@/lib/tarabut/token-manager";
 import { requireBankConsent } from "@/lib/consent-middleware";
 
@@ -39,12 +39,22 @@ export async function GET(request: NextRequest) {
     const searchParams = request.nextUrl.searchParams;
     const accountId = searchParams.get("accountId");
 
-    // Check if user has bank connections (fallback check)
+    // Get user's country to filter by region
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("country")
+      .eq("id", user.id)
+      .single();
+
+    const userRegion = (profile?.country || "BH") as TarabutRegion;
+
+    // Check if user has bank connections for current region
     const { data: connections } = await supabase
       .from("bank_connections")
-      .select("id, access_token, token_expires_at")
+      .select("id, region, access_token, token_expires_at")
       .eq("user_id", user.id)
       .eq("status", "active")
+      .eq("region", userRegion)
       .limit(1);
 
     if (!connections || connections.length === 0) {
@@ -72,7 +82,7 @@ export async function GET(request: NextRequest) {
         .eq("id", connection.id);
     }
 
-    const tarabut = createTarabutClient();
+    const tarabut = createTarabutClient(userRegion);
 
     if (accountId) {
       // Fetch balance history for specific account
@@ -122,11 +132,29 @@ export async function GET(request: NextRequest) {
         return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
       }
 
-      // Get current account balances
+      // Get user's region for filtering
+      const { data: fbProfile } = await supabase
+        .from("profiles")
+        .select("country")
+        .eq("id", user.id)
+        .single();
+      const fbRegion = fbProfile?.country || "BH";
+
+      // Get region-filtered connection IDs
+      const { data: fbConnections } = await supabase
+        .from("bank_connections")
+        .select("id")
+        .eq("user_id", user.id)
+        .eq("status", "active")
+        .eq("region", fbRegion);
+      const fbConnectionIds = fbConnections?.map(c => c.id) || [];
+
+      // Get current account balances (region-filtered)
       const { data: accounts } = await supabase
-        .from("accounts")
+        .from("bank_accounts")
         .select("id, balance, currency")
-        .eq("user_id", user.id);
+        .eq("user_id", user.id)
+        .in("connection_id", fbConnectionIds.length > 0 ? fbConnectionIds : ["__none__"]);
 
       if (!accounts || accounts.length === 0) {
         return NextResponse.json({
@@ -138,7 +166,7 @@ export async function GET(request: NextRequest) {
       // Generate mock history (last 30 days with slight variations)
       const history = [];
       const totalBalance = accounts.reduce((sum, a) => sum + (a.balance || 0), 0);
-      const currency = accounts[0]?.currency || "BHD";
+      const currency = accounts[0]?.currency || (fbRegion === "SA" ? "SAR" : "BHD");
 
       for (let i = 30; i >= 0; i--) {
         const date = new Date();

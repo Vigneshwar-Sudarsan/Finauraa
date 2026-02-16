@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useCallback } from "react";
 import {
   SubscriptionTier,
   TierLimits,
@@ -11,13 +11,7 @@ import {
   isFeatureAvailable,
   hasFamilyFeatures,
 } from "@/lib/features";
-
-interface SubscriptionState {
-  tier: SubscriptionTier;
-  status: "active" | "canceled" | "past_due" | "trialing";
-  isLoading: boolean;
-  error: string | null;
-}
+import { useProfile } from "@/hooks/use-profile";
 
 interface UsageState {
   bankConnections: number;
@@ -47,82 +41,47 @@ interface FeatureAccessHook {
   isPro: boolean;
   isFamily: boolean;
   isFree: boolean;
-  canAccessFamilyFeatures: boolean; // True for both Pro and Family tiers
+  canAccessFamilyFeatures: boolean;
 
   // Refresh
   refresh: () => Promise<void>;
 }
 
 /**
- * Hook for checking feature access based on subscription tier
- * Use this throughout the app to gate features
+ * Hook for checking feature access based on subscription tier.
+ *
+ * Reads tier from the profiles table (kept in sync by Stripe webhooks).
+ * No API calls on mount — server-side routes enforce actual limits.
+ * Call refresh() to re-fetch from /api/subscription if needed (e.g., after payment).
  */
 export function useFeatureAccess(): FeatureAccessHook {
-  const [subscription, setSubscription] = useState<SubscriptionState>({
-    tier: "free",
-    status: "active",
-    isLoading: true,
-    error: null,
-  });
+  const { profile, isLoading: profileLoading, isError, mutate } = useProfile();
 
-  const [usage, setUsage] = useState<UsageState>({
+  const tier = (profile?.subscription_tier || "free") as SubscriptionTier;
+
+  // Usage is tracked server-side; client defaults to 0
+  // Server-side API routes enforce real limits on gated actions
+  const usage: UsageState = {
     bankConnections: 0,
     aiQueries: 0,
     savingsGoals: 0,
     familyMembers: 0,
-  });
+  };
 
-  const fetchSubscription = useCallback(async () => {
-    try {
-      setSubscription((prev) => ({ ...prev, isLoading: true, error: null }));
-
-      const response = await fetch("/api/subscription");
-      if (!response.ok) {
-        throw new Error("Failed to fetch subscription");
-      }
-
-      const data = await response.json();
-
-      setSubscription({
-        tier: data.subscription.tier || "free",
-        status: data.subscription.status || "active",
-        isLoading: false,
-        error: null,
-      });
-
-      setUsage({
-        bankConnections: data.usage?.bankConnections?.used || 0,
-        aiQueries: data.usage?.aiQueries?.used || 0,
-        savingsGoals: 0, // TODO: Add to API response
-        familyMembers: 0, // TODO: Add to API response
-      });
-    } catch (error) {
-      setSubscription((prev) => ({
-        ...prev,
-        isLoading: false,
-        error: error instanceof Error ? error.message : "Unknown error",
-      }));
-    }
-  }, []);
-
-  useEffect(() => {
-    fetchSubscription();
-  }, [fetchSubscription]);
-
-  const limits = getTierLimits(subscription.tier);
+  const limits = getTierLimits(tier);
 
   const canAccess = useCallback(
     (feature: keyof TierLimits): boolean => {
-      return isFeatureAvailable(subscription.tier, feature);
+      return isFeatureAvailable(tier, feature);
     },
-    [subscription.tier]
+    [tier]
   );
 
   const checkFeature = useCallback(
     (feature: keyof TierLimits): FeatureCheck => {
-      return checkFeatureAccess(subscription.tier, feature);
+      return checkFeatureAccess(tier, feature);
     },
-    [subscription.tier]
+    [tier]
   );
 
   const checkLimit = useCallback(
@@ -130,37 +89,40 @@ export function useFeatureAccess(): FeatureAccessHook {
       feature: "bankConnections" | "aiQueriesPerMonth" | "savingsGoals" | "spendingLimits" | "familyMembers",
       currentUsage?: number
     ): FeatureCheck => {
-      // Map feature names to usage keys
       const usageMap: Record<string, keyof UsageState> = {
         bankConnections: "bankConnections",
         aiQueriesPerMonth: "aiQueries",
         savingsGoals: "savingsGoals",
-        spendingLimits: "savingsGoals", // Reusing for now
+        spendingLimits: "savingsGoals",
         familyMembers: "familyMembers",
       };
 
       const usageKey = usageMap[feature];
       const used = currentUsage ?? usage[usageKey];
 
-      return checkUsageLimit(subscription.tier, feature, used);
+      return checkUsageLimit(tier, feature, used);
     },
-    [subscription.tier, usage]
+    [tier, usage]
   );
 
+  const refresh = useCallback(async () => {
+    mutate();
+  }, [mutate]);
+
   return {
-    tier: subscription.tier,
-    status: subscription.status,
-    isLoading: subscription.isLoading,
-    error: subscription.error,
+    tier,
+    status: "active",
+    isLoading: profileLoading,
+    error: isError ? "Failed to load profile" : null,
     limits,
     usage,
     canAccess,
     checkFeature,
     checkLimit,
-    isPro: subscription.tier === "pro",
-    isFamily: subscription.tier === "family",
-    isFree: subscription.tier === "free",
-    canAccessFamilyFeatures: hasFamilyFeatures(subscription.tier),
-    refresh: fetchSubscription,
+    isPro: tier === "pro",
+    isFamily: tier === "family",
+    isFree: tier === "free",
+    canAccessFamilyFeatures: hasFamilyFeatures(tier),
+    refresh,
   };
 }

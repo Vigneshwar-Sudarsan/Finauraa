@@ -7,12 +7,20 @@ import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Sparkle, SpinnerGap, CheckCircle } from "@phosphor-icons/react";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 function SignupForm() {
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
+  const [country, setCountry] = useState("BH");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
@@ -54,6 +62,7 @@ function SignupForm() {
         emailRedirectTo: callbackUrl,
         data: {
           full_name: fullName.trim(),
+          country,
         },
       },
     });
@@ -157,6 +166,15 @@ function SignupForm() {
               disabled={loading}
               className="h-11"
             />
+            <Select value={country} onValueChange={setCountry} disabled={loading}>
+              <SelectTrigger className="h-11">
+                <SelectValue placeholder="Select country" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="BH">Bahrain</SelectItem>
+                <SelectItem value="SA">Saudi Arabia</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
 
           {error && (

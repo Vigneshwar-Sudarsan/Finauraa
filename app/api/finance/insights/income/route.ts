@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { createTarabutClient } from "@/lib/tarabut/client";
+import { createTarabutClient, type TarabutRegion } from "@/lib/tarabut/client";
 import { tokenManager } from "@/lib/tarabut/token-manager";
 import { requireBankConsent } from "@/lib/consent-middleware";
 
@@ -36,18 +36,28 @@ export async function GET() {
       });
     }
 
-    // Check if user has bank connections (fallback check)
+    // Get user's country to filter by region
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("country")
+      .eq("id", user.id)
+      .single();
+
+    const userRegion = (profile?.country || "BH") as TarabutRegion;
+
+    // Check if user has bank connections for current region
     const { data: connections } = await supabase
       .from("bank_connections")
-      .select("id, access_token, token_expires_at")
+      .select("id, region, access_token, token_expires_at")
       .eq("user_id", user.id)
       .eq("status", "active")
+      .eq("region", userRegion)
       .limit(1);
 
     if (!connections || connections.length === 0) {
       return NextResponse.json({
         totalIncome: 0,
-        currency: "BHD",
+        currency: userRegion === "SA" ? "SAR" : "BHD",
         sources: [],
         noBanksConnected: true,
       });
@@ -72,7 +82,7 @@ export async function GET() {
     }
 
     // Fetch income summary from Tarabut
-    const tarabut = createTarabutClient();
+    const tarabut = createTarabutClient(userRegion);
     const incomeSummary = await tarabut.getIncomeSummary(tokenResult.accessToken);
 
     return NextResponse.json({
@@ -100,7 +110,31 @@ export async function GET() {
         return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
       }
 
-      // Get income from local transactions (last 30 days)
+      // Get user's region for filtering
+      const { data: fbProfile } = await supabase
+        .from("profiles")
+        .select("country")
+        .eq("id", user.id)
+        .single();
+      const fbRegion = fbProfile?.country || "BH";
+
+      // Get region-filtered account IDs
+      const { data: fbConnections } = await supabase
+        .from("bank_connections")
+        .select("id")
+        .eq("user_id", user.id)
+        .eq("status", "active")
+        .eq("region", fbRegion);
+      const fbConnectionIds = fbConnections?.map(c => c.id) || [];
+
+      const { data: fbAccounts } = await supabase
+        .from("bank_accounts")
+        .select("id")
+        .eq("user_id", user.id)
+        .in("connection_id", fbConnectionIds);
+      const fbAccountIds = fbAccounts?.map(a => a.id) || [];
+
+      // Get income from local transactions (last 30 days) - region-filtered
       const startDate = new Date();
       startDate.setDate(startDate.getDate() - 30);
 
@@ -108,13 +142,14 @@ export async function GET() {
         .from("transactions")
         .select("amount, category, currency, description")
         .eq("user_id", user.id)
+        .in("account_id", fbAccountIds.length > 0 ? fbAccountIds : ["__none__"])
         .eq("transaction_type", "credit")
         .gte("transaction_date", startDate.toISOString());
 
       if (!transactions || transactions.length === 0) {
         return NextResponse.json({
           totalIncome: 0,
-          currency: "BHD",
+          currency: fbRegion === "SA" ? "SAR" : "BHD",
           sources: [],
           fallback: true,
         });
@@ -145,7 +180,7 @@ export async function GET() {
 
       return NextResponse.json({
         totalIncome,
-        currency: transactions[0]?.currency || "BHD",
+        currency: transactions[0]?.currency || (fbRegion === "SA" ? "SAR" : "BHD"),
         sources: sources.map((s) => ({
           ...s,
           percentage: Math.round((s.amount / totalIncome) * 100),

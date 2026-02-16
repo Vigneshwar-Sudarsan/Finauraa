@@ -23,12 +23,14 @@ import {
   CheckCircle,
   Bank,
 } from "@phosphor-icons/react";
+import { getCountryConfig, type CountryCode } from "@/lib/country-config";
 
 interface BankConsentDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onConfirm: () => void;
   isConnecting: boolean;
+  country?: CountryCode;
 }
 
 const permissions = [
@@ -57,8 +59,10 @@ export function BankConsentDialog({
   onOpenChange,
   onConfirm,
   isConnecting,
+  country,
 }: BankConsentDialogProps) {
   const [consentChecked, setConsentChecked] = useState(false);
+  const countryConfig = getCountryConfig(country);
 
   const handleOpenChange = (newOpen: boolean) => {
     if (!newOpen) {
@@ -190,10 +194,9 @@ export function BankConsentDialog({
           </Button>
         </DialogFooter>
 
-        {/* PDPL/BOBF Compliance Note */}
+        {/* Compliance Note */}
         <p className="text-xs text-center text-muted-foreground pt-2 border-t">
-          Protected under Bahrain Personal Data Protection Law (PDPL) and Open
-          Banking Framework (BOBF)
+          {countryConfig.consentComplianceText}
         </p>
       </DialogContent>
     </Dialog>

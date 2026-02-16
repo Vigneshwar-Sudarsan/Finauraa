@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { createTarabutClient } from "@/lib/tarabut/client";
+import { createTarabutClient, type TarabutRegion } from "@/lib/tarabut/client";
 import { logConsentEvent, logBankEvent } from "@/lib/audit";
 
 /**
@@ -106,8 +106,9 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Create client and get token for this user
-    const client = createTarabutClient();
+    // Create client using region from pending connection (set during /connect)
+    const region = (pendingConnection.region || "BH") as TarabutRegion;
+    const client = createTarabutClient(region);
     const tokenResponse = await client.getAccessToken(user.id);
 
     // Fetch accounts from Tarabut - this includes provider info
@@ -252,13 +253,15 @@ export async function GET(request: NextRequest) {
     const bankId = firstAccount.providerId || "unknown";
     const bankName = firstAccount.providerName || bankId;
 
-    // Check if there's an existing active connection for this bank (same provider)
+    // Check if there's an existing active connection for this bank (same provider AND same region)
     // If so, we'll merge by updating the existing connection instead of creating a new one
+    // Region filter ensures BH and SA connections for the same bank stay separate
     const { data: existingConnection } = await supabase
       .from("bank_connections")
       .select("id, consent_id")
       .eq("user_id", user.id)
       .eq("bank_id", bankId)
+      .eq("region", region)
       .eq("status", "active")
       .neq("id", pendingConnection.id)
       .order("created_at", { ascending: false })
@@ -422,7 +425,7 @@ export async function GET(request: NextRequest) {
         account_id: account.accountId,
         account_type: account.accountSubType || account.accountType || "Current",
         account_number: maskedNumber,
-        currency: account.currency || "BHD",
+        currency: account.currency || (region === "SA" ? "SAR" : "BHD"),
         balance: balance,
         available_balance: balance,
         last_synced_at: new Date().toISOString(),

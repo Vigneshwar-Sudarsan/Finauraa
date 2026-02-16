@@ -1,21 +1,48 @@
 /**
  * Tarabut Gateway API Client
  * Handles authentication and API calls to Tarabut Open Banking platform
+ * Supports multiple regions: Bahrain (BH) and Saudi Arabia (SA)
  *
  * Flow:
- * 1. Get access token from centralized auth endpoint
+ * 1. Get access token from centralized auth endpoint (shared across regions)
  * 2. Create Intent (returns connectUrl where user selects their bank)
  * 3. User completes consent via Tarabut Connect
  * 4. Fetch accounts and transactions
  *
  * Endpoints:
- * - Token: https://oauth.tarabutgateway.io/sandbox/token
- * - API: https://api.sandbox.tarabutgateway.io
+ * - Token: https://oauth.tarabutgateway.io/sandbox/token (shared)
+ * - BH API: https://api.sandbox.tarabutgateway.io
+ * - SA API: https://api.sau.sandbox.tarabutgateway.io
  */
 
-// Tarabut centralized endpoints
-const TARABUT_SANDBOX_TOKEN_URL = "https://oauth.tarabutgateway.io/sandbox/token";
-const TARABUT_SANDBOX_API_URL = "https://api.sandbox.tarabutgateway.io";
+// Supported regions
+export type TarabutRegion = "BH" | "SA";
+
+// Centralized OAuth endpoint (shared across all regions)
+const TARABUT_TOKEN_URL = "https://oauth.tarabutgateway.io/sandbox/token";
+
+// Region-specific API configuration
+// Note: In sandbox, BH and SA share the same OAuth endpoint.
+// In production, SA uses api.sau.tarabutgateway.io with its own OAuth.
+const REGION_CONFIG: Record<TarabutRegion, {
+  apiUrl: string;
+  clientId: string;
+  clientSecret: string;
+  redirectUri: string;
+}> = {
+  BH: {
+    apiUrl: "https://api.sandbox.tarabutgateway.io",
+    clientId: process.env.TARABUT_CLIENT_ID || "",
+    clientSecret: process.env.TARABUT_CLIENT_SECRET || "",
+    redirectUri: process.env.TARABUT_REDIRECT_URI || "",
+  },
+  SA: {
+    apiUrl: "https://api.sau.sandbox.tarabutgateway.io",
+    clientId: process.env.TARABUT_KSA_CLIENT_ID || "",
+    clientSecret: process.env.TARABUT_KSA_CLIENT_SECRET || "",
+    redirectUri: process.env.TARABUT_KSA_REDIRECT_URI || process.env.TARABUT_REDIRECT_URI || "",
+  },
+};
 
 // Response types
 export interface TarabutTokenResponse {
@@ -315,19 +342,24 @@ export class TarabutClient {
   private clientId: string;
   private clientSecret: string;
   private redirectUri: string;
+  private apiUrl: string;
+  public readonly region: TarabutRegion;
 
-  constructor() {
-    this.clientId = process.env.TARABUT_CLIENT_ID!;
-    this.clientSecret = process.env.TARABUT_CLIENT_SECRET!;
-    this.redirectUri = process.env.TARABUT_REDIRECT_URI!;
+  constructor(region: TarabutRegion = "BH") {
+    const config = REGION_CONFIG[region];
+    this.region = region;
+    this.apiUrl = config.apiUrl;
+    this.clientId = config.clientId;
+    this.clientSecret = config.clientSecret;
+    this.redirectUri = config.redirectUri;
 
     if (!this.clientId || !this.clientSecret) {
-      throw new Error("Tarabut credentials not configured");
+      throw new Error(`Tarabut credentials not configured for region: ${region}`);
     }
   }
 
   /**
-   * Step 1: Get access token from Tarabut central auth
+   * Step 1: Get access token from Tarabut regional auth endpoint
    */
   async getAccessToken(customerUserId?: string): Promise<TarabutTokenResponse> {
     const body: Record<string, string> = {
@@ -345,7 +377,7 @@ export class TarabutClient {
       headers["X-TG-CustomerUserId"] = customerUserId;
     }
 
-    const response = await fetch(TARABUT_SANDBOX_TOKEN_URL, {
+    const response = await fetch(TARABUT_TOKEN_URL, {
       method: "POST",
       headers,
       body: JSON.stringify(body),
@@ -368,7 +400,7 @@ export class TarabutClient {
     accessToken: string,
     user: { id: string; firstName: string; lastName: string; email?: string }
   ): Promise<CreateIntentResponse> {
-    const endpoint = `${TARABUT_SANDBOX_API_URL}/accountInformation/v1/intent`;
+    const endpoint = `${this.apiUrl}/accountInformation/v1/intent`;
 
     const intentRequest: CreateIntentRequest = {
       user: {
@@ -403,7 +435,7 @@ export class TarabutClient {
    * Get list of connected accounts
    */
   async getAccounts(accessToken: string): Promise<AccountsResponse> {
-    const endpoint = `${TARABUT_SANDBOX_API_URL}/accountInformation/v2/accounts`;
+    const endpoint = `${this.apiUrl}/accountInformation/v2/accounts`;
 
     const response = await fetch(endpoint, {
       method: "GET",
@@ -425,7 +457,7 @@ export class TarabutClient {
    */
   async getAccountBalance(accessToken: string, accountId: string): Promise<BalancesResponse> {
     // Use balances/refresh endpoint - this fetches latest balance from bank
-    const endpoint = `${TARABUT_SANDBOX_API_URL}/accountInformation/v2/accounts/${accountId}/balances/refresh`;
+    const endpoint = `${this.apiUrl}/accountInformation/v2/accounts/${accountId}/balances/refresh`;
 
     const response = await fetch(endpoint, {
       method: "GET",
@@ -463,7 +495,7 @@ export class TarabutClient {
       params.set("toBookingDateTime", toDate.toISOString());
     }
 
-    const endpoint = `${TARABUT_SANDBOX_API_URL}/accountInformation/v2/accounts/${accountId}/transactions?${params.toString()}`;
+    const endpoint = `${this.apiUrl}/accountInformation/v2/accounts/${accountId}/transactions?${params.toString()}`;
 
     const response = await fetch(endpoint, {
       method: "GET",
@@ -499,7 +531,7 @@ export class TarabutClient {
     }
 
     const queryString = params.toString();
-    const endpoint = `${TARABUT_SANDBOX_API_URL}/accountInformation/v2/accounts/${accountId}/rawtransactions${queryString ? `?${queryString}` : ""}`;
+    const endpoint = `${this.apiUrl}/accountInformation/v2/accounts/${accountId}/rawtransactions${queryString ? `?${queryString}` : ""}`;
 
     const response = await fetch(endpoint, {
       method: "GET",
@@ -520,7 +552,7 @@ export class TarabutClient {
    * Refresh raw transactions (latest from bank)
    */
   async refreshRawTransactions(accessToken: string, accountId: string): Promise<TransactionsResponse> {
-    const endpoint = `${TARABUT_SANDBOX_API_URL}/accountInformation/v2/accounts/${accountId}/rawtransactions/refresh`;
+    const endpoint = `${this.apiUrl}/accountInformation/v2/accounts/${accountId}/rawtransactions/refresh`;
 
     const response = await fetch(endpoint, {
       method: "GET",
@@ -541,7 +573,7 @@ export class TarabutClient {
    * Get list of available bank providers (sandbox: Red Bank, Blue Bank)
    */
   async getProviders(accessToken: string): Promise<ProvidersResponse> {
-    const endpoint = `${TARABUT_SANDBOX_API_URL}/v1/providers`;
+    const endpoint = `${this.apiUrl}/v1/providers`;
 
     const response = await fetch(endpoint, {
       method: "GET",
@@ -562,7 +594,7 @@ export class TarabutClient {
    * Get account details
    */
   async getAccountDetails(accessToken: string, accountId: string): Promise<TarabutAccount> {
-    const endpoint = `${TARABUT_SANDBOX_API_URL}/accountInformation/v2/accounts/${accountId}`;
+    const endpoint = `${this.apiUrl}/accountInformation/v2/accounts/${accountId}`;
 
     const response = await fetch(endpoint, {
       method: "GET",
@@ -583,7 +615,7 @@ export class TarabutClient {
    * Get all consents for a user
    */
   async getConsents(accessToken: string): Promise<{ consents: TarabutConsent[] }> {
-    const endpoint = `${TARABUT_SANDBOX_API_URL}/consentInformation/v1/consents`;
+    const endpoint = `${this.apiUrl}/consentInformation/v1/consents`;
 
     const response = await fetch(endpoint, {
       method: "GET",
@@ -604,7 +636,7 @@ export class TarabutClient {
    * Get consent details
    */
   async getConsentDetails(accessToken: string, consentId: string): Promise<TarabutConsent> {
-    const endpoint = `${TARABUT_SANDBOX_API_URL}/consentInformation/v1/consents/${consentId}`;
+    const endpoint = `${this.apiUrl}/consentInformation/v1/consents/${consentId}`;
 
     const response = await fetch(endpoint, {
       method: "GET",
@@ -625,7 +657,7 @@ export class TarabutClient {
    * Revoke a consent (disconnect bank)
    */
   async revokeConsent(accessToken: string, consentId: string): Promise<void> {
-    const endpoint = `${TARABUT_SANDBOX_API_URL}/consentInformation/v1/consents/${consentId}`;
+    const endpoint = `${this.apiUrl}/consentInformation/v1/consents/${consentId}`;
 
     const response = await fetch(endpoint, {
       method: "DELETE",
@@ -644,7 +676,7 @@ export class TarabutClient {
    * Create consent dashboard URL (for user to manage their consents)
    */
   async createConsentDashboard(accessToken: string, redirectUrl: string): Promise<{ dashboardUrl: string }> {
-    const endpoint = `${TARABUT_SANDBOX_API_URL}/consentInformation/v1/dashboard`;
+    const endpoint = `${this.apiUrl}/consentInformation/v1/dashboard`;
 
     const response = await fetch(endpoint, {
       method: "POST",
@@ -670,7 +702,7 @@ export class TarabutClient {
    * Returns aggregated income data for the user
    */
   async getIncomeSummary(accessToken: string): Promise<IncomeSummary> {
-    const endpoint = `${TARABUT_SANDBOX_API_URL}/insights/v1/income`;
+    const endpoint = `${this.apiUrl}/insights/v1/income`;
 
     const response = await fetch(endpoint, {
       method: "GET",
@@ -692,7 +724,7 @@ export class TarabutClient {
    * Returns detailed income transactions
    */
   async getIncomeDetails(accessToken: string): Promise<IncomeDetails> {
-    const endpoint = `${TARABUT_SANDBOX_API_URL}/insights/v1/income/details`;
+    const endpoint = `${this.apiUrl}/insights/v1/income/details`;
 
     const response = await fetch(endpoint, {
       method: "GET",
@@ -714,7 +746,7 @@ export class TarabutClient {
    * Detects salary information from transactions
    */
   async getSalaryCheck(accessToken: string): Promise<SalaryInfo> {
-    const endpoint = `${TARABUT_SANDBOX_API_URL}/insights/v1/income/salary`;
+    const endpoint = `${this.apiUrl}/insights/v1/income/salary`;
 
     const response = await fetch(endpoint, {
       method: "GET",
@@ -735,7 +767,7 @@ export class TarabutClient {
    * Get Balance History for a specific account
    */
   async getBalanceHistory(accessToken: string, accountId: string): Promise<BalanceHistoryResponse> {
-    const endpoint = `${TARABUT_SANDBOX_API_URL}/insights/v1/balance-history/${accountId}`;
+    const endpoint = `${this.apiUrl}/insights/v1/balance-history/${accountId}`;
 
     const response = await fetch(endpoint, {
       method: "GET",
@@ -757,7 +789,7 @@ export class TarabutClient {
    * Returns balance history for all accounts with optional aggregation
    */
   async getBalanceHistoryV2(accessToken: string): Promise<BalanceHistoryV2Response> {
-    const endpoint = `${TARABUT_SANDBOX_API_URL}/insights/v2/balance-history`;
+    const endpoint = `${this.apiUrl}/insights/v2/balance-history`;
 
     const response = await fetch(endpoint, {
       method: "GET",
@@ -779,7 +811,7 @@ export class TarabutClient {
    * Returns categorized spending summary
    */
   async getTransactionInsightsSummary(accessToken: string): Promise<TransactionInsightsSummary> {
-    const endpoint = `${TARABUT_SANDBOX_API_URL}/insights/v1/transaction-insights`;
+    const endpoint = `${this.apiUrl}/insights/v1/transaction-insights`;
 
     const response = await fetch(endpoint, {
       method: "GET",
@@ -801,7 +833,7 @@ export class TarabutClient {
    * Returns detailed categorized transactions
    */
   async getTransactionInsightsDetails(accessToken: string): Promise<TransactionInsightsDetails> {
-    const endpoint = `${TARABUT_SANDBOX_API_URL}/insights/v1/transaction-insights/details`;
+    const endpoint = `${this.apiUrl}/insights/v1/transaction-insights/details`;
 
     const response = await fetch(endpoint, {
       method: "GET",
@@ -823,7 +855,7 @@ export class TarabutClient {
    * Alternative endpoint for salary data
    */
   async getSalary(accessToken: string): Promise<SalaryInfo> {
-    const endpoint = `${TARABUT_SANDBOX_API_URL}/insights/v1/salary`;
+    const endpoint = `${this.apiUrl}/insights/v1/salary`;
 
     const response = await fetch(endpoint, {
       method: "GET",
@@ -845,7 +877,7 @@ export class TarabutClient {
    * Matches IBAN with account holder name
    */
   async matchIBAN(accessToken: string, request: IBANMatchRequest): Promise<IBANMatchResponse> {
-    const endpoint = `${TARABUT_SANDBOX_API_URL}/accountVerification/v1/matchIdentifier`;
+    const endpoint = `${this.apiUrl}/accountVerification/v1/matchIdentifier`;
 
     const response = await fetch(endpoint, {
       method: "POST",
@@ -874,7 +906,7 @@ export class TarabutClient {
     accessToken: string,
     transactions: CategorizeTransactionRequest[]
   ): Promise<CategorizeBatchResponse> {
-    const endpoint = `${TARABUT_SANDBOX_API_URL}/categorization/v1/categorize`;
+    const endpoint = `${this.apiUrl}/categorization/v1/categorize`;
 
     const response = await fetch(endpoint, {
       method: "POST",
@@ -897,7 +929,7 @@ export class TarabutClient {
    * Get list of all available categories
    */
   async getCategories(accessToken: string): Promise<CategoryListResponse> {
-    const endpoint = `${TARABUT_SANDBOX_API_URL}/categorization/v1/categories`;
+    const endpoint = `${this.apiUrl}/categorization/v1/categories`;
 
     const response = await fetch(endpoint, {
       method: "GET",
@@ -916,8 +948,9 @@ export class TarabutClient {
 }
 
 /**
- * Create a new Tarabut client
+ * Create a new Tarabut client for a specific region
+ * @param region - "BH" for Bahrain (default), "SA" for Saudi Arabia
  */
-export function createTarabutClient(): TarabutClient {
-  return new TarabutClient();
+export function createTarabutClient(region: TarabutRegion = "BH"): TarabutClient {
+  return new TarabutClient(region);
 }

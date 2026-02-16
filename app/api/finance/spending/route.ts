@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { requireBankConsent, logDataAccessSuccess } from "@/lib/consent-middleware";
+import { getDefaultCurrency } from "@/lib/country-config";
 
 /**
  * GET /api/finance/spending
@@ -37,6 +38,44 @@ export async function GET(request: NextRequest) {
       });
     }
 
+    // Get user's region for filtering
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("country")
+      .eq("id", user.id)
+      .single();
+    const userRegion = profile?.country || "BH";
+    const defaultCurrency = getDefaultCurrency(userRegion);
+
+    // Get region-filtered bank connections -> accounts -> account IDs
+    const { data: regionConnections } = await supabase
+      .from("bank_connections")
+      .select("id")
+      .eq("user_id", user.id)
+      .eq("status", "active")
+      .eq("region", userRegion);
+    const regionConnectionIds = regionConnections?.map(c => c.id) || [];
+
+    const { data: regionAccounts } = await supabase
+      .from("bank_accounts")
+      .select("id")
+      .eq("user_id", user.id)
+      .in("connection_id", regionConnectionIds);
+    const regionAccountIds = regionAccounts?.map(a => a.id) || [];
+
+    // If no accounts for this region, return empty data
+    if (regionAccountIds.length === 0) {
+      return NextResponse.json({
+        totalSpent: 0,
+        currency: defaultCurrency,
+        period: "Last 90 days",
+        categories: [],
+        topCategory: null,
+        transactionCount: 0,
+        noBanksConnected: true,
+      });
+    }
+
     // Get period from query params (default: 90 days)
     const searchParams = request.nextUrl.searchParams;
     const days = parseInt(searchParams.get("days") || "90", 10);
@@ -45,11 +84,12 @@ export async function GET(request: NextRequest) {
     const startDate = new Date();
     startDate.setDate(startDate.getDate() - days);
 
-    // Build query for debit transactions
+    // Build query for debit transactions (region-filtered)
     let query = supabase
       .from("transactions")
       .select("amount, category, currency, transaction_date, account_id")
       .eq("user_id", user.id)
+      .in("account_id", regionAccountIds)
       .eq("transaction_type", "debit")
       .gte("transaction_date", startDate.toISOString())
       .order("transaction_date", { ascending: false });
@@ -72,7 +112,7 @@ export async function GET(request: NextRequest) {
     if (!transactions || transactions.length === 0) {
       return NextResponse.json({
         totalSpent: 0,
-        currency: "BHD",
+        currency: defaultCurrency,
         period: `Last ${days} days`,
         categories: [],
         topCategory: null,
@@ -103,7 +143,7 @@ export async function GET(request: NextRequest) {
       }));
 
     const topCategory = sortedCategories[0]?.category || null;
-    const currency = transactions[0]?.currency || "BHD";
+    const currency = transactions[0]?.currency || defaultCurrency;
 
     // Format period label
     let periodLabel = `Last ${days} days`;

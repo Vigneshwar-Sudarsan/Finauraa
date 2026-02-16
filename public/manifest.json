@@ -2,7 +2,7 @@
   "id": "/",
   "name": "Finauraa - AI-Powered Finance",
   "short_name": "Finauraa",
-  "description": "Your AI financial assistant for Bahrain",
+  "description": "Your AI-powered personal finance assistant",
   "start_url": "/?source=pwa",
   "display": "standalone",
   "background_color": "#09090b",

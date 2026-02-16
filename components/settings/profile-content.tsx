@@ -10,6 +10,7 @@ import { Separator } from "@/components/ui/separator";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { TierBadge, FeatureBadge } from "@/components/ui/tier-badge";
 import { useProfile } from "@/hooks/use-profile";
+import { getCountryConfig, type CountryCode } from "@/lib/country-config";
 import {
   User,
   Envelope,
@@ -37,6 +38,7 @@ export function ProfileContent() {
 
   // Use SWR hook for cached data
   const { profile, stats, userId, userEmail, isLoading, mutate } = useProfile();
+  const countryConfig = getCountryConfig(profile?.country as CountryCode);
 
   const [saving, setSaving] = useState(false);
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
@@ -432,6 +434,7 @@ export function ProfileContent() {
                   <p>{userEmail || profile.email || "Not set"}</p>
                 </div>
               </div>
+
             </div>
           </div>
 
@@ -585,7 +588,7 @@ export function ProfileContent() {
                   <li>All data is encrypted at rest and in transit</li>
                   <li>Bank credentials are never stored - only access tokens</li>
                   <li>You can delete your account anytime from Settings</li>
-                  <li>Compliant with Bahrain PDPL regulations</li>
+                  <li>{countryConfig.complianceNotice}</li>
                 </ul>
               </div>
             </div>

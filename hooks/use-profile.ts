@@ -8,6 +8,7 @@ interface ProfileData {
   is_pro: boolean;
   subscription_tier: "free" | "pro" | "family";
   created_at: string;
+  country: "BH" | "SA";
 }
 
 interface AccountStats {
@@ -32,7 +33,7 @@ interface UseProfileReturn {
 export function useProfile(): UseProfileReturn {
   const supabase = createClient();
 
-  // First, get the current user
+  // 1. Get the current user (fast, cached 1 min)
   const { data: userData, error: userError } = useSWR(
     "auth-user",
     async () => {
@@ -41,38 +42,64 @@ export function useProfile(): UseProfileReturn {
     },
     {
       revalidateOnFocus: false,
-      dedupingInterval: 60000, // Cache auth for 1 minute
+      dedupingInterval: 60000,
     }
   );
 
   const userId = userData?.id ?? null;
   const userEmail = userData?.email ?? "";
 
-  // Then fetch profile data (only if we have a userId)
-  const { data: profileData, error: profileError, mutate } = useSWR(
+  // 2. Profile data only - fast (single DB query, no API calls)
+  // subscription_tier is kept in sync by Stripe webhooks, no need to call /api/subscription
+  const { data: profileData, error: profileError, mutate: mutateProfile } = useSWR(
     userId ? `profile-${userId}` : null,
     async () => {
       if (!userId) return null;
 
-      // Fetch profile and subscription data in parallel
-      const [profileResult, subscriptionResult] = await Promise.all([
-        supabase
-          .from("profiles")
-          .select("*")
-          .eq("id", userId)
-          .single(),
-        fetch("/api/subscription").then(res => res.ok ? res.json() : null).catch(() => null)
-      ]);
+      const { data, error } = await supabase
+        .from("profiles")
+        .select("*")
+        .eq("id", userId)
+        .single();
 
-      if (profileResult.error) throw profileResult.error;
+      if (error) throw error;
 
-      // Merge subscription tier from API (most accurate) with profile data
-      const profile = {
-        ...profileResult.data,
-        subscription_tier: subscriptionResult?.subscription?.tier || profileResult.data.subscription_tier || "free"
-      };
+      return {
+        ...data,
+        subscription_tier: data.subscription_tier || "free",
+      } as ProfileData;
+    },
+    {
+      revalidateOnFocus: false,
+      dedupingInterval: 30000,
+    }
+  );
 
-      // Fetch stats in parallel
+  // 3. Stats - loads in background after profile is ready
+  const { data: statsData, mutate: mutateStats } = useSWR(
+    profileData ? `profile-stats-${userId}` : null,
+    async () => {
+      if (!userId || !profileData) return null;
+
+      const userRegion = profileData.country || "BH";
+
+      const { data: regionConnections } = await supabase
+        .from("bank_connections")
+        .select("id")
+        .eq("user_id", userId)
+        .eq("region", userRegion);
+      const regionConnectionIds = (regionConnections || []).map((c) => c.id);
+
+      let regionAccountIds: string[] = [];
+      if (regionConnectionIds.length > 0) {
+        const { data: regionAccounts } = await supabase
+          .from("bank_accounts")
+          .select("id")
+          .eq("user_id", userId)
+          .in("connection_id", regionConnectionIds);
+        regionAccountIds = (regionAccounts || []).map((a) => a.id);
+      }
+
       const [
         { count: bankCount },
         { count: accountCount },
@@ -80,40 +107,46 @@ export function useProfile(): UseProfileReturn {
         { data: oldestTx },
         { count: budgetCount },
       ] = await Promise.all([
-        supabase.from("bank_connections").select("*", { count: "exact", head: true }).eq("user_id", userId),
-        supabase.from("bank_accounts").select("*", { count: "exact", head: true }).eq("user_id", userId),
-        supabase.from("transactions").select("*", { count: "exact", head: true }).eq("user_id", userId),
-        supabase.from("transactions").select("transaction_date").eq("user_id", userId).order("transaction_date", { ascending: true }).limit(1),
+        supabase.from("bank_connections").select("*", { count: "exact", head: true }).eq("user_id", userId).eq("region", userRegion),
+        regionConnectionIds.length > 0
+          ? supabase.from("bank_accounts").select("*", { count: "exact", head: true }).eq("user_id", userId).in("connection_id", regionConnectionIds)
+          : Promise.resolve({ count: 0 }),
+        regionAccountIds.length > 0
+          ? supabase.from("transactions").select("*", { count: "exact", head: true }).eq("user_id", userId).in("account_id", regionAccountIds)
+          : Promise.resolve({ count: 0 }),
+        regionAccountIds.length > 0
+          ? supabase.from("transactions").select("transaction_date").eq("user_id", userId).in("account_id", regionAccountIds).order("transaction_date", { ascending: true }).limit(1)
+          : Promise.resolve({ data: null }),
         supabase.from("budgets").select("*", { count: "exact", head: true }).eq("user_id", userId),
       ]);
 
-      const stats: AccountStats = {
+      return {
         connectedBanks: bankCount || 0,
         totalAccounts: accountCount || 0,
         transactionCount: transactionCount || 0,
         oldestTransaction: oldestTx?.[0]?.transaction_date || null,
         budgetCount: budgetCount || 0,
         goalsCount: 0,
-      };
-
-      return { profile, stats };
+      } as AccountStats;
     },
     {
       revalidateOnFocus: false,
-      dedupingInterval: 30000, // Cache profile for 30 seconds
+      dedupingInterval: 30000,
     }
   );
 
-  // isLoading is true if:
-  // 1. Auth is still loading (!userData && !userError), OR
-  // 2. Auth succeeded (userId exists) but profile is still loading (!profileData && !profileError)
+  const mutate = () => {
+    mutateProfile();
+    mutateStats();
+  };
+
   const isAuthLoading = !userData && !userError;
   const isProfileLoading = userId ? (!profileData && !profileError) : false;
   const isLoading = isAuthLoading || isProfileLoading;
 
   return {
-    profile: profileData?.profile ?? null,
-    stats: profileData?.stats ?? null,
+    profile: profileData ?? null,
+    stats: statsData ?? null,
     userId,
     userEmail,
     isLoading,

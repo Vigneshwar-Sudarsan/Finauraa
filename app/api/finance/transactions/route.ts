@@ -45,6 +45,40 @@ export async function GET(request: NextRequest) {
       });
     }
 
+    // Get user's region for filtering
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("country")
+      .eq("id", user.id)
+      .single();
+    const userRegion = profile?.country || "BH";
+
+    // Get region-filtered bank connections -> accounts -> account IDs
+    const { data: regionConnections } = await supabase
+      .from("bank_connections")
+      .select("id")
+      .eq("user_id", user.id)
+      .eq("status", "active")
+      .eq("region", userRegion);
+    const regionConnectionIds = regionConnections?.map(c => c.id) || [];
+
+    const { data: regionAccounts } = await supabase
+      .from("bank_accounts")
+      .select("id")
+      .eq("user_id", user.id)
+      .in("connection_id", regionConnectionIds);
+    const regionAccountIds = regionAccounts?.map(a => a.id) || [];
+
+    // If no accounts for this region, return empty data
+    if (regionAccountIds.length === 0) {
+      return NextResponse.json({
+        transactions: [],
+        pagination: { limit: 50, offset: 0, total: 0, hasMore: false },
+        subscription: { tier: "free", historyDaysLimit: 30, isLimited: true },
+        noBanksConnected: true,
+      });
+    }
+
     // Get user's effective subscription tier (includes family membership check)
     const subscription = await getUserSubscription();
     const tier = subscription?.tier || "free";
@@ -79,6 +113,7 @@ export async function GET(request: NextRequest) {
         transaction_date
       `)
       .eq("user_id", user.id)
+      .in("account_id", regionAccountIds)
       .is("deleted_at", null)
       .order("transaction_date", { ascending: false })
       .range(offset, offset + limit - 1);
@@ -125,6 +160,7 @@ export async function GET(request: NextRequest) {
       .from("transactions")
       .select("id", { count: "exact", head: true })
       .eq("user_id", user.id)
+      .in("account_id", regionAccountIds)
       .is("deleted_at", null);
 
     // Apply same filters to count query

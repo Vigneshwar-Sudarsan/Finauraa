@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { getDefaultCurrency } from "@/lib/country-config";
 
 /**
  * GET /api/finance/family/savings-goals
@@ -229,7 +230,7 @@ export async function POST(request: NextRequest) {
       name,
       target_amount,
       current_amount = 0,
-      currency = "BHD",
+      currency: currencyParam,
       target_date,
       category,
       auto_contribute = false,
@@ -255,13 +256,15 @@ export async function POST(request: NextRequest) {
     // Get user's profile and family group
     const { data: profile } = await supabase
       .from("profiles")
-      .select("family_group_id, subscription_tier")
+      .select("family_group_id, subscription_tier, country")
       .eq("id", user.id)
       .single();
 
     if (!profile) {
       return NextResponse.json({ error: "Profile not found" }, { status: 404 });
     }
+
+    const currency = currencyParam || getDefaultCurrency(profile.country);
 
     // Check if user has family features
     const hasFamilyFeatures =

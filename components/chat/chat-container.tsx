@@ -7,6 +7,8 @@ import { ChatMessage } from "./chat-message";
 import { ChatInput } from "./chat-input";
 import { ConversationHistoryDrawer } from "./conversation-history-drawer";
 import { useBankConnection } from "@/hooks/use-bank-connection";
+import { useProfile } from "@/hooks/use-profile";
+import { getDefaultCurrency } from "@/lib/country-config";
 import { Message, MessageContent } from "@/lib/types";
 import { generateId } from "@/lib/utils";
 import { Sparkle } from "@phosphor-icons/react";
@@ -119,6 +121,10 @@ export function ChatContainer() {
     category?: string;
     isFamily?: boolean;
   } | null>(null);
+
+  // Get user profile for country-aware defaults
+  const { profile } = useProfile();
+  const userCurrency = getDefaultCurrency(profile?.country);
 
   // Bank connection with consent dialog
   const { connectBank, isConnecting: isConnectingBank, ConsentDialog } = useBankConnection({
@@ -1112,7 +1118,7 @@ export function ChatContainer() {
           setSavingsGoalSheetData(null);
         }}
         existingGoal={null}
-        defaultCurrency="BHD"
+        defaultCurrency={userCurrency}
         isFamily={savingsGoalSheetData?.isFamily || false}
         familyMembers={savingsGoalSheetData?.isFamily ? familyMembers : []}
       />
@@ -1134,7 +1140,7 @@ export function ChatContainer() {
           setBudgetSheetData(null);
         }}
         selectedCategory={budgetSheetData?.category}
-        defaultCurrency="BHD"
+        defaultCurrency={userCurrency}
         isFamily={budgetSheetData?.isFamily || false}
       />
 

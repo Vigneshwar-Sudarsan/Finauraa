@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { requireBankConsent } from "@/lib/consent-middleware";
+import { getDefaultCurrency } from "@/lib/country-config";
 
 /**
  * GET /api/finance/budgets
@@ -29,7 +30,31 @@ export async function GET() {
       return NextResponse.json({ budgets: [], noBanksConnected: true });
     }
 
-    // Get all active personal budgets for the user - select only needed columns
+    // Get user's region for filtering
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("country")
+      .eq("id", user.id)
+      .single();
+    const userRegion = profile?.country || "BH";
+
+    // Get region-filtered bank connections -> accounts -> account IDs
+    const { data: regionConnections } = await supabase
+      .from("bank_connections")
+      .select("id")
+      .eq("user_id", user.id)
+      .eq("status", "active")
+      .eq("region", userRegion);
+    const regionConnectionIds = regionConnections?.map(c => c.id) || [];
+
+    const { data: regionAccounts } = await supabase
+      .from("bank_accounts")
+      .select("id")
+      .eq("user_id", user.id)
+      .in("connection_id", regionConnectionIds);
+    const regionAccountIds = regionAccounts?.map(a => a.id) || [];
+
+    // Get all active personal budgets for the user (region-filtered)
     // Filter by scope = 'personal' to exclude family budgets
     const { data: budgets, error: budgetsError } = await supabase
       .from("budgets")
@@ -37,6 +62,7 @@ export async function GET() {
       .eq("user_id", user.id)
       .eq("is_active", true)
       .eq("scope", "personal")
+      .eq("region", userRegion)
       .order("created_at", { ascending: false });
 
     if (budgetsError) {
@@ -58,13 +84,14 @@ export async function GET() {
     // Get all budget categories
     const categories = budgets.map((b) => b.category);
 
-    // Fetch all spending for budget categories in a single query
+    // Fetch all spending for budget categories in a single query (region-filtered)
     const { data: transactions } = await supabase
       .from("transactions")
       .select("category, amount")
       .eq("user_id", user.id)
       .eq("transaction_type", "debit")
       .in("category", categories)
+      .in("account_id", regionAccountIds)
       .gte("transaction_date", startOfMonth.toISOString())
       .is("deleted_at", null);
 
@@ -112,7 +139,17 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { category, amount, currency = "BHD" } = body;
+
+    // Get user's default currency based on region
+    const { data: postProfile } = await supabase
+      .from("profiles")
+      .select("country")
+      .eq("id", user.id)
+      .single();
+    const postUserRegion = postProfile?.country || "BH";
+    const defaultCurrency = getDefaultCurrency(postUserRegion);
+
+    const { category, amount, currency = defaultCurrency } = body;
 
     if (!category || typeof amount !== "number" || amount <= 0) {
       return NextResponse.json(
@@ -124,7 +161,7 @@ export async function POST(request: NextRequest) {
     // Normalize category to lowercase
     const normalizedCategory = category.toLowerCase();
 
-    // Check if personal budget already exists for this category
+    // Check if personal budget already exists for this category in this region
     const { data: existingBudget } = await supabase
       .from("budgets")
       .select("id")
@@ -132,6 +169,7 @@ export async function POST(request: NextRequest) {
       .eq("category", normalizedCategory)
       .eq("is_active", true)
       .eq("scope", "personal")
+      .eq("region", postUserRegion)
       .single();
 
     let result;
@@ -172,6 +210,7 @@ export async function POST(request: NextRequest) {
           period: "monthly",
           is_active: true,
           scope: "personal",
+          region: postUserRegion,
           start_date: startOfMonth.toISOString().split('T')[0],
         })
         .select()
@@ -187,9 +226,25 @@ export async function POST(request: NextRequest) {
       result = data;
     }
 
-    // Calculate current spent amount
+    // Calculate current spent amount (region-filtered)
     const now = new Date();
     const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+
+    // Get region-filtered account IDs for transaction filtering
+    const { data: postRegionConnections } = await supabase
+      .from("bank_connections")
+      .select("id")
+      .eq("user_id", user.id)
+      .eq("status", "active")
+      .eq("region", postUserRegion);
+    const postRegionConnectionIds = postRegionConnections?.map(c => c.id) || [];
+
+    const { data: postRegionAccounts } = await supabase
+      .from("bank_accounts")
+      .select("id")
+      .eq("user_id", user.id)
+      .in("connection_id", postRegionConnectionIds);
+    const postRegionAccountIds = postRegionAccounts?.map(a => a.id) || [];
 
     const { data: transactions } = await supabase
       .from("transactions")
@@ -197,6 +252,7 @@ export async function POST(request: NextRequest) {
       .eq("user_id", user.id)
       .eq("transaction_type", "debit")
       .eq("category", normalizedCategory)
+      .in("account_id", postRegionAccountIds)
       .gte("transaction_date", startOfMonth.toISOString());
 
     const spent = (transactions || []).reduce(

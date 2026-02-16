@@ -40,6 +40,8 @@ import {
   Info,
 } from "@phosphor-icons/react";
 import { format, formatDistanceToNow } from "date-fns";
+import { useProfile } from "@/hooks/use-profile";
+import { getCountryConfig, type CountryCode } from "@/lib/country-config";
 
 interface Consent {
   id: string;
@@ -74,6 +76,8 @@ export function PrivacyContent() {
   const [consentToRevoke, setConsentToRevoke] = useState<Consent | null>(null);
   const [isRevoking, setIsRevoking] = useState(false);
   const [exportData, setExportData] = useState<Record<string, unknown> | null>(null);
+  const { profile } = useProfile();
+  const countryConfig = getCountryConfig(profile?.country as CountryCode);
 
   const fetchConsents = useCallback(async () => {
     setIsLoadingConsents(true);
@@ -239,9 +243,9 @@ export function PrivacyContent() {
             <CardContent className="p-4 flex items-start gap-3">
               <Info size={20} className="text-primary mt-0.5 shrink-0" />
               <div className="text-sm">
-                <p className="font-medium text-primary">Your Data Rights (PDPL)</p>
+                <p className="font-medium text-primary">Your Data Rights ({countryConfig.dataProtectionLaw})</p>
                 <p className="text-muted-foreground mt-1">
-                  Under Bahrain&apos;s Personal Data Protection Law, you have the right to access, export, and delete your personal data at any time.
+                  {countryConfig.dataRightsText}
                 </p>
               </div>
             </CardContent>
@@ -437,7 +441,7 @@ export function PrivacyContent() {
             </CardHeader>
             <CardContent>
               <p className="text-sm text-muted-foreground mb-4">
-                You can request deletion of specific data or your entire account. Some data may be retained for legal compliance (audit logs for 7 years per CBB regulations).
+                You can request deletion of specific data or your entire account. {countryConfig.auditRetentionText}
               </p>
               <Button variant="outline" className="text-destructive border-destructive/50 hover:bg-destructive/10">
                 <Trash size={16} className="mr-2" />
@@ -448,8 +452,8 @@ export function PrivacyContent() {
 
         {/* Footer Info */}
         <div className="text-center text-xs text-muted-foreground pt-4">
-          <p>Protected under Bahrain Personal Data Protection Law (PDPL)</p>
-          <p className="mt-1">Compliant with BOBF Open Banking Framework</p>
+          <p>Protected under {countryConfig.dataProtectionLawFull}</p>
+          <p className="mt-1">Compliant with {countryConfig.openBankingFrameworkFull}</p>
         </div>
       </div>
 

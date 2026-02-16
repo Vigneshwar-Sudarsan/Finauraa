@@ -4,6 +4,7 @@
  */
 
 import { Resend } from "resend";
+import { getCountryConfig } from "@/lib/country-config";
 
 // Lazy-initialized Resend client to avoid build-time errors
 let resend: Resend | null = null;
@@ -289,8 +290,10 @@ export async function sendTrialEndingNotification(
 export async function sendDataExportReadyNotification(
   email: string,
   userName: string,
-  downloadUrl: string
+  downloadUrl: string,
+  country?: string
 ): Promise<EmailResult> {
+  const countryConfig = getCountryConfig(country);
   const client = getResendClient();
   if (!client) {
     console.log("RESEND_API_KEY not configured, skipping email");
@@ -318,7 +321,7 @@ export async function sendDataExportReadyNotification(
   <div style="background: #f9fafb; padding: 30px; border-radius: 0 0 12px 12px;">
     <p style="font-size: 16px;">Hi ${userName || "there"},</p>
 
-    <p style="font-size: 16px;">Your data export is ready for download. This export includes all your personal data as required by PDPL (Personal Data Protection Law).</p>
+    <p style="font-size: 16px;">Your data export is ready for download. ${countryConfig.dataExportLawText}</p>
 
     <div style="text-align: center; margin: 30px 0;">
       <a href="${downloadUrl}" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 14px 28px; text-decoration: none; border-radius: 8px; font-weight: 600; display: inline-block;">Download Your Data</a>

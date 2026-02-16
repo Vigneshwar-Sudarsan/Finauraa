@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { createTarabutClient } from "@/lib/tarabut/client";
+import { createTarabutClient, type TarabutRegion } from "@/lib/tarabut/client";
 import { tokenManager } from "@/lib/tarabut/token-manager";
 import { requireBankConsent } from "@/lib/consent-middleware";
 
@@ -40,7 +40,16 @@ export async function POST() {
       });
     }
 
-    // Get all active bank connections with accounts
+    // Get user's country to only refresh current region's banks
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("country")
+      .eq("id", user.id)
+      .single();
+
+    const userRegion = (profile?.country || "BH") as TarabutRegion;
+
+    // Get active bank connections for the user's current country/region only
     const { data: connections } = await supabase
       .from("bank_connections")
       .select(
@@ -48,6 +57,7 @@ export async function POST() {
         id,
         bank_id,
         bank_name,
+        region,
         access_token,
         token_expires_at,
         bank_accounts (
@@ -57,7 +67,8 @@ export async function POST() {
       `
       )
       .eq("user_id", user.id)
-      .eq("status", "active");
+      .eq("status", "active")
+      .eq("region", userRegion);
 
     if (!connections || connections.length === 0) {
       return NextResponse.json({
@@ -66,7 +77,7 @@ export async function POST() {
       });
     }
 
-    const client = createTarabutClient();
+    const client = createTarabutClient(userRegion);
 
     let accountsUpdated = 0;
     const errors: string[] = [];

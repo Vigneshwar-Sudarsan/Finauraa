@@ -29,7 +29,16 @@ export async function GET() {
       return NextResponse.json({ connections: [], noBanksConnected: true });
     }
 
-    // Fetch connections with account counts in a single query using left join
+    // Get user's country to filter connections by region
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("country")
+      .eq("id", user.id)
+      .single();
+
+    const userRegion = profile?.country || "BH";
+
+    // Fetch connections for the user's current country/region only
     const { data: connections, error } = await supabase
       .from("bank_connections")
       .select(`
@@ -42,6 +51,7 @@ export async function GET() {
         bank_accounts(id)
       `)
       .eq("user_id", user.id)
+      .eq("region", userRegion)
       .is("deleted_at", null)
       .order("created_at", { ascending: false });
 

@@ -49,13 +49,38 @@ export async function GET() {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    // Fetch distinct categories from user's transactions
+    // Get user's region for filtering
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("country")
+      .eq("id", user.id)
+      .single();
+    const userRegion = profile?.country || "BH";
+
+    // Get region-filtered bank connections -> accounts -> account IDs
+    const { data: regionConnections } = await supabase
+      .from("bank_connections")
+      .select("id")
+      .eq("user_id", user.id)
+      .eq("status", "active")
+      .eq("region", userRegion);
+    const regionConnectionIds = regionConnections?.map(c => c.id) || [];
+
+    const { data: regionAccounts } = await supabase
+      .from("bank_accounts")
+      .select("id")
+      .eq("user_id", user.id)
+      .in("connection_id", regionConnectionIds);
+    const regionAccountIds = regionAccounts?.map(a => a.id) || [];
+
+    // Fetch distinct categories from user's transactions (region-filtered)
     // This gets the actual Tarabut-enriched categories
     const { data: expenseTransactions } = await supabase
       .from("transactions")
       .select("category, category_group, category_icon")
       .eq("user_id", user.id)
       .eq("transaction_type", "debit")
+      .in("account_id", regionAccountIds)
       .is("deleted_at", null)
       .not("category", "is", null);
 
@@ -64,6 +89,7 @@ export async function GET() {
       .select("category, category_group, category_icon")
       .eq("user_id", user.id)
       .eq("transaction_type", "credit")
+      .in("account_id", regionAccountIds)
       .is("deleted_at", null)
       .not("category", "is", null);
 

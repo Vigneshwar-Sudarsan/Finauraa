@@ -10,7 +10,7 @@ const inter = Inter({ subsets: ["latin"], variable: "--font-sans" });
 
 export const metadata: Metadata = {
   title: "Finauraa - AI-Powered Finance",
-  description: "Your AI financial assistant for Bahrain",
+  description: "Your AI-powered personal finance assistant",
   manifest: "/manifest.json",
   appleWebApp: {
     capable: true,
@@ -40,12 +40,12 @@ export const metadata: Metadata = {
     type: "website",
     siteName: "Finauraa",
     title: "Finauraa - AI-Powered Finance",
-    description: "Your AI financial assistant for Bahrain",
+    description: "Your AI-powered personal finance assistant",
   },
   twitter: {
     card: "summary_large_image",
     title: "Finauraa - AI-Powered Finance",
-    description: "Your AI financial assistant for Bahrain",
+    description: "Your AI-powered personal finance assistant",
   },
 };
 

@@ -21,15 +21,17 @@ import {
 } from "@/lib/ai/rate-limit";
 import { getTierLimits } from "@/lib/features";
 import { getUserSubscription } from "@/lib/features-server";
+import { getCountryConfig } from "@/lib/country-config";
 
 const anthropic = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY,
 });
 
-// System prompt - dynamically includes user context based on privacy mode
-const getSystemPrompt = (mode: 'privacy-first' | 'enhanced') => {
+// System prompt - dynamically includes user context based on privacy mode and country
+const getSystemPrompt = (mode: 'privacy-first' | 'enhanced', country?: string) => {
   const currentDate = new Date();
-  const basePrompt = `You are Finauraa, an AI-powered personal finance assistant for users in Bahrain. You actively help users manage their money, make financial decisions, and achieve their financial goals.
+  const countryConfig = getCountryConfig(country);
+  const basePrompt = `You are Finauraa, an AI-powered personal finance assistant for users in ${countryConfig.name}. You actively help users manage their money, make financial decisions, and achieve their financial goals.
 
 ## Your Role as Finance Assistant
 You are a proactive finance assistant who:
@@ -231,7 +233,7 @@ WRONG (DO NOT DO THIS):
 4. Project completion dates
 
 ## Context
-- Currency: BHD (Bahraini Dinar) with 3 decimal places
+- Currency: ${countryConfig.currency} (${countryConfig.currencyName}) with ${countryConfig.currencyDecimals} decimal places
 - Current month: ${currentDate.toLocaleString("en-US", { month: "long" })}
 - Today: ${currentDate.toLocaleDateString("en-US", { weekday: "long", year: "numeric", month: "long", day: "numeric" })}
 - Days left in month: ${new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0).getDate() - currentDate.getDate()}`;
@@ -322,7 +324,7 @@ You receive ANONYMIZED/AGGREGATED context only:
   }
 };
 
-const SYSTEM_PROMPT = getSystemPrompt('privacy-first'); // Default for backward compatibility
+const SYSTEM_PROMPT = getSystemPrompt('privacy-first'); // Default fallback (unused in request)
 
 interface ChatMessage {
   role: "user" | "assistant";
@@ -456,14 +458,15 @@ export async function POST(request: NextRequest) {
     // Determine user's AI data mode (privacy-first or enhanced)
     const { mode, canUseEnhanced } = await getUserAIDataMode(user.id);
 
-    // Fetch user's name from profile to personalize AI responses
+    // Fetch user's name and country from profile to personalize AI responses
     const { data: profile } = await supabase
       .from("profiles")
-      .select("full_name")
+      .select("full_name, country")
       .eq("id", user.id)
       .single();
 
     const userName = profile?.full_name || null;
+    const userCountry = profile?.country || "BH";
 
     // Fetch context based on user's mode and permissions
     let contextMessage: string;
@@ -498,7 +501,7 @@ export async function POST(request: NextRequest) {
     const response = await anthropic.messages.create({
       model: "claude-sonnet-4-20250514",
       max_tokens: 1024,
-      system: getSystemPrompt(mode) + contextMessage,
+      system: getSystemPrompt(mode, userCountry) + contextMessage,
       messages: formattedMessages,
     });
 

@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { getTierLimits } from "@/lib/features";
 import { getUserSubscription } from "@/lib/features-server";
 import { requireBankConsent } from "@/lib/consent-middleware";
+import { getDefaultCurrency } from "@/lib/country-config";
 
 /**
  * GET /api/finance/savings-goals
@@ -31,7 +32,15 @@ export async function GET() {
       return NextResponse.json({ goals: [], noBanksConnected: true });
     }
 
-    // Select only personal goals (exclude family goals)
+    // Get user's region for filtering
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("country")
+      .eq("id", user.id)
+      .single();
+    const userRegion = profile?.country || "BH";
+
+    // Select only personal goals for current region (exclude family goals)
     const { data: goals, error } = await supabase
       .from("savings_goals")
       .select(`
@@ -49,6 +58,7 @@ export async function GET() {
       `)
       .eq("user_id", user.id)
       .eq("scope", "personal")
+      .eq("region", userRegion)
       .order("created_at", { ascending: false });
 
     if (error) {
@@ -110,6 +120,15 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
+    // Get user's region for filtering
+    const { data: postProfile } = await supabase
+      .from("profiles")
+      .select("country")
+      .eq("id", user.id)
+      .single();
+    const postUserRegion = postProfile?.country || "BH";
+    const defaultCurrency = getDefaultCurrency(postUserRegion);
+
     // Check subscription tier and savings goal limits
     // getUserSubscription handles family membership - family members inherit Pro features
     const subscription = await getUserSubscription();
@@ -147,7 +166,7 @@ export async function POST(request: NextRequest) {
       name,
       target_amount,
       current_amount = 0,
-      currency = "BHD",
+      currency = defaultCurrency,
       target_date,
       category,
       auto_contribute = false,
@@ -190,6 +209,7 @@ export async function POST(request: NextRequest) {
         auto_contribute,
         auto_contribute_percentage: auto_contribute ? auto_contribute_percentage : null,
         scope: "personal",
+        region: postUserRegion,
       })
       .select()
       .single();

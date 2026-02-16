@@ -12,6 +12,7 @@
  */
 
 import { createClient } from "@/lib/supabase/server";
+import { getDefaultCurrency } from "@/lib/country-config";
 
 // Types for financial analysis
 export interface SpendingPattern {
@@ -777,12 +778,21 @@ async function detectSpendingAnomalies(
 export async function getFinanceManagerContext(userId: string): Promise<FinanceManagerContext | null> {
   const supabase = await createClient();
 
-  // Check if user has bank connections
+  // Get user's region for filtering
+  const { data: regionProfile } = await supabase
+    .from("profiles")
+    .select("country")
+    .eq("id", userId)
+    .single();
+  const userRegion = regionProfile?.country || "BH";
+
+  // Check if user has bank connections (filtered by region)
   const { data: connections } = await supabase
     .from("bank_connections")
     .select("id, status")
     .eq("user_id", userId)
-    .eq("status", "active");
+    .eq("status", "active")
+    .eq("region", userRegion);
 
   const hasBankConnected = (connections?.length ?? 0) > 0;
 
@@ -791,7 +801,7 @@ export async function getFinanceManagerContext(userId: string): Promise<FinanceM
       hasBankConnected: false,
       accountCount: 0,
       totalBalance: 0,
-      currency: "BHD",
+      currency: getDefaultCurrency(userRegion),
       monthlyIncome: 0,
       monthlyExpenses: 0,
       netCashFlow: 0,
@@ -839,25 +849,29 @@ export async function getFinanceManagerContext(userId: string): Promise<FinanceM
     };
   }
 
-  // Get accounts
+  // Get accounts (filtered through region-specific connections)
+  const regionConnectionIds = connections?.map(c => c.id) || [];
   const { data: accounts } = await supabase
     .from("bank_accounts")
     .select("id, balance, currency, account_name, account_type")
-    .eq("user_id", userId);
+    .eq("user_id", userId)
+    .in("connection_id", regionConnectionIds);
 
   const totalBalance = accounts?.reduce((sum, acc) => sum + (acc.balance || 0), 0) || 0;
-  const currency = accounts?.[0]?.currency || "BHD";
+  const currency = accounts?.[0]?.currency || getDefaultCurrency(userRegion);
+  const regionAccountIds = accounts?.map(a => a.id) || [];
 
   // Get transactions for income/expense calculation
   // Use 90 days for both income and expenses to ensure consistent data capture
   const ninetyDaysAgo = new Date();
   ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90);
 
-  // Get 90-day transactions for analysis
+  // Get 90-day transactions for analysis (filtered by region accounts)
   const { data: quarterTransactions } = await supabase
     .from("transactions")
     .select("amount, transaction_type, category, merchant_name, transaction_date")
     .eq("user_id", userId)
+    .in("account_id", regionAccountIds)
     .gte("transaction_date", ninetyDaysAgo.toISOString())
     .order("transaction_date", { ascending: false });
 
@@ -1063,7 +1077,7 @@ export async function getFinanceManagerContext(userId: string): Promise<FinanceM
       currentAmount: goal.current_amount || 0,
       progress: Math.round(((goal.current_amount || 0) / goal.target_amount) * 100),
       targetDate: goal.target_date,
-      currency: goal.currency || "BHD",
+      currency: goal.currency || getDefaultCurrency(userRegion),
       assignedTo: (goal.family_goal_members || []).map((m) => {
         if (m.is_whole_family) {
           return { userId: "all", name: "Whole Family" };

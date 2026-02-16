@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { createTarabutClient } from "@/lib/tarabut/client";
+import { createTarabutClient, type TarabutRegion } from "@/lib/tarabut/client";
 import { requireBankConsent } from "@/lib/consent-middleware";
 import { logBankEvent } from "@/lib/audit";
 
@@ -35,6 +35,14 @@ export async function GET(
       return NextResponse.json({ error: "Connection not found" }, { status: 404 });
     }
 
+    // Get user's region for filtering
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("country")
+      .eq("id", user.id)
+      .single();
+    const userRegion = profile?.country || "BH";
+
     const { data: connection, error } = await supabase
       .from("bank_connections")
       .select(`
@@ -43,6 +51,7 @@ export async function GET(
       `)
       .eq("id", id)
       .eq("user_id", user.id)
+      .eq("region", userRegion)
       .single();
 
     if (error || !connection) {
@@ -93,7 +102,8 @@ export async function DELETE(
     // Try to revoke consent via Tarabut API
     if (connection.consent_id) {
       try {
-        const client = createTarabutClient();
+        const region = (connection.region || "BH") as TarabutRegion;
+        const client = createTarabutClient(region);
         const tokenResponse = await client.getAccessToken(user.id);
         await client.revokeConsent(tokenResponse.accessToken, connection.consent_id);
       } catch (revokeError) {

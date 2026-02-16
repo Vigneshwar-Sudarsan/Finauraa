@@ -35,12 +35,22 @@ export async function GET() {
       });
     }
 
-    // Fetch all bank connections for the user
+    // Get user's country to filter banks by region
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("country")
+      .eq("id", user.id)
+      .single();
+
+    const userRegion = profile?.country || "BH";
+
+    // Fetch bank connections for the user's current country/region only
     const { data: connections, error: connectionsError } = await supabase
       .from("bank_connections")
       .select("*")
       .eq("user_id", user.id)
       .eq("status", "active")
+      .eq("region", userRegion)
       .order("created_at", { ascending: false });
 
     if (connectionsError) {

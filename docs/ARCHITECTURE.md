@@ -26,10 +26,10 @@ A comprehensive guide to the Finauraa codebase for developers.
 
 Finauraa is a personal finance management application built with Next.js 14 (App Router), featuring:
 - AI-powered financial insights via conversational chat interface
-- Open Banking integration for bank account connections (Tarabut Gateway)
+- Multi-region Open Banking via Tarabut Gateway (Bahrain + Saudi Arabia)
 - Budget tracking, spending analysis, and savings goals
 - Family plan support for shared financial management
-- BOBF/PDPL compliance for Bahrain market
+- BOBF/PDPL compliance for Bahrain market, SAMA compliance for KSA
 
 ---
 
@@ -47,7 +47,7 @@ Finauraa is a personal finance management application built with Next.js 14 (App
 | Icons | Phosphor Icons |
 | State Management | Zustand v5 |
 | Payments | Stripe v20.2.0 |
-| Open Banking | Tarabut Gateway |
+| Open Banking | Tarabut Gateway (BH + SA multi-region) |
 | Email | Resend v6.8.0 |
 | Error Tracking | Sentry v10.35.0 |
 
@@ -96,7 +96,7 @@ Finauraa is a personal finance management application built with Next.js 14 (App
 | Page | Path | Description |
 |------|------|-------------|
 | Login | `/login` | User authentication |
-| Signup | `/signup` | New user registration |
+| Signup | `/signup` | New user registration (with country selection) |
 
 ---
 
@@ -423,6 +423,7 @@ User accounts linked to Supabase Auth.
 | enhanced_ai_consent_given_at | timestamptz | When AI consent was given |
 | family_group_id | uuid | FK to family_groups |
 | is_admin | boolean | Admin access for feature flags |
+| country | text | User's country: `BH` (Bahrain) / `SA` (Saudi Arabia). Default: `BH` |
 
 ### Banking Tables
 
@@ -438,6 +439,7 @@ Connected bank accounts via Tarabut Gateway.
 | consent_id | text | Tarabut consent ID |
 | status | text | `pending` / `active` / `expired` / `revoked` |
 | consent_expires_at | timestamptz | Consent expiration |
+| region | text | Tarabut region: `BH` / `SA`. Determines API endpoint |
 | deleted_at | timestamptz | Soft delete timestamp |
 
 #### bank_accounts
@@ -609,6 +611,7 @@ Data sent: Accounts with balances, last 100 transactions, budgets, savings goals
 |------|---------|
 | `lib/ai/data-privacy.ts` | Context generation for both modes |
 | `lib/ai/finance-manager.ts` | AI context formatting |
+| `lib/country-config.ts` | Multi-region country config (BH/SA) |
 | `app/api/user/ai-mode/route.ts` | Mode switching API |
 | `components/settings/ai-privacy-settings.tsx` | Settings UI |
 | `components/settings/enhanced-ai-consent-dialog.tsx` | Consent dialog |
@@ -712,7 +715,44 @@ type FamilyMemberStatus = "pending" | "active" | "removed";
 
 **Component-level:** Match actual content structure
 
-### 5. Currency & Date Formatting
+### 5. Multi-Region Country Support
+
+The app supports multiple countries (BH/SA) with region-specific content:
+
+#### Country Configuration (`lib/country-config.ts`)
+Centralized config for country-specific values: currency, regulatory framework, compliance text.
+
+```typescript
+import { getCountryConfig } from "@/lib/country-config";
+const config = getCountryConfig(profile?.country); // returns BH or SA config
+// config.currency, config.consentComplianceText, config.dataRightsText, etc.
+```
+
+#### Region-Based Bank Filtering
+All bank-related API endpoints filter `bank_connections` by the user's current country (`profiles.country`). When a user switches country (BH/SA), only banks connected in that region are shown. Banks from other regions are hidden but not deleted.
+
+**Pattern for API routes:**
+```typescript
+// Get user's country to filter by region
+const { data: profile } = await supabase
+  .from("profiles")
+  .select("country")
+  .eq("id", user.id)
+  .single();
+
+const userRegion = profile?.country || "BH";
+
+// Filter bank_connections by region
+const { data: connections } = await supabase
+  .from("bank_connections")
+  .select("*")
+  .eq("user_id", user.id)
+  .eq("region", userRegion);
+```
+
+**Affected endpoints:** `/api/finance/banks`, `/api/finance/connections`, `/api/finance/refresh`, `/api/finance/refresh-balances`, `/api/finance/summary`, `/api/finance/insights/*`, `/api/finance/budgets`, `/api/finance/categories`, `/api/finance/family/budgets`, `/api/finance/family/spending`, `/api/finance/family/savings-goals`, AI context (`lib/ai/finance-manager.ts`)
+
+### 6. Currency & Date Formatting
 
 ```typescript
 import { formatCurrency } from "@/lib/utils";
@@ -785,4 +825,4 @@ finauraa/
 
 ---
 
-*Last updated: January 2026*
+*Last updated: February 2026*

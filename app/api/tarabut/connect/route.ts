@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { createTarabutClient } from "@/lib/tarabut/client";
+import { createTarabutClient, type TarabutRegion } from "@/lib/tarabut/client";
 import { getTierLimits } from "@/lib/features";
 import { getUserSubscription } from "@/lib/features-server";
 import { logAuditEvent } from "@/lib/audit";
@@ -28,20 +28,27 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    // Check if Tarabut credentials are configured
-    if (!process.env.TARABUT_CLIENT_ID || !process.env.TARABUT_CLIENT_SECRET) {
+    // Get user profile for name/email/country
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("full_name, email, country")
+      .eq("id", user.id)
+      .single();
+
+    // Determine region from user profile (default: BH)
+    const region = (profile?.country === "SA" ? "SA" : "BH") as TarabutRegion;
+
+    // Check if Tarabut credentials are configured for the user's region
+    const hasCredentials = region === "SA"
+      ? process.env.TARABUT_KSA_CLIENT_ID && process.env.TARABUT_KSA_CLIENT_SECRET
+      : process.env.TARABUT_CLIENT_ID && process.env.TARABUT_CLIENT_SECRET;
+
+    if (!hasCredentials) {
       return NextResponse.json(
-        { error: "Tarabut credentials not configured. Please add TARABUT_CLIENT_ID and TARABUT_CLIENT_SECRET to .env.local" },
+        { error: `Tarabut credentials not configured for ${region === "SA" ? "Saudi Arabia" : "Bahrain"}. Please check your .env.local` },
         { status: 500 }
       );
     }
-
-    // Get user profile for name/email
-    const { data: profile } = await supabase
-      .from("profiles")
-      .select("full_name, email")
-      .eq("id", user.id)
-      .single();
 
     // Check bank connection limits based on subscription
     // getUserSubscription handles family membership - family members inherit Pro features
@@ -75,8 +82,8 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Create Tarabut client
-    const client = createTarabutClient();
+    // Create Tarabut client for user's region
+    const client = createTarabutClient(region);
 
     // Parse user name
     const nameParts = (profile?.full_name || "User").split(" ");
@@ -107,6 +114,7 @@ export async function POST(request: NextRequest) {
       consent_id: intentResponse.intentId,
       status: "pending",
       consent_expires_at: intentResponse.expiry,
+      region, // BH or SA - determines which Tarabut API to use
     });
 
     if (insertError) {

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { createTarabutClient } from "@/lib/tarabut/client";
+import { createTarabutClient, type TarabutRegion } from "@/lib/tarabut/client";
 import { tokenManager } from "@/lib/tarabut/token-manager";
 
 /**
@@ -34,8 +34,9 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Connection not found" }, { status: 404 });
     }
 
-    // Get valid token (refreshes if needed)
-    const client = createTarabutClient();
+    // Get valid token (refreshes if needed) - use region from connection
+    const region = (connection.region || "BH") as TarabutRegion;
+    const client = createTarabutClient(region);
     const tokenResult = await tokenManager.getValidToken(user.id, {
       access_token: connection.access_token,
       token_expires_at: connection.token_expires_at,

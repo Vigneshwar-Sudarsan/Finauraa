@@ -20,6 +20,8 @@ import {
   Info,
 } from "@phosphor-icons/react";
 import { useFeatureAccess } from "@/hooks/use-feature-access";
+import { useProfile } from "@/hooks/use-profile";
+import { getDefaultCurrency } from "@/lib/country-config";
 import { NOTIFICATION_FEATURES, TierLimits } from "@/lib/features";
 
 interface NotificationPreference {
@@ -35,6 +37,8 @@ interface NotificationPreference {
 export function NotificationSettings() {
   const router = useRouter();
   const { canAccess, tier, isLoading: featureLoading } = useFeatureAccess();
+  const { profile } = useProfile();
+  const currency = getDefaultCurrency(profile?.country);
 
   // In production, these would be fetched from and saved to the database
   const [preferences, setPreferences] = useState<NotificationPreference[]>([
@@ -68,7 +72,7 @@ export function NotificationSettings() {
       id: "large_transactions",
       icon: Wallet,
       title: "Large Transactions",
-      description: "Alert when transactions exceed BHD 100",
+      description: "Alert when transactions exceed a threshold",
       enabled: true,
       category: "financial",
     },
@@ -76,7 +80,7 @@ export function NotificationSettings() {
       id: "low_balance",
       icon: TrendUp,
       title: "Low Balance Warning",
-      description: "Notify when account balance falls below BHD 50",
+      description: "Notify when account balance falls below a threshold",
       enabled: false,
       category: "financial",
     },
@@ -148,9 +152,16 @@ export function NotificationSettings() {
   const financialPrefs = preferences.filter(p => p.category === "financial");
   const insightPrefs = preferences.filter(p => p.category === "insights");
 
+  // Dynamic descriptions based on user's currency
+  const dynamicDescriptions: Record<string, string> = {
+    large_transactions: `Alert when transactions exceed ${currency} 100`,
+    low_balance: `Notify when account balance falls below ${currency} 50`,
+  };
+
   const renderPreference = (pref: NotificationPreference, index: number, total: number) => {
     const Icon = pref.icon;
     const isLocked = pref.requiredFeature && !canAccess(pref.requiredFeature);
+    const description = dynamicDescriptions[pref.id] || pref.description;
 
     return (
       <div key={pref.id}>
@@ -165,7 +176,7 @@ export function NotificationSettings() {
                   <FeatureBadge showIcon size="sm" />
                 )}
               </div>
-              <p className="text-xs text-muted-foreground">{pref.description}</p>
+              <p className="text-xs text-muted-foreground">{description}</p>
               {isLocked && (
                 <Button
                   variant="link"

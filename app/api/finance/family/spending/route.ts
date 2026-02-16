@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient, createAdminClient } from "@/lib/supabase/server";
+import { getDefaultCurrency } from "@/lib/country-config";
 
 /**
  * GET /api/finance/family/spending
@@ -20,7 +21,7 @@ export async function GET() {
     // Check user's subscription tier
     const { data: profile } = await supabase
       .from("profiles")
-      .select("subscription_tier, family_group_id")
+      .select("subscription_tier, family_group_id, country")
       .eq("id", user.id)
       .single();
 
@@ -42,12 +43,14 @@ export async function GET() {
       );
     }
 
+    const userCurrency = getDefaultCurrency(profile.country);
+
     // Check if user is in a family group
     if (!profile.family_group_id) {
       return NextResponse.json({
         totalSpending: 0,
         totalIncome: 0,
-        currency: "BHD",
+        currency: userCurrency,
         categories: [],
         memberContributions: [],
         noFamilyGroup: true,
@@ -76,7 +79,7 @@ export async function GET() {
       return NextResponse.json({
         totalSpending: 0,
         totalIncome: 0,
-        currency: "BHD",
+        currency: userCurrency,
         categories: [],
         memberContributions: [],
         noActiveMembers: true,
@@ -107,7 +110,7 @@ export async function GET() {
       return NextResponse.json({
         totalSpending: 0,
         totalIncome: 0,
-        currency: "BHD",
+        currency: userCurrency,
         categories: [],
         memberContributions: [],
         noConsentedMembers: true,
@@ -123,11 +126,49 @@ export async function GET() {
     // 4. We only fetch transactions from consented family members
     const adminClient = createAdminClient();
 
-    const { data: transactions, error: txError } = await adminClient
-      .from("transactions")
-      .select("user_id, amount, category, currency, transaction_type, transaction_scope")
-      .in("user_id", allConsentedUserIds)
-      .is("deleted_at", null);
+    // Get each member's profile country for region filtering
+    const { data: consentedProfiles } = await adminClient
+      .from("profiles")
+      .select("id, country")
+      .in("id", allConsentedUserIds);
+
+    // Build region-filtered account IDs for all consented family members
+    // Each member's data is filtered by THEIR country
+    const allRegionAccountIds: string[] = [];
+    for (const memberId of allConsentedUserIds) {
+      const memberProfile = consentedProfiles?.find((p) => p.id === memberId);
+      const memberRegion = memberProfile?.country || "BH";
+
+      const { data: memberConnections } = await adminClient
+        .from("bank_connections")
+        .select("id")
+        .eq("user_id", memberId)
+        .eq("status", "active")
+        .eq("region", memberRegion);
+      const memberConnectionIds = memberConnections?.map((c) => c.id) || [];
+
+      if (memberConnectionIds.length > 0) {
+        const { data: memberAccounts } = await adminClient
+          .from("bank_accounts")
+          .select("id")
+          .in("connection_id", memberConnectionIds);
+        allRegionAccountIds.push(...(memberAccounts?.map((a) => a.id) || []));
+      }
+    }
+
+    let transactions: { user_id: string; amount: number; category: string | null; currency: string; transaction_type: string; transaction_scope: string | null }[] | null = null;
+    let txError: unknown = null;
+
+    if (allRegionAccountIds.length > 0) {
+      const result = await adminClient
+        .from("transactions")
+        .select("user_id, amount, category, currency, transaction_type, transaction_scope")
+        .in("user_id", allConsentedUserIds)
+        .in("account_id", allRegionAccountIds)
+        .is("deleted_at", null);
+      transactions = result.data;
+      txError = result.error;
+    }
 
     if (txError) {
       console.error("[Family Spending] Transaction fetch error:", txError);
@@ -137,7 +178,7 @@ export async function GET() {
       return NextResponse.json({
         totalSpending: 0,
         totalIncome: 0,
-        currency: "BHD",
+        currency: userCurrency,
         categories: [],
         memberContributions: [],
         familyGroup: { id: familyGroup.id, name: familyGroup.name },
@@ -238,7 +279,7 @@ export async function GET() {
     return NextResponse.json({
       totalSpending,
       totalIncome,
-      currency: transactions[0]?.currency || "BHD",
+      currency: transactions[0]?.currency || userCurrency,
       categories,
       memberContributions,
       familyGroup: { id: familyGroup.id, name: familyGroup.name },

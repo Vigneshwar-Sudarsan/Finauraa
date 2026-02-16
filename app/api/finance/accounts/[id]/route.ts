@@ -33,7 +33,24 @@ export async function GET(
       return NextResponse.json({ error: "Account not found" }, { status: 404 });
     }
 
-    // Get account with connection info
+    // Get user's region for filtering
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("country")
+      .eq("id", user.id)
+      .single();
+    const userRegion = profile?.country || "BH";
+
+    // Get region-filtered connection IDs
+    const { data: regionConnections } = await supabase
+      .from("bank_connections")
+      .select("id")
+      .eq("user_id", user.id)
+      .eq("status", "active")
+      .eq("region", userRegion);
+    const regionConnectionIds = regionConnections?.map(c => c.id) || [];
+
+    // Get account with connection info (only if it belongs to current region)
     const { data: account, error } = await supabase
       .from("bank_accounts")
       .select(`
@@ -47,6 +64,7 @@ export async function GET(
       `)
       .eq("id", id)
       .eq("user_id", user.id)
+      .in("connection_id", regionConnectionIds)
       .single();
 
     if (error || !account) {

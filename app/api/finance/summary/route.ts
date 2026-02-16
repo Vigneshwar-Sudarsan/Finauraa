@@ -36,19 +36,22 @@ export async function GET() {
       });
     }
 
-    // Get user profile for ai_data_mode
+    // Get user profile for ai_data_mode and country
     const { data: profile } = await supabase
       .from("profiles")
-      .select("ai_data_mode")
+      .select("ai_data_mode, country")
       .eq("id", user.id)
       .single();
 
-    // Check if user has bank connections
+    const userRegion = profile?.country || "BH";
+
+    // Check if user has bank connections for their current region
     const { data: connections } = await supabase
       .from("bank_connections")
       .select("id, bank_id, bank_name, status")
       .eq("user_id", user.id)
-      .eq("status", "active");
+      .eq("status", "active")
+      .eq("region", userRegion);
 
     const hasBankConnected = (connections?.length ?? 0) > 0;
     const aiDataMode = profile?.ai_data_mode || null;
@@ -64,7 +67,9 @@ export async function GET() {
       });
     }
 
-    // Get all accounts with balances
+    // Get accounts only for current region's bank connections
+    const regionConnectionIds = (connections || []).map((c) => c.id);
+
     const { data: accounts } = await supabase
       .from("bank_accounts")
       .select(`
@@ -80,7 +85,8 @@ export async function GET() {
           bank_name
         )
       `)
-      .eq("user_id", user.id);
+      .eq("user_id", user.id)
+      .in("connection_id", regionConnectionIds);
 
     interface BankConnection {
       bank_id: string;
@@ -106,15 +112,17 @@ export async function GET() {
       0
     );
 
-    // Get recent spending (last 7 days)
+    // Get recent spending (last 7 days) - only from current region's accounts
     const weekAgo = new Date();
     weekAgo.setDate(weekAgo.getDate() - 7);
+    const regionAccountIds = (accounts || []).map((a) => a.id);
 
     const { data: recentTransactions } = await supabase
       .from("transactions")
       .select("amount, category, transaction_date, currency")
       .eq("user_id", user.id)
       .eq("transaction_type", "debit")
+      .in("account_id", regionAccountIds)
       .gte("transaction_date", weekAgo.toISOString())
       .order("transaction_date", { ascending: false });
 
@@ -139,18 +147,19 @@ export async function GET() {
 
       recentSpending = {
         amount: totalAmount,
-        currency: recentTransactions[0]?.currency || "BHD",
+        currency: recentTransactions[0]?.currency || (userRegion === "SA" ? "SAR" : "BHD"),
         period: "This week",
         topCategories,
       };
     }
 
-    // Get active budgets with spent amounts
+    // Get active budgets with spent amounts (region-filtered)
     const { data: budgets } = await supabase
       .from("budgets")
       .select("id, category, amount, currency, start_date, end_date")
       .eq("user_id", user.id)
-      .eq("is_active", true);
+      .eq("is_active", true)
+      .eq("region", userRegion);
 
     // Calculate spent amounts in a single query instead of N+1 RPC calls
     let budgetsWithSpent: Array<{
@@ -166,13 +175,14 @@ export async function GET() {
       const now = new Date();
       const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
 
-      // Fetch all spending for budget categories in a single query
+      // Fetch all spending for budget categories in a single query (current region only)
       const { data: budgetTransactions } = await supabase
         .from("transactions")
         .select("category, amount")
         .eq("user_id", user.id)
         .eq("transaction_type", "debit")
         .in("category", categories)
+        .in("account_id", regionAccountIds)
         .gte("transaction_date", startOfMonth.toISOString())
         .is("deleted_at", null);
 
@@ -198,7 +208,7 @@ export async function GET() {
       accounts: formattedAccounts,
       totalBalance,
       accountCount: formattedAccounts.length,
-      currency: formattedAccounts[0]?.currency || "BHD",
+      currency: formattedAccounts[0]?.currency || (userRegion === "SA" ? "SAR" : "BHD"),
       recentSpending,
       budgets: budgetsWithSpent,
     });

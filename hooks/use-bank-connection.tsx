@@ -1,7 +1,10 @@
 "use client";
 
 import { useState, useCallback, useRef, useEffect } from "react";
+import { toast } from "sonner";
 import { BankConsentDialog } from "@/components/dashboard/bank-consent-dialog";
+import { useProfile } from "@/hooks/use-profile";
+import type { CountryCode } from "@/lib/country-config";
 
 interface UseBankConnectionOptions {
   onSuccess?: () => void;
@@ -28,6 +31,8 @@ interface UseBankConnectionReturn {
 export function useBankConnection(options?: UseBankConnectionOptions): UseBankConnectionReturn {
   const [showConsentDialog, setShowConsentDialog] = useState(false);
   const [isConnecting, setIsConnecting] = useState(false);
+  const { profile } = useProfile();
+  const userCountry = (profile?.country || "BH") as CountryCode;
 
   // Use refs to avoid stale closure issues and prevent unnecessary re-renders
   const optionsRef = useRef(options);
@@ -63,7 +68,11 @@ export function useBankConnection(options?: UseBankConnectionOptions): UseBankCo
       setIsConnecting(false);
       setShowConsentDialog(false);
       const errorMessage = error instanceof Error ? error.message : "Failed to connect";
-      optionsRef.current?.onError?.(errorMessage);
+      if (optionsRef.current?.onError) {
+        optionsRef.current.onError(errorMessage);
+      } else {
+        toast.error(errorMessage);
+      }
     }
   }, []); // No dependencies - uses ref for options
 
@@ -76,10 +85,11 @@ export function useBankConnection(options?: UseBankConnectionOptions): UseBankCo
           onOpenChange={setShowConsentDialog}
           onConfirm={handleConfirmConnect}
           isConnecting={isConnecting}
+          country={userCountry}
         />
       );
     },
-    [showConsentDialog, isConnecting, handleConfirmConnect]
+    [showConsentDialog, isConnecting, handleConfirmConnect, userCountry]
   );
 
   return {

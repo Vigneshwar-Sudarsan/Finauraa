@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient, createAdminClient } from "@/lib/supabase/server";
+import { getDefaultCurrency } from "@/lib/country-config";
 
 /**
  * GET /api/finance/family/budgets
@@ -19,7 +20,7 @@ export async function GET() {
     // Get user's profile and family group
     const { data: profile } = await supabase
       .from("profiles")
-      .select("family_group_id, subscription_tier")
+      .select("family_group_id, subscription_tier, country")
       .eq("id", user.id)
       .single();
 
@@ -90,16 +91,54 @@ export async function GET() {
     const now = new Date();
     const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
 
-    // Get transactions for all consented members (all transactions, not just family-scoped)
     // Using admin client to bypass RLS since we've already verified access
     const adminClient = createAdminClient();
-    const { data: transactions } = await adminClient
-      .from("transactions")
-      .select("category, amount, transaction_type")
-      .in("user_id", memberIds)
-      .eq("transaction_type", "debit")
-      .gte("transaction_date", startOfMonth)
-      .is("deleted_at", null);
+
+    // Get each member's profile country for region filtering
+    const { data: memberProfiles } = await adminClient
+      .from("profiles")
+      .select("id, country")
+      .in("id", memberIds);
+
+    // Build region-filtered account IDs for all family members
+    // Each member's data is filtered by THEIR country
+    const allRegionAccountIds: string[] = [];
+    if (memberIds.length > 0) {
+      for (const memberId of memberIds) {
+        const memberProfile = memberProfiles?.find((p) => p.id === memberId);
+        const memberRegion = memberProfile?.country || "BH";
+
+        const { data: memberConnections } = await adminClient
+          .from("bank_connections")
+          .select("id")
+          .eq("user_id", memberId)
+          .eq("status", "active")
+          .eq("region", memberRegion);
+        const memberConnectionIds = memberConnections?.map((c) => c.id) || [];
+
+        if (memberConnectionIds.length > 0) {
+          const { data: memberAccounts } = await adminClient
+            .from("bank_accounts")
+            .select("id")
+            .in("connection_id", memberConnectionIds);
+          allRegionAccountIds.push(...(memberAccounts?.map((a) => a.id) || []));
+        }
+      }
+    }
+
+    // Get transactions for all consented members, filtered by region-appropriate accounts
+    let transactions: { category: string | null; amount: number; transaction_type: string }[] | null = null;
+    if (allRegionAccountIds.length > 0) {
+      const { data } = await adminClient
+        .from("transactions")
+        .select("category, amount, transaction_type")
+        .in("user_id", memberIds)
+        .in("account_id", allRegionAccountIds)
+        .eq("transaction_type", "debit")
+        .gte("transaction_date", startOfMonth)
+        .is("deleted_at", null);
+      transactions = data;
+    }
 
     // Calculate spent per category
     const spentByCategory: Record<string, number> = {};
@@ -151,7 +190,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { category, amount, currency = "BHD", period = "monthly", showMemberBreakdown = false } = body;
+    const { category, amount, currency: currencyParam, period = "monthly", showMemberBreakdown = false } = body;
 
     // Validate input
     if (!category || !amount) {
@@ -169,23 +208,25 @@ export async function POST(request: NextRequest) {
     }
 
     // Get user's profile and family group
-    const { data: profile } = await supabase
+    const { data: postProfile } = await supabase
       .from("profiles")
-      .select("family_group_id, subscription_tier")
+      .select("family_group_id, subscription_tier, country")
       .eq("id", user.id)
       .single();
 
-    if (!profile) {
+    if (!postProfile) {
       return NextResponse.json({ error: "Profile not found" }, { status: 404 });
     }
+
+    const currency = currencyParam || getDefaultCurrency(postProfile.country);
 
     // Check if user has family features
     // User has family features if they have Pro/Family tier OR are a member of a family group
     // (family members inherit the family tier from the group owner)
     const hasFamilyFeatures =
-      profile.subscription_tier === "pro" ||
-      profile.subscription_tier === "family" ||
-      !!profile.family_group_id; // Family members inherit access
+      postProfile.subscription_tier === "pro" ||
+      postProfile.subscription_tier === "family" ||
+      !!postProfile.family_group_id; // Family members inherit access
     if (!hasFamilyFeatures) {
       return NextResponse.json(
         { error: "Family features require Pro subscription" },
@@ -193,7 +234,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    if (!profile.family_group_id) {
+    if (!postProfile.family_group_id) {
       return NextResponse.json(
         { error: "You must be in a family group to create family budgets" },
         { status: 400 }
@@ -204,7 +245,7 @@ export async function POST(request: NextRequest) {
     const { data: existingBudget } = await supabase
       .from("budgets")
       .select("id")
-      .eq("family_group_id", profile.family_group_id)
+      .eq("family_group_id", postProfile.family_group_id)
       .eq("scope", "family")
       .eq("category", category.toLowerCase())
       .eq("is_active", true)
@@ -244,7 +285,7 @@ export async function POST(request: NextRequest) {
       .from("budgets")
       .insert({
         user_id: user.id, // Creator
-        family_group_id: profile.family_group_id,
+        family_group_id: postProfile.family_group_id,
         scope: "family",
         category: category.toLowerCase(),
         amount,

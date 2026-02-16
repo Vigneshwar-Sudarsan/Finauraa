@@ -37,11 +37,20 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
       );
     }
 
+    // Get user's region for filtering
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("country")
+      .eq("id", user.id)
+      .single();
+    const userRegion = profile?.country || "BH";
+
     const { data: goal, error } = await supabase
       .from("savings_goals")
       .select("*")
       .eq("id", id)
       .eq("user_id", user.id)
+      .eq("region", userRegion)
       .single();
 
     if (error || !goal) {

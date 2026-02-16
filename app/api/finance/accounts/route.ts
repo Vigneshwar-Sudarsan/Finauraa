@@ -34,7 +34,34 @@ export async function GET() {
       });
     }
 
-    // Fetch accounts with their bank connection info
+    // Get user's region for filtering
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("country")
+      .eq("id", user.id)
+      .single();
+    const userRegion = profile?.country || "BH";
+
+    // Get region-filtered connection IDs
+    const { data: regionConnections } = await supabase
+      .from("bank_connections")
+      .select("id")
+      .eq("user_id", user.id)
+      .eq("status", "active")
+      .eq("region", userRegion);
+    const regionConnectionIds = regionConnections?.map(c => c.id) || [];
+
+    // If no connections for this region, return empty data
+    if (regionConnectionIds.length === 0) {
+      return NextResponse.json({
+        accounts: [],
+        totalBalance: 0,
+        accountCount: 0,
+        noBanksConnected: true,
+      });
+    }
+
+    // Fetch accounts with their bank connection info (region-filtered)
     const { data: accounts, error } = await supabase
       .from("bank_accounts")
       .select(
@@ -56,6 +83,7 @@ export async function GET() {
       `
       )
       .eq("user_id", user.id)
+      .in("connection_id", regionConnectionIds)
       .order("balance", { ascending: false });
 
     if (error) {
