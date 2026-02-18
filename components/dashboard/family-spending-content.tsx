@@ -256,7 +256,7 @@ export function FamilySpendingContent({ refreshTrigger }: FamilySpendingContentP
   // Loading state
   if (isLoading) {
     return (
-      <div className="p-4 md:p-6 space-y-6 max-w-4xl mx-auto">
+      <div className="p-4 md:p-6 space-y-6 max-w-4xl mx-auto pb-24 md:pb-6">
         <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
           {/* Left Column */}
           <div className="lg:col-span-3 space-y-6">
@@ -488,7 +488,7 @@ export function FamilySpendingContent({ refreshTrigger }: FamilySpendingContentP
   }
 
   return (
-    <div className="p-4 md:p-6 space-y-6 max-w-4xl mx-auto">
+    <div className="p-4 md:p-6 space-y-6 max-w-4xl mx-auto pb-24 md:pb-6">
       <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
         {/* Left Column - Main Content (60% on desktop) */}
         <div className="lg:col-span-3 space-y-6">

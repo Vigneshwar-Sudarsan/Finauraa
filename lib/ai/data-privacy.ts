@@ -105,12 +105,21 @@ function categorizeSpendingTrend(
 export async function getAnonymizedUserContext(userId: string): Promise<AnonymizedContext> {
   const supabase = await createClient();
 
-  // Check if user has any bank connections
+  // Get user's current country/region
+  const { data: userProfile } = await supabase
+    .from("profiles")
+    .select("country")
+    .eq("id", userId)
+    .single();
+  const userRegion = userProfile?.country || "BH";
+
+  // Check if user has any bank connections for current region
   const { data: connections } = await supabase
     .from("bank_connections")
     .select("id, status")
     .eq("user_id", userId)
-    .eq("status", "active");
+    .eq("status", "active")
+    .eq("region", userRegion);
 
   const hasBankConnected = (connections?.length ?? 0) > 0;
 
@@ -118,11 +127,14 @@ export async function getAnonymizedUserContext(userId: string): Promise<Anonymiz
     return { hasBankConnected: false };
   }
 
-  // Get account summary (aggregated, not exact)
+  const connectionIds = connections!.map((c) => c.id);
+
+  // Get account summary (aggregated, not exact) - filtered by region connections
   const { data: accounts } = await supabase
     .from("bank_accounts")
-    .select("balance, currency")
-    .eq("user_id", userId);
+    .select("id, balance, currency")
+    .eq("user_id", userId)
+    .in("connection_id", connectionIds);
 
   let accountSummary: AnonymizedContext["accountSummary"];
   if (accounts && accounts.length > 0) {
@@ -140,12 +152,17 @@ export async function getAnonymizedUserContext(userId: string): Promise<Anonymiz
   const thirtyDaysAgo = new Date();
   thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
 
-  const { data: transactions } = await supabase
-    .from("transactions")
-    .select("amount, category, transaction_date, currency")
-    .eq("user_id", userId)
-    .eq("transaction_type", "debit")
-    .gte("transaction_date", thirtyDaysAgo.toISOString());
+  const regionAccountIds = (accounts || []).map((a) => a.id);
+
+  const { data: transactions } = regionAccountIds.length > 0
+    ? await supabase
+        .from("transactions")
+        .select("amount, category, transaction_date, currency")
+        .eq("user_id", userId)
+        .eq("transaction_type", "debit")
+        .in("account_id", regionAccountIds)
+        .gte("transaction_date", thirtyDaysAgo.toISOString())
+    : { data: [] as any[] };
 
   let spendingSummary: AnonymizedContext["spendingSummary"];
   if (transactions && transactions.length > 0) {
@@ -188,7 +205,8 @@ export async function getAnonymizedUserContext(userId: string): Promise<Anonymiz
     .from("budgets")
     .select("id, category, amount, start_date, end_date, currency")
     .eq("user_id", userId)
-    .eq("is_active", true);
+    .eq("is_active", true)
+    .eq("region", userRegion);
 
   let budgetSummary: AnonymizedContext["budgetSummary"];
   if (budgets && budgets.length > 0) {
@@ -289,12 +307,21 @@ export function formatContextForAI(context: AnonymizedContext): string {
 export async function getEnhancedUserContext(userId: string): Promise<EnhancedContext> {
   const supabase = await createClient();
 
-  // Check if user has any bank connections
+  // Get user's current country/region
+  const { data: userProfile } = await supabase
+    .from("profiles")
+    .select("country")
+    .eq("id", userId)
+    .single();
+  const userRegion = userProfile?.country || "BH";
+
+  // Check if user has any bank connections for current region
   const { data: connections } = await supabase
     .from("bank_connections")
     .select("id, status")
     .eq("user_id", userId)
-    .eq("status", "active");
+    .eq("status", "active")
+    .eq("region", userRegion);
 
   const hasBankConnected = (connections?.length ?? 0) > 0;
 
@@ -302,27 +329,35 @@ export async function getEnhancedUserContext(userId: string): Promise<EnhancedCo
     return { hasBankConnected: false };
   }
 
-  // Get full account data with exact balances
+  const connectionIds = connections!.map((c) => c.id);
+
+  // Get full account data with exact balances - filtered by region connections
   const { data: accounts } = await supabase
     .from("bank_accounts")
-    .select("id, account_name, balance, currency, account_type")
-    .eq("user_id", userId);
+    .select("id, account_number, balance, currency, account_type")
+    .eq("user_id", userId)
+    .in("connection_id", connectionIds);
 
   const accountsData = accounts?.map(acc => ({
     id: acc.id,
-    name: acc.account_name || "Account",
+    name: acc.account_type || "Account",
     balance: acc.balance || 0,
     currency: acc.currency || "BHD",
     accountType: acc.account_type || "checking"
   }));
 
-  // Get recent transactions (last 100)
-  const { data: transactions } = await supabase
-    .from("transactions")
-    .select("id, amount, merchant_name, category, transaction_date, transaction_type")
-    .eq("user_id", userId)
-    .order("transaction_date", { ascending: false })
-    .limit(100);
+  const regionAccountIds = (accounts || []).map((a) => a.id);
+
+  // Get recent transactions (last 100) - filtered by region accounts
+  const { data: transactions } = regionAccountIds.length > 0
+    ? await supabase
+        .from("transactions")
+        .select("id, amount, merchant_name, category, transaction_date, transaction_type")
+        .eq("user_id", userId)
+        .in("account_id", regionAccountIds)
+        .order("transaction_date", { ascending: false })
+        .limit(100)
+    : { data: [] as any[] };
 
   const transactionsData = transactions?.map(t => ({
     id: t.id,
@@ -338,7 +373,8 @@ export async function getEnhancedUserContext(userId: string): Promise<EnhancedCo
     .from("budgets")
     .select("id, category, amount, start_date, end_date, currency")
     .eq("user_id", userId)
-    .eq("is_active", true);
+    .eq("is_active", true)
+    .eq("region", userRegion);
 
   const budgetsData = await Promise.all(
     (budgets || []).map(async (budget) => {
@@ -366,12 +402,13 @@ export async function getEnhancedUserContext(userId: string): Promise<EnhancedCo
   // Get savings goals
   const { data: goals } = await supabase
     .from("savings_goals")
-    .select("id, goal_name, target_amount, current_amount, currency")
+    .select("id, name, target_amount, current_amount, currency")
     .eq("user_id", userId)
-    .eq("is_active", true);
+    .eq("is_completed", false)
+    .eq("region", userRegion);
 
   const goalsData = goals?.map(g => ({
-    name: g.goal_name,
+    name: g.name,
     targetAmount: g.target_amount,
     currentAmount: g.current_amount || 0,
     progress: Math.round(((g.current_amount || 0) / g.target_amount) * 100)
@@ -382,12 +419,15 @@ export async function getEnhancedUserContext(userId: string): Promise<EnhancedCo
   const ninetyDaysAgo = new Date();
   ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90);
 
-  // Get all transactions from last 90 days
-  const { data: quarterTransactions } = await supabase
-    .from("transactions")
-    .select("amount, transaction_type")
-    .eq("user_id", userId)
-    .gte("transaction_date", ninetyDaysAgo.toISOString());
+  // Get all transactions from last 90 days - filtered by region accounts
+  const { data: quarterTransactions } = regionAccountIds.length > 0
+    ? await supabase
+        .from("transactions")
+        .select("amount, transaction_type")
+        .eq("user_id", userId)
+        .in("account_id", regionAccountIds)
+        .gte("transaction_date", ninetyDaysAgo.toISOString())
+    : { data: [] as any[] };
 
   // Calculate income from 90 days and average to monthly
   const quarterIncome = (quarterTransactions || [])

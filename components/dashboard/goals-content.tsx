@@ -222,7 +222,7 @@ export function GoalsContent() {
       {/* Family Tab Content */}
       {activeTab === "family" && (
         featureLoading ? (
-          <div className="flex-1 overflow-auto pb-24 sm:pb-0">
+          <div className="flex-1 overflow-auto pb-24 md:pb-0">
             <div className="p-4 md:p-6 space-y-6 max-w-4xl mx-auto">
               {/* Loading skeleton */}
               <Card className="overflow-hidden">
@@ -262,7 +262,7 @@ export function GoalsContent() {
             </div>
           </div>
         ) : canAccessFamilyFeatures ? (
-          <div className="flex-1 overflow-auto pb-24 sm:pb-0">
+          <div className="flex-1 overflow-auto pb-24 md:pb-0">
             <FamilyGoalsContent
               refreshTrigger={familyRefreshTrigger}
               onCreateGoal={handleCreateGoal}
@@ -323,7 +323,7 @@ export function GoalsContent() {
 
           {/* Loading State */}
           {isLoading && (
-            <div className="flex-1 overflow-auto pb-24 sm:pb-0">
+            <div className="flex-1 overflow-auto pb-24 md:pb-0">
               <div className="p-4 md:p-6 space-y-6 max-w-4xl mx-auto">
                 {/* Overview Card Skeleton */}
                 <Card className="overflow-hidden">
@@ -376,7 +376,7 @@ export function GoalsContent() {
 
           {/* Main Content */}
           {!isLoading && !error && goals.length > 0 && (
-            <div className="flex-1 overflow-auto pb-24 sm:pb-0">
+            <div className="flex-1 overflow-auto pb-24 md:pb-0">
               <div className="p-4 md:p-6 space-y-6 max-w-4xl mx-auto">
                 {/* Overview Card */}
                 <Card className="overflow-hidden">

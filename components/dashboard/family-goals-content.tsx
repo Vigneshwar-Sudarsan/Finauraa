@@ -152,7 +152,7 @@ export function FamilyGoalsContent({ refreshTrigger, onCreateGoal }: FamilyGoals
   // Loading state
   if (isLoading) {
     return (
-      <div className="p-4 md:p-6 max-w-4xl mx-auto space-y-6">
+      <div className="p-4 md:p-6 max-w-4xl mx-auto space-y-6 pb-24 md:pb-6">
         {/* Overview Card Skeleton */}
         <Card className="overflow-hidden">
           <CardContent className="p-0">
@@ -251,7 +251,7 @@ export function FamilyGoalsContent({ refreshTrigger, onCreateGoal }: FamilyGoals
   }
 
   return (
-    <div className="p-4 md:p-6 max-w-4xl mx-auto space-y-6">
+    <div className="p-4 md:p-6 max-w-4xl mx-auto space-y-6 pb-24 md:pb-6">
       {/* Overview Card */}
       <Card className="overflow-hidden">
         <CardContent className="p-0">

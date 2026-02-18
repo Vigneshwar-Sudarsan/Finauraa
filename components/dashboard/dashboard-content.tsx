@@ -87,7 +87,7 @@ export function DashboardContent() {
       {/* Loading or content */}
       {(isLoading || banks.length > 0) && (
       <div className="flex-1 overflow-auto">
-        <div className="p-4 md:p-6 space-y-6 max-w-4xl mx-auto">
+        <div className="p-4 md:p-6 space-y-6 max-w-4xl mx-auto pb-24 md:pb-6">
           {/* Loading skeleton */}
           {isLoading && (
             <>

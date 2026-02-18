@@ -1,4 +1,5 @@
 import useSWR from "swr";
+import { useProfile } from "@/hooks/use-profile";
 
 interface SpendingCategory {
   id: string;
@@ -48,19 +49,24 @@ interface UseSpendingReturn {
 }
 
 export function useSpending(): UseSpendingReturn {
+  const { profile } = useProfile();
+  const country = profile?.country || "BH";
+
   const { data, error, mutate } = useSWR<SpendingData>(
-    "/api/finance/insights/spending",
+    `/api/finance/insights/spending?region=${country}`,
     {
       revalidateOnFocus: false,
       dedupingInterval: 30000,
+      keepPreviousData: false,
     }
   );
 
   const { data: budgetsData, error: budgetsError, mutate: mutateBudgets } = useSWR<{ budgets: Budget[] }>(
-    "/api/finance/budgets",
+    `/api/finance/budgets?region=${country}`,
     {
       revalidateOnFocus: false,
       dedupingInterval: 30000,
+      keepPreviousData: false,
     }
   );
 

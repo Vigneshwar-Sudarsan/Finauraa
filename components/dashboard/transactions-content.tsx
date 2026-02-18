@@ -367,7 +367,7 @@ export function TransactionsContent() {
 
       {/* Transactions List */}
       {!isLoading && !error && displayTransactions.length > 0 && (
-        <div className="flex-1 overflow-auto p-4 md:p-6 pb-24 sm:pb-6">
+        <div className="flex-1 overflow-auto p-4 md:p-6 pb-24 md:pb-6">
           <div className="max-w-2xl mx-auto space-y-4">
             {/* Search & Filters - Always visible when there are transactions */}
             <div className="flex items-center gap-2">

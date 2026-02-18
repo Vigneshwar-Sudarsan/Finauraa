@@ -2,9 +2,9 @@ import { Skeleton } from "@/components/ui/skeleton";
 
 export default function GoalsLoading() {
   return (
-    <div className="flex flex-col h-dvh w-full overflow-hidden pb-16 md:pb-0">
+    <div className="flex flex-col h-dvh w-full overflow-hidden pb-safe-nav">
       {/* Header skeleton */}
-      <div className="flex items-center justify-between p-4 border-b">
+      <div className="flex items-center justify-between px-4 border-b" style={{ paddingTop: "calc(0.75rem + var(--sat, 0px))", height: "calc(3.5rem + var(--sat, 0px))" }}>
         <Skeleton className="h-6 w-28" />
       </div>
 

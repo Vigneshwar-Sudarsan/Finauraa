@@ -853,7 +853,7 @@ export async function getFinanceManagerContext(userId: string): Promise<FinanceM
   const regionConnectionIds = connections?.map(c => c.id) || [];
   const { data: accounts } = await supabase
     .from("bank_accounts")
-    .select("id, balance, currency, account_name, account_type")
+    .select("id, balance, currency, account_number, account_type")
     .eq("user_id", userId)
     .in("connection_id", regionConnectionIds);
 
@@ -918,7 +918,8 @@ export async function getFinanceManagerContext(userId: string): Promise<FinanceM
     .from("budgets")
     .select("id, category, amount, start_date, end_date, currency")
     .eq("user_id", userId)
-    .eq("is_active", true);
+    .eq("is_active", true)
+    .eq("region", userRegion);
 
   const budgets = await Promise.all(
     (budgetsData || []).map(async (budget) => {
@@ -957,9 +958,10 @@ export async function getFinanceManagerContext(userId: string): Promise<FinanceM
   // Get savings goals with projections
   const { data: goalsData } = await supabase
     .from("savings_goals")
-    .select("id, goal_name, target_amount, current_amount, target_date, currency")
+    .select("id, name, target_amount, current_amount, target_date, currency")
     .eq("user_id", userId)
-    .eq("is_active", true);
+    .eq("is_completed", false)
+    .eq("region", userRegion);
 
   const savingsGoals = (goalsData || []).map(goal => {
     const remaining = goal.target_amount - (goal.current_amount || 0);
@@ -986,7 +988,7 @@ export async function getFinanceManagerContext(userId: string): Promise<FinanceM
     }
 
     return {
-      name: goal.goal_name,
+      name: goal.name,
       targetAmount: goal.target_amount,
       currentAmount: goal.current_amount || 0,
       progress,

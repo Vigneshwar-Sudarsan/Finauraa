@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import {
   Sparkle,
@@ -27,6 +28,8 @@ import {
   SidebarSeparator,
 } from "@/components/ui/sidebar";
 import { createClient } from "@/lib/supabase/client";
+import { useProfile } from "@/hooks/use-profile";
+import { useSWRConfig } from "swr";
 import { GuideSpot } from "@/components/chat/feature-guide";
 
 // Map of sidebar items to their guide step IDs
@@ -95,6 +98,30 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const router = useRouter();
   const pathname = usePathname();
   const supabase = createClient();
+  const { profile, userId, mutate: mutateProfile } = useProfile();
+  const { mutate: globalMutate } = useSWRConfig();
+  const [switchingCountry, setSwitchingCountry] = useState(false);
+
+  const currentCountry = profile?.country || "BH";
+  const targetCountry = currentCountry === "BH" ? "SA" : "BH";
+
+  const handleCountrySwitch = async () => {
+    if (!userId || switchingCountry) return;
+    setSwitchingCountry(true);
+    try {
+      const { error } = await supabase
+        .from("profiles")
+        .update({ country: targetCountry, updated_at: new Date().toISOString() })
+        .eq("id", userId);
+      if (error) throw error;
+      await mutateProfile();
+      await globalMutate(() => true, undefined, { revalidate: true });
+    } catch (error) {
+      console.error("Error switching country:", error);
+    } finally {
+      setSwitchingCountry(false);
+    }
+  };
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
@@ -194,6 +221,16 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
 
       <SidebarFooter>
         <SidebarMenu>
+          <SidebarMenuItem>
+            <SidebarMenuButton
+              tooltip={`Switch to ${targetCountry === "SA" ? "Saudi Arabia" : "Bahrain"}`}
+              onClick={handleCountrySwitch}
+              disabled={switchingCountry}
+            >
+              <span className="text-base leading-none">{currentCountry === "BH" ? "🇧🇭" : "🇸🇦"}</span>
+              <span>{currentCountry === "BH" ? "Bahrain" : "Saudi Arabia"}</span>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
           {footerItems.map((item) => {
             const guideId = guideStepMap[item.title];
 

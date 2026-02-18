@@ -19,7 +19,7 @@ export function ChatHeader({
   onOpenHistory,
 }: ChatHeaderProps) {
   return (
-    <header className="flex items-center justify-between px-4 py-3 border-b border-border/40" style={{ paddingTop: "calc(0.75rem + var(--sat, 0px))" }}>
+    <header className="flex h-14 shrink-0 items-center justify-between px-4 border-b" style={{ paddingTop: "calc(0.75rem + var(--sat, 0px))", height: "calc(3.5rem + var(--sat, 0px))" }}>
       {/* Left - Menu Toggle + New Chat + History */}
       <div className="flex items-center gap-1">
         <GuideSpot id="sidebar-menu" side="bottom" align="start">

@@ -53,7 +53,7 @@ export function PaymentsContent() {
 
       {/* Main content */}
       <div className="flex-1 overflow-auto">
-        <div className="p-4 md:p-6 space-y-6 max-w-4xl mx-auto">
+        <div className="p-4 md:p-6 space-y-6 max-w-4xl mx-auto pb-24 md:pb-6">
           {/* Coming Soon Banner */}
           <Card className="bg-gradient-to-br from-amber-500/10 to-orange-500/5 border-amber-500/20">
             <CardContent className="py-8">

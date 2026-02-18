@@ -5,6 +5,7 @@ import {
   getOldestSyncTime,
   formatTimeAgo,
 } from "@/lib/sync-config";
+import { useProfile } from "@/hooks/use-profile";
 
 interface Account {
   id: string;
@@ -38,6 +39,7 @@ type SyncStatus = "idle" | "syncing" | "synced" | "error";
 interface UseBankConnectionsReturn {
   banks: BankConnection[];
   isLoading: boolean;
+  isValidating: boolean;
   isError: boolean;
   mutate: () => void;
   // Auto-sync state
@@ -50,15 +52,20 @@ interface UseBankConnectionsReturn {
 }
 
 export function useBankConnections(): UseBankConnectionsReturn {
+  const { profile } = useProfile();
+  const country = profile?.country || "BH";
   const [syncStatus, setSyncStatus] = useState<SyncStatus>("idle");
   const [lastSyncError, setLastSyncError] = useState<string | null>(null);
   const hasSyncedRef = useRef(false);
 
-  const { data, error, mutate } = useSWR<BankConnectionsData>(
-    "/api/finance/banks",
+  // Include country in key so SWR treats each region as a separate cache entry
+  // This prevents stale cross-country data from flashing during region switch
+  const { data, error, mutate, isValidating } = useSWR<BankConnectionsData>(
+    `/api/finance/banks?region=${country}`,
     {
       revalidateOnFocus: false,
       dedupingInterval: 30000,
+      keepPreviousData: false,
     }
   );
 
@@ -161,6 +168,7 @@ export function useBankConnections(): UseBankConnectionsReturn {
   return {
     banks: data?.banks ?? [],
     isLoading: !data && !error,
+    isValidating,
     isError: !!error,
     mutate,
     // Auto-sync state

@@ -11,7 +11,7 @@ export default function NotificationsPage() {
   return (
     <div className="flex flex-col h-full">
       {/* Header with Back Button */}
-      <div className="p-4 border-b sticky top-0 bg-background z-10">
+      <div className="p-4 border-b sticky top-0 bg-background z-10" style={{ paddingTop: "calc(1rem + var(--sat, 0px))" }}>
         <Button
           variant="ghost"
           size="sm"
@@ -25,7 +25,7 @@ export default function NotificationsPage() {
 
       {/* Main content */}
       <div className="flex-1 overflow-auto">
-        <div className="p-4 md:p-6 space-y-6 max-w-4xl mx-auto pb-24">
+        <div className="p-4 md:p-6 space-y-6 max-w-4xl mx-auto pb-24 md:pb-6">
           <NotificationSettings />
         </div>
       </div>

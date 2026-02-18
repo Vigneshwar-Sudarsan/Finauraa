@@ -6,13 +6,13 @@ export default function SubscriptionLoading() {
   return (
     <div className="flex flex-col h-dvh w-full overflow-hidden">
       {/* Header skeleton */}
-      <div className="p-4 border-b sticky top-0 bg-background z-10">
+      <div className="p-4 border-b sticky top-0 bg-background z-10" style={{ paddingTop: "calc(1rem + var(--sat, 0px))" }}>
         <Skeleton className="h-8 w-32" />
       </div>
 
       {/* Content skeleton */}
       <div className="flex-1 overflow-auto">
-        <div className="p-4 md:p-6 space-y-6 max-w-4xl mx-auto pb-24">
+        <div className="p-4 md:p-6 space-y-6 max-w-4xl mx-auto pb-24 md:pb-6">
           {/* Page Title Skeleton */}
           <div>
             <Skeleton className="h-7 w-32 mb-1" />

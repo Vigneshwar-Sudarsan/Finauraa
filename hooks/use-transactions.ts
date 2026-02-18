@@ -1,4 +1,5 @@
 import useSWR from "swr";
+import { useProfile } from "@/hooks/use-profile";
 
 interface Transaction {
   id: string;
@@ -50,8 +51,12 @@ export function useTransactions(params?: {
   startDate?: string;
   endDate?: string;
 }): UseTransactionsReturn {
-  // Build query string
+  const { profile } = useProfile();
+  const country = profile?.country || "BH";
+
+  // Build query string (include region for SWR cache separation)
   const queryParams = new URLSearchParams();
+  queryParams.set("region", country);
   if (params?.limit) queryParams.set("limit", params.limit.toString());
   if (params?.offset) queryParams.set("offset", params.offset.toString());
   if (params?.accountId && params.accountId !== "all") queryParams.set("accountId", params.accountId);
@@ -61,13 +66,14 @@ export function useTransactions(params?: {
   if (params?.endDate) queryParams.set("endDate", params.endDate);
 
   const queryString = queryParams.toString();
-  const url = `/api/finance/transactions${queryString ? `?${queryString}` : ""}`;
+  const url = `/api/finance/transactions?${queryString}`;
 
   const { data, error, mutate } = useSWR<TransactionsResponse>(
     url,
     {
       revalidateOnFocus: false,
       dedupingInterval: 30000,
+      keepPreviousData: false,
     }
   );
 

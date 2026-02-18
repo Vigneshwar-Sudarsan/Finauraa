@@ -10,7 +10,7 @@ export default function TransactionsPage() {
     <SidebarProvider defaultOpen={false}>
       <AppSidebar className="hidden md:flex" />
       <SidebarInset>
-        <main className="h-dvh w-full flex flex-col overflow-hidden pb-16 md:pb-0">
+        <main className="h-dvh w-full flex flex-col overflow-hidden pb-safe-nav">
           <TransactionsContent />
         </main>
         <DashboardBottomNav />

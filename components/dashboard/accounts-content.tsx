@@ -56,10 +56,13 @@ export function AccountsContent() {
   // Bank connection with consent dialog
   const { connectBank, isConnecting, ConsentDialog } = useBankConnection();
 
-  // Auto-select first bank when banks load
+  // Auto-select first bank when banks load, or reset if selected bank no longer exists
   useEffect(() => {
-    if (banks.length > 0 && !selectedBankId) {
-      setSelectedBankId(banks[0].id);
+    if (banks.length > 0) {
+      const selectedExists = banks.some((b) => b.id === selectedBankId);
+      if (!selectedBankId || !selectedExists) {
+        setSelectedBankId(banks[0].id);
+      }
     }
   }, [banks, selectedBankId]);
 
@@ -76,6 +79,9 @@ export function AccountsContent() {
   const allAccounts = banks.flatMap((bank) =>
     bank.accounts.map((acc) => ({ ...acc, bankName: bank.bank_name, bankId: bank.id }))
   );
+
+  // If selectedBankId is stale (doesn't exist in current banks), treat as transitional
+  const selectedBankValid = !selectedBankId || banks.some((b) => b.id === selectedBankId);
 
   const displayedAccounts = selectedBankId
     ? allAccounts.filter((acc) => acc.bankId === selectedBankId)
@@ -140,7 +146,7 @@ export function AccountsContent() {
       {/* Main content */}
       {(isLoading || banks.length > 0) && (
       <div className="flex-1 overflow-auto">
-        <div className="p-4 md:p-6 space-y-6 max-w-4xl mx-auto pb-24">
+        <div className="p-4 md:p-6 space-y-6 max-w-4xl mx-auto pb-24 md:pb-6">
           {/* Banks */}
           <BankSelector
             banks={banks}
@@ -150,7 +156,7 @@ export function AccountsContent() {
           />
 
           {/* Accounts List Skeleton */}
-          {isLoading && (
+          {(isLoading || !selectedBankValid) && (
             <Card>
               <CardHeader className="pb-2">
                 <CardTitle className="text-base">Accounts</CardTitle>
@@ -186,7 +192,7 @@ export function AccountsContent() {
           )}
 
           {/* Accounts List */}
-          {!isLoading && displayedAccounts.length > 0 && (
+          {!isLoading && selectedBankValid && displayedAccounts.length > 0 && (
             <Card>
               <CardHeader className="pb-2">
                 <CardTitle className="text-base">Accounts</CardTitle>
@@ -245,7 +251,7 @@ export function AccountsContent() {
           )}
 
           {/* Empty state - No accounts for selected bank */}
-          {!isLoading && displayedAccounts.length === 0 && (
+          {!isLoading && selectedBankValid && displayedAccounts.length === 0 && (
             <EmptyState
               icon={<Wallet size={28} className="text-muted-foreground" />}
               title="No accounts found"
@@ -260,7 +266,7 @@ export function AccountsContent() {
           )}
 
           {/* Refresh hint */}
-          {!isLoading && displayedAccounts.length > 0 && (
+          {!isLoading && selectedBankValid && displayedAccounts.length > 0 && (
             <p className="text-xs text-center text-muted-foreground">
               Data syncs automatically. Tap refresh for latest updates.
             </p>

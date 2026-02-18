@@ -1,4 +1,5 @@
 import useSWR from "swr";
+import { useProfile } from "@/hooks/use-profile";
 
 interface SavingsGoal {
   id: string;
@@ -30,11 +31,15 @@ interface UseSavingsGoalsReturn {
 }
 
 export function useSavingsGoals(): UseSavingsGoalsReturn {
+  const { profile } = useProfile();
+  const country = profile?.country || "BH";
+
   const { data, error, mutate } = useSWR<SavingsGoalsResponse>(
-    "/api/finance/savings-goals",
+    `/api/finance/savings-goals?region=${country}`,
     {
       revalidateOnFocus: false,
       dedupingInterval: 30000,
+      keepPreviousData: false,
     }
   );
 

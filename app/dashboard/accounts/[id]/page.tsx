@@ -17,7 +17,7 @@ export default function AccountDetailPage({
   return (
     <div className="flex flex-col h-dvh">
       {/* Header with Back Button */}
-      <div className="p-4 border-b sticky top-0 bg-background z-10">
+      <div className="p-4 border-b sticky top-0 bg-background z-10" style={{ paddingTop: "calc(1rem + var(--sat, 0px))" }}>
         <Button
           variant="ghost"
           size="sm"
